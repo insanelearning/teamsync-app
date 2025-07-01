@@ -1,4 +1,5 @@
 
+
 import { ProjectForm } from '../components/ProjectForm.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { Button } from '../components/Button.js';
@@ -8,7 +9,7 @@ let currentModalInstance = null;
 
 // Helper to get status/priority classes, can be moved if needed elsewhere
 const getStatusClass = (status) => {
-  const statusMap = { 'To Do': 'status-todo', 'In Progress': 'status-inprogress', 'QA': 'status-qa', 'Blocked': 'status-blocked', 'Done': 'status-done' };
+  const statusMap = { 'To Do': 'status-todo', 'In Progress': 'status-inprogress', 'QC': 'status-qa', 'Blocked': 'status-blocked', 'Done': 'status-done' };
   return statusMap[status] || 'status-default';
 };
 const getPriorityClass = (priority) => {
@@ -342,7 +343,7 @@ export function renderProjectsPage(container, props) {
     projectsContainer.innerHTML = ''; 
     if (displayProjects.length > 0) {
         const table = document.createElement('table');
-        table.className = "data-table projects-table";
+        table.className = "data-table projects-table responsive-table";
         table.innerHTML = `
             <thead>
                 <tr>
@@ -363,11 +364,11 @@ export function renderProjectsPage(container, props) {
             const tr = document.createElement('tr');
             tr.dataset.projectId = p.id;
             tr.innerHTML = `
-                <td>${p.name}</td>
-                <td><span class="project-status-badge ${getStatusClass(p.status)}">${p.status}</span></td>
-                <td class="truncate" title="${assigneesNames}">${assigneesNames}</td>
-                <td>${new Date(p.dueDate).toLocaleDateString()}</td>
-                <td><span class="${getPriorityClass(p.priority)}">${p.priority}</span></td>
+                <td data-label="Project Name">${p.name}</td>
+                <td data-label="Status"><span class="project-status-badge ${getStatusClass(p.status)}">${p.status}</span></td>
+                <td data-label="Assignees" class="truncate" title="${assigneesNames}">${assigneesNames}</td>
+                <td data-label="Due Date">${new Date(p.dueDate).toLocaleDateString()}</td>
+                <td data-label="Priority"><span class="${getPriorityClass(p.priority)}">${p.priority}</span></td>
             `;
             tbody.appendChild(tr);
         });
