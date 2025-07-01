@@ -27,35 +27,49 @@ export function AttendanceCard({ member, date, record, leaveTypes, onUpsertRecor
     const statusButtonsContainer = document.createElement('div');
     statusButtonsContainer.className = 'attendance-card-status-buttons';
     
-    const handleStatusChange = (newStatus) => {
-        const newRecord = {
+    const handleUpsert = (newDetails) => {
+        const baseRecord = {
+            status: currentStatus,
+            leaveType: currentLeaveType,
+            notes: currentNotes,
+            ...newDetails,
+        };
+
+        const finalRecord = {
             id: record?.id || `${member.id}-${date}`,
             memberId: member.id,
             date: date,
-            status: newStatus,
-            leaveType: newStatus === AttendanceStatus.Leave ? currentLeaveType : undefined,
-            notes: currentNotes,
+            status: baseRecord.status || AttendanceStatus.Present,
         };
-        onUpsertRecord(newRecord);
+
+        if (finalRecord.status === AttendanceStatus.Leave && baseRecord.leaveType) {
+            finalRecord.leaveType = baseRecord.leaveType;
+        }
+
+        if (baseRecord.notes && baseRecord.notes.trim()) {
+            finalRecord.notes = baseRecord.notes.trim();
+        }
+
+        onUpsertRecord(finalRecord);
     };
 
     const presentBtn = Button({
         children: 'Present',
         variant: 'secondary',
         className: 'status-btn-present',
-        onClick: () => handleStatusChange(AttendanceStatus.Present)
+        onClick: () => handleUpsert({ status: AttendanceStatus.Present })
     });
     const wfhBtn = Button({
         children: 'WFH',
         variant: 'secondary',
         className: 'status-btn-wfh',
-        onClick: () => handleStatusChange(AttendanceStatus.WorkFromHome)
+        onClick: () => handleUpsert({ status: AttendanceStatus.WorkFromHome })
     });
     const leaveBtn = Button({
         children: 'Leave',
         variant: 'secondary',
         className: 'status-btn-leave',
-        onClick: () => handleStatusChange(AttendanceStatus.Leave)
+        onClick: () => handleUpsert({ status: AttendanceStatus.Leave })
     });
     statusButtonsContainer.append(presentBtn, wfhBtn, leaveBtn);
     card.appendChild(statusButtonsContainer);
@@ -63,23 +77,12 @@ export function AttendanceCard({ member, date, record, leaveTypes, onUpsertRecor
     const contextualFieldsContainer = document.createElement('div');
     contextualFieldsContainer.className = 'attendance-card-contextual-fields';
     
-    const handleDetailChange = (details) => {
-        const newRecord = {
-            id: record?.id || `${member.id}-${date}`,
-            memberId: member.id,
-            date: date,
-            status: currentStatus || AttendanceStatus.Present,
-            ...details
-        };
-        onUpsertRecord(newRecord);
-    };
-    
     if (currentStatus === AttendanceStatus.Leave) {
         const leaveTypeSelect = document.createElement('select');
         leaveTypeSelect.className = 'form-select';
         leaveTypeSelect.innerHTML = `<option value="">Select Leave Type...</option>` + leaveTypes.map(lt => `<option value="${lt}" ${currentLeaveType === lt ? 'selected' : ''}>${lt}</option>`).join('');
         leaveTypeSelect.value = currentLeaveType || '';
-        leaveTypeSelect.onchange = (e) => handleDetailChange({ leaveType: e.target.value, notes: currentNotes });
+        leaveTypeSelect.onchange = (e) => handleUpsert({ leaveType: e.target.value });
         contextualFieldsContainer.appendChild(leaveTypeSelect);
     }
     
@@ -91,7 +94,7 @@ export function AttendanceCard({ member, date, record, leaveTypes, onUpsertRecor
     notesInput.onblur = (e) => {
         // Only update if notes actually changed to avoid unnecessary re-renders
         if (e.target.value !== currentNotes) {
-           handleDetailChange({ leaveType: currentLeaveType, notes: e.target.value });
+           handleUpsert({ notes: e.target.value });
         }
     };
     notesInput.onkeydown = (e) => {
