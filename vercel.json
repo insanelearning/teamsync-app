@@ -1,4 +1,7 @@
 
 {
-  "framework": null
+  "version": 2,
+  "framework": null,
+  "installCommand": "echo 'Skipping: This is a static project and has no dependencies to install.'",
+  "buildCommand": "echo 'Skipping: This is a static project and does not need a build step.'"
 }
