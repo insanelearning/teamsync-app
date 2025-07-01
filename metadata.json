@@ -1,0 +1,6 @@
+{
+  "name": "Copy of TeamSync - Project & Attendance Tracker",
+  "description": "A web application to track team projects, daily attendance, and personal notes, with data managed locally and options for CSV import/export.",
+  "requestFramePermissions": [],
+  "prompt": ""
+}
