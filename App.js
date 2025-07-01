@@ -404,7 +404,7 @@ export async function initializeApp(appRootElement) {
 
   const footer = document.createElement('footer');
   footer.className = 'app-footer';
-  footer.innerHTML = `TeamSync &copy; ${new Date().getFullYear()}`;
+  footer.innerHTML = `Team Management Application &copy; ${new Date().getFullYear()}`;
   rootElement.appendChild(footer);
 
   // Set theme based on preference
