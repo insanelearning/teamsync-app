@@ -1,6 +1,6 @@
 
-import { initializeApp } from "firebase/app";
-import { getFirestore, collection, getDocs, doc, setDoc, updateDoc, deleteDoc, writeBatch, query, where, Timestamp } from "firebase/firestore";
+import { initializeApp } from "firebase-app";
+import { getFirestore, collection, getDocs, doc, setDoc, updateDoc, deleteDoc, writeBatch, query, where, Timestamp } from "firebase-firestore";
 
 // Initialize Firebase
 let app;
