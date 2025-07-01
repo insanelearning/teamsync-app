@@ -1,64 +1,33 @@
 
 import { initializeApp } from "firebase-app";
 import { getFirestore, collection, getDocs, doc, setDoc, updateDoc, deleteDoc, writeBatch, query, where, Timestamp } from "firebase-firestore";
+import { firebaseConfig } from '../firebaseConfig.js';
 
 // Initialize Firebase
 let app;
 let db;
 
 try {
-    // Construct config from environment variables
-    const firebaseConfig = {
-      apiKey: process.env.VITE_FIREBASE_API_KEY,
-      authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN,
-      projectId: process.env.VITE_FIREBASE_PROJECT_ID,
-      storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET,
-      messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-      appId: process.env.VITE_FIREBASE_APP_ID,
-      measurementId: process.env.VITE_FIREBASE_MEASUREMENT_ID,
-    };
-
     // A simple check to see if the config is still using placeholder values
-    if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
-        throw new Error("Firebase configuration is not complete. Please check your environment variables.");
+    if (!firebaseConfig.apiKey || firebaseConfig.apiKey.startsWith("YOUR_")) {
+        throw new Error("Firebase configuration is not complete. Please check your firebaseConfig.js file.");
     }
     app = initializeApp(firebaseConfig);
     db = getFirestore(app);
 } catch (error) {
     console.error("Firebase initialization error:", error);
-    // Display a user-friendly error directly on the page
+    // Display a more generic error if config is missing, as the user now controls the config file.
     document.body.innerHTML = `
         <div class="firebase-config-error-container">
             <h1><i class="fas fa-exclamation-triangle"></i> Firebase Configuration Error</h1>
-            <p>The application could not connect to the database. This is likely due to missing configuration settings on the hosting platform.</p>
+            <p>The application could not connect to the database.</p>
             <h2>How to Fix This:</h2>
-            <p>You need to add your Firebase and Gemini credentials as <strong>Environment Variables</strong> in your Vercel project settings.</p>
-            <div class="steps">
-              <div class="step">
-                <div class="step-number">1</div>
-                <div class="step-text">In your Vercel project dashboard, go to the <strong>Settings</strong> tab.</div>
-              </div>
-              <div class="step">
-                <div class="step-number">2</div>
-                <div class="step-text">Click on <strong>Environment Variables</strong> in the side menu.</div>
-              </div>
-              <div class="step">
-                <div class="step-number">3</div>
-                <div class="step-text">Add a variable for your Gemini API Key called <code>API_KEY</code>.</div>
-              </div>
-               <div class="step">
-                <div class="step-number">4</div>
-                <div class="step-text">Add all the Firebase variables (e.g., <code>VITE_FIREBASE_API_KEY</code>, <code>VITE_FIREBASE_PROJECT_ID</code>, etc.) with the values from your Firebase project config.</div>
-              </div>
-              <div class="step">
-                <div class="step-number">5</div>
-                <div class="step-text">After adding the variables, go to the <strong>Deployments</strong> tab, click the latest deployment, and choose <strong>Redeploy</strong> to apply the changes.</div>
-              </div>
-            </div>
+            <p>Please make sure you have copied your Firebase project configuration into the <code>firebaseConfig.js</code> file in your project.</p>
             <p class="error-message"><strong>Original Error:</strong> ${error.message}</p>
         </div>
     `;
-    throw new Error("Could not initialize Firebase. Please check your hosting environment variables.");
+    // Stop execution if Firebase fails to initialize
+    throw new Error("Could not initialize Firebase. Please check your firebaseConfig.js file.");
 }
 
 /**
@@ -169,3 +138,4 @@ export async function deleteByQuery(collectionName, field, value) {
     });
     await batch.commit();
 }
+
