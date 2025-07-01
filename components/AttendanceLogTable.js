@@ -1,5 +1,4 @@
 
-
 import { Button } from './Button.js';
 
 export function AttendanceLogTable({ logs, teamMembers, onDelete }) {
@@ -22,9 +21,10 @@ export function AttendanceLogTable({ logs, teamMembers, onDelete }) {
 
   container.className = "log-viewer-table-container"; // CSS class for the table's scrolling container
   const table = document.createElement('table');
-  table.className = "data-table responsive-table"; // General data table styling + responsive class
+  table.className = "data-table"; // General data table styling
   
   const thead = document.createElement('thead');
+  // thead.className = "sticky top-0 z-10"; // Sticky handled by .log-viewer-table-container .data-table thead
   thead.innerHTML = `
     <tr>
       <th>Date</th>
@@ -41,18 +41,33 @@ export function AttendanceLogTable({ logs, teamMembers, onDelete }) {
   logs.forEach((log) => {
     const tr = document.createElement('tr');
     const displayDate = new Date(log.date + 'T00:00:00').toLocaleDateString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit' });
-
-    // Use innerHTML for easier data-label injection
-    tr.innerHTML = `
-        <td data-label="Date">${displayDate}</td>
-        <td data-label="Member Name">${getMemberName(log.memberId)}</td>
-        <td data-label="Status">${log.status}</td>
-        <td data-label="Leave Type">${log.leaveType || 'N/A'}</td>
-        <td data-label="Notes" class="truncate" title="${log.notes || ''}" style="max-width: 150px;">${log.notes || '-'}</td>
-        <td data-label="Action" class="action-cell"></td>
-    `;
     
-    // Append button to the action cell
+    const tdDate = document.createElement('td');
+    tdDate.textContent = displayDate;
+    tr.appendChild(tdDate);
+
+    const tdName = document.createElement('td');
+    tdName.textContent = getMemberName(log.memberId);
+    // tdName.className = 'font-medium'; // Handled by table styles if desired
+    tr.appendChild(tdName);
+
+    const tdStatus = document.createElement('td');
+    tdStatus.textContent = log.status;
+    tr.appendChild(tdStatus);
+
+    const tdLeaveType = document.createElement('td');
+    tdLeaveType.textContent = log.leaveType || 'N/A';
+    tr.appendChild(tdLeaveType);
+
+    const tdNotes = document.createElement('td');
+    tdNotes.textContent = log.notes || '-';
+    tdNotes.title = log.notes || '';
+    tdNotes.classList.add('truncate'); // Add truncate class for long notes
+    tdNotes.style.maxWidth = '150px'; // Limit width for truncation to be effective in table cell
+    tr.appendChild(tdNotes);
+
+    const tdAction = document.createElement('td');
+    tdAction.className = 'action-cell';
     const deleteButton = Button({
       variant: 'danger',
       size: 'sm',
@@ -61,7 +76,8 @@ export function AttendanceLogTable({ logs, teamMembers, onDelete }) {
       ariaLabel: `Delete log for ${getMemberName(log.memberId)} on ${log.date}`,
       onClick: () => onDelete(log.id),
     });
-    tr.querySelector('.action-cell').appendChild(deleteButton);
+    tdAction.appendChild(deleteButton);
+    tr.appendChild(tdAction);
     
     tbody.appendChild(tr);
   });
