@@ -1,4 +1,4 @@
+
 {
-  "installCommand": "echo 'Skipping install step: This is a static project.'",
-  "buildCommand": "echo 'Skipping build step: This is a static project.'"
+  "framework": null
 }
