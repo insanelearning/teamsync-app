@@ -22,63 +22,103 @@ let teamMembers = [];
 
 // Project handlers
 const addProject = async (project) => {
-  const { id, ...data } = project;
-  await setDocument('projects', id, data);
-  projects.push(project);
-  renderApp();
+  try {
+    const { id, ...data } = project;
+    await setDocument('projects', id, data);
+    projects.push(project);
+    renderApp();
+  } catch (error) {
+    console.error("Failed to add project:", error);
+    alert("Error: Could not save the new project to the database.");
+  }
 };
 
 const updateProject = async (updatedProject) => {
-  const { id, ...data } = updatedProject;
-  await updateDocument('projects', id, data);
-  projects = projects.map(p => p.id === id ? updatedProject : p);
-  renderApp();
+  try {
+    const { id, ...data } = updatedProject;
+    await updateDocument('projects', id, data);
+    projects = projects.map(p => p.id === id ? updatedProject : p);
+    renderApp();
+  } catch (error) {
+    console.error("Failed to update project:", error);
+    alert("Error: Could not update the project in the database.");
+  }
 };
 
 const deleteProject = async (projectId) => {
-  await deleteDocument('projects', projectId);
-  projects = projects.filter(p => p.id !== projectId);
-  renderApp();
+  try {
+    await deleteDocument('projects', projectId);
+    projects = projects.filter(p => p.id !== projectId);
+    renderApp();
+  } catch (error) {
+    console.error("Failed to delete project:", error);
+    alert("Error: Could not delete the project from the database.");
+  }
 };
 
 // Attendance handlers
 const upsertAttendanceRecord = async (record) => {
-  const { id, ...data } = record;
-  await setDocument('attendance', id, data);
-  const existingIndex = attendance.findIndex(r => r.id === id);
-  if (existingIndex > -1) {
-    attendance[existingIndex] = record;
-  } else {
-    attendance.push(record);
+  try {
+    const { id, ...data } = record;
+    await setDocument('attendance', id, data);
+    const existingIndex = attendance.findIndex(r => r.id === id);
+    if (existingIndex > -1) {
+      attendance[existingIndex] = record;
+    } else {
+      attendance.push(record);
+    }
+    renderApp();
+  } catch (error) {
+    console.error("Failed to save attendance record:", error);
+    alert("Error: Could not save the attendance record.");
   }
-  renderApp();
 };
 
 const deleteAttendanceRecord = async (recordId) => {
-  await deleteDocument('attendance', recordId);
-  attendance = attendance.filter(r => r.id !== recordId);
-  renderApp();
+  try {
+    await deleteDocument('attendance', recordId);
+    attendance = attendance.filter(r => r.id !== recordId);
+    renderApp();
+  } catch (error) {
+    console.error("Failed to delete attendance record:", error);
+    alert("Error: Could not delete the attendance record.");
+  }
 };
 
 // Note handlers
 const addNote = async (note) => {
-  const { id, ...data } = note;
-  await setDocument('notes', id, data);
-  notes.push(note);
-  renderApp();
+  try {
+    const { id, ...data } = note;
+    await setDocument('notes', id, data);
+    notes.push(note);
+    renderApp();
+  } catch (error) {
+    console.error("Failed to add note:", error);
+    alert("Error: Could not save the new note.");
+  }
 };
 
 const updateNote = async (updatedNote) => {
-  const { id, ...data } = updatedNote;
-  await updateDocument('notes', id, data);
-  notes = notes.map(n => n.id === id ? updatedNote : n);
-  renderApp();
+  try {
+    const { id, ...data } = updatedNote;
+    await updateDocument('notes', id, data);
+    notes = notes.map(n => n.id === id ? updatedNote : n);
+    renderApp();
+  } catch (error) {
+    console.error("Failed to update note:", error);
+    alert("Error: Could not update the note.");
+  }
 };
 
 const deleteNote = async (noteId) => {
-  await deleteDocument('notes', noteId);
-  notes = notes.filter(n => n.id !== noteId);
-  renderApp();
+  try {
+    await deleteDocument('notes', noteId);
+    notes = notes.filter(n => n.id !== noteId);
+    renderApp();
+  } catch (error) {
+    console.error("Failed to delete note:", error);
+    alert("Error: Could not delete the note.");
+  }
 };
 
 // Team Member handlers
@@ -87,17 +127,27 @@ const addTeamMember = async (member) => {
     alert("Team size cannot exceed 20 members.");
     return;
   }
-  const { id, ...data } = member;
-  await setDocument('teamMembers', id, data);
-  teamMembers.push(member);
-  renderApp();
+  try {
+    const { id, ...data } = member;
+    await setDocument('teamMembers', id, data);
+    teamMembers.push(member);
+    renderApp();
+  } catch (error) {
+    console.error("Failed to add team member:", error);
+    alert("Error: Could not save the new team member to the database. Please check the console (F12) for more details.");
+  }
 };
 
 const updateTeamMember = async (updatedMember) => {
-  const { id, ...data } = updatedMember;
-  await updateDocument('teamMembers', id, data);
-  teamMembers = teamMembers.map(m => m.id === id ? updatedMember : m);
-  renderApp();
+  try {
+    const { id, ...data } = updatedMember;
+    await updateDocument('teamMembers', id, data);
+    teamMembers = teamMembers.map(m => m.id === id ? updatedMember : m);
+    renderApp();
+  } catch (error) {
+    console.error("Failed to update team member:", error);
+    alert("Error: Could not update the team member.");
+  }
 };
 
 const deleteTeamMember = async (memberId) => {
@@ -301,22 +351,40 @@ function renderApp() {
 }
 
 async function loadInitialData(seedIfEmpty = true) {
+  try {
     const [projectData, attendanceData, notesData, teamMemberData] = await Promise.all([
         getCollection('projects'),
         getCollection('attendance'),
         getCollection('notes'),
         getCollection('teamMembers')
     ]);
+    
     projects = projectData;
     attendance = attendanceData;
     notes = notesData;
-    teamMembers = teamMemberData;
 
-    if (seedIfEmpty && teamMemberData.length === 0 && projectData.length === 0) {
-        console.log("No data found in database. Seeding with initial team members.");
-        await batchWrite('teamMembers', INITIAL_TEAM_MEMBERS);
-        teamMembers = INITIAL_TEAM_MEMBERS;
+    // Check if team members need to be seeded. This is more robust.
+    if (seedIfEmpty && teamMemberData.length === 0) {
+        console.log("No team members found in database. Seeding with initial data.");
+        const membersToSeed = INITIAL_TEAM_MEMBERS;
+        await batchWrite('teamMembers', membersToSeed);
+        // After seeding, refetch the team members to ensure we have the correct data from the DB
+        teamMembers = await getCollection('teamMembers'); 
+    } else {
+        // Otherwise, just use the data we fetched
+        teamMembers = teamMemberData;
     }
+  } catch (error) {
+    console.error("Failed to load initial data from Firestore:", error);
+    rootElement.innerHTML = `<div class="firebase-config-error-container">
+            <h1><i class="fas fa-exclamation-triangle"></i> Data Loading Error</h1>
+            <p>The application could not load data from the database.</p>
+            <p>This might be due to a network issue or incorrect Firebase security rules.</p>
+            <p>Please check your internet connection and ensure your Firestore security rules are correctly set up to allow reads.</p>
+            <p class="error-message"><strong>Original Error:</strong> ${error.message}</p>
+        </div>`;
+    throw error; // Stop execution
+  }
 }
 
 export async function initializeApp(appRootElement) {
