@@ -17,6 +17,7 @@ export function Navbar({ currentView, onNavChange, onThemeToggle }) {
   flexDiv.className = 'navbar-flex';
   containerDiv.appendChild(flexDiv);
 
+  // --- Left Section (Logo only) ---
   const leftSection = document.createElement('div');
   leftSection.className = 'navbar-left-section';
   
@@ -26,10 +27,15 @@ export function Navbar({ currentView, onNavChange, onThemeToggle }) {
   logoShrinkDiv.className = 'navbar-logo-shrink';
   const logoSpan = document.createElement('span');
   logoSpan.className = 'navbar-logo-text';
-  logoSpan.innerHTML = '<i class="fa-solid fa-futbol navbar-logo-icon"></i>Media Team Management';
+  logoSpan.innerHTML = '<i class="fas fa-sync-alt navbar-logo-icon"></i>TeamSync';
   logoShrinkDiv.appendChild(logoSpan);
   logoDiv.appendChild(logoShrinkDiv);
   leftSection.appendChild(logoDiv);
+  flexDiv.appendChild(leftSection);
+  
+  // --- Right Section (Menu, Theme Toggle, Mobile Button) ---
+  const rightSection = document.createElement('div');
+  rightSection.className = 'navbar-right-section';
 
   // Desktop Menu
   const desktopMenuDiv = document.createElement('div');
@@ -44,11 +50,7 @@ export function Navbar({ currentView, onNavChange, onThemeToggle }) {
     desktopMenuItemsDiv.appendChild(button);
   });
   desktopMenuDiv.appendChild(desktopMenuItemsDiv);
-  leftSection.appendChild(desktopMenuDiv);
-  flexDiv.appendChild(leftSection);
-  
-  const rightSection = document.createElement('div');
-  rightSection.className = 'navbar-right-section';
+  rightSection.appendChild(desktopMenuDiv); // Add desktop menu to the right section
 
   // Theme Toggle Button
   const themeToggleButton = document.createElement('button');
@@ -80,7 +82,8 @@ export function Navbar({ currentView, onNavChange, onThemeToggle }) {
   };
   mobileMenuButtonDiv.appendChild(mobileButton);
   rightSection.appendChild(mobileMenuButtonDiv);
-  flexDiv.appendChild(rightSection);
+  
+  flexDiv.appendChild(rightSection); // Add the entire right section to the flex container
   
   // Mobile Menu
   const mobileMenuItemsDiv = document.createElement('div');
