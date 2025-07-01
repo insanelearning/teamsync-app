@@ -1,5 +1,4 @@
 
-
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { TeamMemberForm } from '../components/TeamMemberForm.js';
@@ -178,7 +177,7 @@ export function renderAttendancePage(container, props) {
           tableContainer.className = 'data-table-container';
 
           const table = document.createElement('table');
-          table.className = 'data-table team-members-table responsive-table';
+          table.className = 'data-table team-members-table';
           table.innerHTML = `<thead><tr><th>Name</th><th>Designation</th><th>Department</th><th>Active Projects</th></tr></thead>`;
           const tbody = document.createElement('tbody');
           members.forEach(member => {
@@ -188,10 +187,10 @@ export function renderAttendancePage(container, props) {
             const activeProjectsCount = projects.filter(p => p.status !== 'Done' && (p.assignees || []).includes(member.id)).length;
 
             tr.innerHTML = `
-                <td data-label="Name">${member.name}</td>
-                <td data-label="Designation">${member.designation || 'N/A'}</td>
-                <td data-label="Department">${member.department || 'N/A'}</td>
-                <td data-label="Active Projects">${activeProjectsCount}</td>
+                <td>${member.name}</td>
+                <td>${member.designation || 'N/A'}</td>
+                <td>${member.department || 'N/A'}</td>
+                <td>${activeProjectsCount}</td>
             `;
             
             tbody.appendChild(tr);
