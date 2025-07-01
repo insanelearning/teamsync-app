@@ -80,17 +80,21 @@ export function TeamMemberForm({ member, onSave, onCancel }) {
       alert("Member name cannot be empty.");
       return;
     }
+    // This object is constructed to avoid sending `undefined` for empty fields,
+    // which is not allowed by Firestore and was causing the save error.
     const memberToSave = {
       id: member?.id || crypto.randomUUID(),
       name: formData.name.trim(),
-      email: formData.email?.trim() || undefined,
-      employeeId: formData.employeeId?.trim() || undefined,
-      joinDate: formData.joinDate || undefined,
-      birthDate: formData.birthDate || undefined,
-      designation: formData.designation?.trim() || undefined,
-      department: formData.department?.trim() || undefined,
-      company: formData.company?.trim() || undefined,
     };
+    
+    if (formData.email?.trim()) memberToSave.email = formData.email.trim();
+    if (formData.employeeId?.trim()) memberToSave.employeeId = formData.employeeId.trim();
+    if (formData.joinDate) memberToSave.joinDate = formData.joinDate;
+    if (formData.birthDate) memberToSave.birthDate = formData.birthDate;
+    if (formData.designation?.trim()) memberToSave.designation = formData.designation.trim();
+    if (formData.department?.trim()) memberToSave.department = formData.department.trim();
+    if (formData.company?.trim()) memberToSave.company = formData.company.trim();
+
     onSave(memberToSave);
   });
 
