@@ -27,7 +27,7 @@ export function Navbar({ currentView, onNavChange, onThemeToggle }) {
   logoShrinkDiv.className = 'navbar-logo-shrink';
   const logoSpan = document.createElement('span');
   logoSpan.className = 'navbar-logo-text';
-  logoSpan.innerHTML = '<i class="fas fa-sync-alt navbar-logo-icon"></i>TeamSync';
+  logoSpan.innerHTML = '<i class="fa-solid fa-sitemap navbar-logo-icon"></i>Media Team Management';
   logoShrinkDiv.appendChild(logoSpan);
   logoDiv.appendChild(logoShrinkDiv);
   leftSection.appendChild(logoDiv);
