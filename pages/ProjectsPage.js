@@ -420,6 +420,24 @@ export function renderProjectsPage(container, props) {
     }
   }
 
+  const getCampaignStats = (project) => {
+    const stats = {};
+    const campaignGoal = project.goals?.find(g => g.name === 'Email Campaign Metrics');
+    if (!campaignGoal) return null;
+
+    const findMetricValue = (fieldName) => {
+        const metric = campaignGoal.metrics.find(m => m.fieldName === fieldName);
+        return metric ? Number(metric.fieldValue) || 0 : 0;
+    };
+    stats.delivered = findMetricValue('Delivered');
+    stats.undelivered = findMetricValue('Undelivered');
+    stats.totalSent = findMetricValue('Total Sent');
+    stats.hubspotLeads = findMetricValue('HubSpot Leads');
+    stats.toBeSent = findMetricValue('To be Sent');
+    return stats;
+  };
+
+
   function renderProjectDetailView(project) {
     const getMemberName = (id) => teamMembers.find(tm => tm.id === id)?.name || 'Unknown';
     const assigneesNames = project.assignees?.length > 0 ? project.assignees.map(id => getMemberName(id)).join(', ') : 'Unassigned';
@@ -444,11 +462,35 @@ export function renderProjectsPage(container, props) {
         </div>
     `;
 
-    if (project.goals && project.goals.length > 0) {
+    // Display campaign stats if available
+    const campaignStats = getCampaignStats(project);
+    if (campaignStats) {
+        const campaignContainer = document.createElement('div');
+        campaignContainer.className = 'detail-group';
+        
+        const conversion = campaignStats.delivered > 0 ? ((campaignStats.hubspotLeads / campaignStats.delivered) * 100).toFixed(2) : 0;
+
+        campaignContainer.innerHTML = `
+            <h4 class="detail-label"><i class="fas fa-bullhorn"></i> Campaign Stats</h4>
+            <div class="detail-grid">
+                <div class="detail-item"><h4 class="detail-label">Delivered</h4><p class="detail-value">${campaignStats.delivered.toLocaleString()}</p></div>
+                <div class="detail-item"><h4 class="detail-label">Undelivered</h4><p class="detail-value">${campaignStats.undelivered.toLocaleString()}</p></div>
+                <div class="detail-item"><h4 class="detail-label">Total Sent</h4><p class="detail-value">${campaignStats.totalSent.toLocaleString()}</p></div>
+                <div class="detail-item"><h4 class="detail-label">HubSpot Leads</h4><p class="detail-value">${campaignStats.hubspotLeads.toLocaleString()}</p></div>
+                <div class="detail-item"><h4 class="detail-label">Conversion</h4><p class="detail-value">${conversion}%</p></div>
+                <div class="detail-item"><h4 class="detail-label">To Be Sent</h4><p class="detail-value">${campaignStats.toBeSent.toLocaleString()}</p></div>
+            </div>
+        `;
+        detailView.appendChild(campaignContainer);
+    }
+
+
+    const standardGoals = project.goals?.filter(g => g.name !== 'Email Campaign Metrics');
+    if (standardGoals && standardGoals.length > 0) {
         const goalsContainerDiv = document.createElement('div');
         goalsContainerDiv.className = 'project-detail-goals-container';
         
-        project.goals.forEach(goal => {
+        standardGoals.forEach(goal => {
             const goalDiv = document.createElement('div');
             goalDiv.className = 'project-detail-goal';
 
