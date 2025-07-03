@@ -1061,7 +1061,7 @@ footer.app-footer {
 .attendance-status-badge.status-leave { background-color: #f97316; }
 .dark .attendance-status-badge.status-leave { background-color: #ea580c; }
 .attendance-status-badge.status-not-marked { background-color: #f70800; }
-.dark .attendance-status-badge.status-not-marked { background-color: #4b5563; color: #e5e7eb; }
+.dark .attendance-status-badge.status-not-marked { background-color: #f70800; color: #e5e7eb; }
 .attendance-status-badge.status-default { background-color: #9ca3af; }
 .dark .attendance-status-badge.status-default { background-color: #6b7280; }
 
