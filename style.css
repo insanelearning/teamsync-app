@@ -1060,8 +1060,8 @@ footer.app-footer {
 .dark .attendance-status-badge.status-wfh { background-color: #2563eb; }
 .attendance-status-badge.status-leave { background-color: #f97316; }
 .dark .attendance-status-badge.status-leave { background-color: #ea580c; }
-.attendance-status-badge.status-not-marked { background-color: #f70800; }
-.dark .attendance-status-badge.status-not-marked { background-color: #f70800; color: #e5e7eb; }
+.attendance-status-badge.status-not-marked { background-color: #6b7280; }
+.dark .attendance-status-badge.status-not-marked { background-color: #4b5563; color: #e5e7eb; }
 .attendance-status-badge.status-default { background-color: #9ca3af; }
 .dark .attendance-status-badge.status-default { background-color: #6b7280; }
 
@@ -1080,7 +1080,7 @@ footer.app-footer {
 /* Projects Table */
 .projects-table tbody tr {
   cursor: pointer;
-  transition: background-color 0.15s ease-in-out;
+  transition: background-color: 0.15s ease-in-out;
 }
 .projects-table tbody tr:hover {
   background-color: #f9fafb; /* hover:bg-gray-50 */
@@ -1130,7 +1130,7 @@ footer.app-footer {
 .dark .detail-group, .dark .detail-section {
   border-color: #374151;
 }
-.detail-section:last-child {
+.detail-section:last-child, .detail-group:last-child {
   border-bottom: none;
   padding-bottom: 0;
 }
@@ -1384,6 +1384,18 @@ footer.app-footer {
   flex-shrink: 0;
 }
 
+/* Campaign Stats in Project Form */
+.campaign-stats-container {
+    margin-top: 1rem;
+}
+.campaign-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-top: 0.5rem;
+}
+
+
 /* Table for editing custom fields/metrics */
 .custom-fields-table-editor {
     table-layout: fixed;
@@ -1508,7 +1520,7 @@ footer.app-footer {
 
 .team-members-table tbody tr {
   cursor: pointer;
-  transition: background-color 0.15s ease-in-out;
+  transition: background-color: 0.15s ease-in-out;
 }
 .team-members-table tbody tr:hover {
   background-color: #f9fafb; /* hover:bg-gray-50 */
@@ -1961,6 +1973,32 @@ footer.app-footer {
 .dark .note-form-color-swatch.selected {
     border-color: #818cf8;
 }
+
+/* Campaigns Page Specifics */
+.campaigns-table tbody tr {
+  cursor: pointer;
+  transition: background-color 0.15s ease-in-out;
+}
+.campaigns-table tbody tr:hover {
+  background-color: #f9fafb; /* hover:bg-gray-50 */
+}
+.dark .campaigns-table tbody tr:hover {
+  background-color: rgba(55, 65, 81, 0.5); /* dark:hover:bg-gray-700/50 */
+}
+.conversion-rate-badge {
+    padding: 0.25rem 0.625rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border-radius: 9999px;
+    display: inline-block;
+}
+.conversion-rate-high { color: #15803d; background-color: #dcfce7; }
+.dark .conversion-rate-high { color: #bbf7d0; background-color: #166534; }
+.conversion-rate-medium { color: #a16207; background-color: #fefce8; }
+.dark .conversion-rate-medium { color: #fde047; background-color: #854d0e; }
+.conversion-rate-low { color: #991b1b; background-color: #fee2e2; }
+.dark .conversion-rate-low { color: #fca5a5; background-color: #991b1b; }
+
 
 /* Helper for truncation */
 .truncate {
