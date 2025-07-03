@@ -687,7 +687,7 @@ footer.app-footer {
 .dark .button-ghost:focus { box-shadow: 0 0 0 2px #1f2937, 0 0 0 4px #818cf8; }
 
 
-.button-sm { padding: 0.575rem 0.75rem; font-size: 0.875rem; /* px-3 py-1.5 text-sm */ } /* Adjusted text-xs to text-sm */
+.button-sm { padding: 0.375rem 0.75rem; font-size: 0.875rem; /* px-3 py-1.5 text-sm */ } /* Adjusted text-xs to text-sm */
 .button-md { padding: 0.5rem 1rem; font-size: 0.875rem; /* px-4 py-2 text-sm */ }
 .button-lg { padding: 0.625rem 1.25rem; font-size: 1rem; /* px-5 py-2.5 text-base */ } /* Adjusted py-3 to py-2.5 */
 
@@ -1040,6 +1040,31 @@ footer.app-footer {
 .dark .status-done { background-color: #16a34a; }
 .status-default { background-color: #9ca3af; }
 .dark .status-default { background-color: #6b7280; }
+
+/* Attendance Status Badge */
+.attendance-status-badge {
+  padding: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #ffffff;
+  border-radius: 9999px;
+  text-transform: capitalize;
+  line-height: 1;
+  text-align: center;
+  display: inline-block;
+  white-space: nowrap;
+}
+.attendance-status-badge.status-present { background-color: #22c55e; }
+.dark .attendance-status-badge.status-present { background-color: #16a34a; }
+.attendance-status-badge.status-wfh { background-color: #3b82f6; }
+.dark .attendance-status-badge.status-wfh { background-color: #2563eb; }
+.attendance-status-badge.status-leave { background-color: #f97316; }
+.dark .attendance-status-badge.status-leave { background-color: #ea580c; }
+.attendance-status-badge.status-not-marked { background-color: #6b7280; }
+.dark .attendance-status-badge.status-not-marked { background-color: #4b5563; color: #e5e7eb; }
+.attendance-status-badge.status-default { background-color: #9ca3af; }
+.dark .attendance-status-badge.status-default { background-color: #6b7280; }
+
 
 /* Priority Colors (Shared) */
 .priority-low { color: #16a34a; font-weight: 500; }
@@ -1492,10 +1517,11 @@ footer.app-footer {
   background-color: rgba(55, 65, 81, 0.5); /* dark:hover:bg-gray-700/50 */
 }
 
-.team-members-table th:nth-child(1), .team-members-table td:nth-child(1) { width: 35%; }
-.team-members-table th:nth-child(2), .team-members-table td:nth-child(2) { width: 30%; }
-.team-members-table th:nth-child(3), .team-members-table td:nth-child(3) { width: 25%; }
+.team-members-table th:nth-child(1), .team-members-table td:nth-child(1) { width: 30%; }
+.team-members-table th:nth-child(2), .team-members-table td:nth-child(2) { width: 25%; }
+.team-members-table th:nth-child(3), .team-members-table td:nth-child(3) { width: 20%; }
 .team-members-table th:nth-child(4), .team-members-table td:nth-child(4) { width: 10%; text-align: center; }
+.team-members-table th:nth-child(5), .team-members-table td:nth-child(5) { width: 15%; text-align: center; }
 .team-members-table td {
   white-space: normal;
 }
