@@ -18,11 +18,26 @@ const getDefaultProject = () => ({
   goals: [],
 });
 
+const CAMPAIGN_METRIC_GOAL = 'Email Campaign Metrics';
+const CAMPAIGN_FIELDS = ['Delivered', 'Undelivered', 'Total Sent', 'HubSpot Leads', 'To be Sent'];
+
+
 export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onCancel }) {
   let formData = project 
     ? { ...getDefaultProject(), ...project, assignees: project.assignees || [], tags: project.tags || [], goals: project.goals || [] } 
     : { ...getDefaultProject(), id: undefined, createdAt: undefined, updatedAt: undefined };
   
+  let campaignFormData = {};
+  const campaignGoal = formData.goals.find(g => g.name === CAMPAIGN_METRIC_GOAL);
+  if (campaignGoal) {
+    CAMPAIGN_FIELDS.forEach(field => {
+        const metric = campaignGoal.metrics.find(m => m.fieldName === field);
+        campaignFormData[field] = metric ? metric.fieldValue : 0;
+    });
+  } else {
+    CAMPAIGN_FIELDS.forEach(field => campaignFormData[field] = 0);
+  }
+
   let currentTag = '';
 
   const form = document.createElement('form');
@@ -116,7 +131,8 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
   const typeCategoryGrid = document.createElement('div');
   typeCategoryGrid.className = 'form-grid-cols-2';
   typeCategoryGrid.appendChild(createField('Project Type', 'text', 'projectType', formData.projectType, {}, false, 'e.g., Client Project, Internal'));
-  typeCategoryGrid.appendChild(createField('Project Category', 'text', 'projectCategory', formData.projectCategory, {}, false, 'e.g., Lead Generation, Development'));
+  const categoryField = createField('Project Category', 'text', 'projectCategory', formData.projectCategory, {}, false, 'e.g., Email Campaign');
+  typeCategoryGrid.appendChild(categoryField);
   form.appendChild(typeCategoryGrid);
   
   const datePriorityGrid = document.createElement('div');
@@ -126,6 +142,46 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
     options: PRIORITIES.map(p => ({ value: p, label: p }))
   }));
   form.appendChild(datePriorityGrid);
+
+  // Email Campaign Stats Section
+  const campaignStatsContainer = document.createElement('div');
+  campaignStatsContainer.className = 'campaign-stats-container';
+  form.appendChild(campaignStatsContainer);
+
+  const renderCampaignStatsUI = () => {
+      campaignStatsContainer.innerHTML = '';
+      const isCampaign = formData.projectCategory?.trim().toLowerCase() === 'email campaign';
+      campaignStatsContainer.style.display = isCampaign ? 'block' : 'none';
+
+      if (!isCampaign) return;
+
+      const fieldset = document.createElement('fieldset');
+      fieldset.className = 'goal-fieldset';
+      const legend = document.createElement('legend');
+      legend.className = 'goal-legend';
+      legend.innerHTML = '<i class="fas fa-chart-line" style="margin-right: 0.5rem;"></i> Email Campaign Stats';
+      fieldset.appendChild(legend);
+
+      const grid = document.createElement('div');
+      grid.className = 'campaign-stats-grid';
+      CAMPAIGN_FIELDS.forEach(fieldName => {
+          const field = createField(fieldName, 'number', fieldName, campaignFormData[fieldName] || 0);
+          field.querySelector('input').min = 0;
+          field.querySelector('input').addEventListener('change', e => {
+              campaignFormData[fieldName] = e.target.value;
+          });
+          grid.appendChild(field);
+      });
+      fieldset.appendChild(grid);
+      campaignStatsContainer.appendChild(fieldset);
+  };
+  
+  categoryField.querySelector('input').addEventListener('input', (e) => {
+      formData.projectCategory = e.target.value;
+      renderCampaignStatsUI();
+  });
+  renderCampaignStatsUI();
+
 
   // Tags Section
   const tagsSectionDiv = document.createElement('div');
@@ -189,7 +245,7 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
   
   const goalsTitle = document.createElement('h4');
   goalsTitle.className = "project-form-goals-title";
-  goalsTitle.textContent = "Project Goals & Metrics";
+  goalsTitle.textContent = "Advanced Goals & Metrics";
   goalsHeaderDiv.appendChild(goalsTitle);
   
   const addGoalButton = Button({
@@ -211,12 +267,13 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
     goalsListDiv.innerHTML = '';
     const availableAssigneesForMetrics = teamMembers.filter(tm => (formData.assignees || []).includes(tm.id));
 
-    if (!formData.goals || formData.goals.length === 0) {
-        goalsListDiv.innerHTML = `<p class="project-form-goals-list-placeholder">No goals defined. Click "Add Goal" to get started.</p>`;
-        return;
+    const standardGoals = (formData.goals || []).filter(g => g.name !== CAMPAIGN_METRIC_GOAL);
+
+    if (standardGoals.length === 0) {
+        goalsListDiv.innerHTML = `<p class="project-form-goals-list-placeholder">No advanced goals defined. Click "Add Goal" to get started.</p>`;
     }
 
-    (formData.goals || []).forEach((goal, goalIndex) => {
+    standardGoals.forEach((goal, goalIndex) => {
         const goalFieldset = document.createElement('fieldset');
         goalFieldset.className = 'goal-fieldset';
 
@@ -356,6 +413,24 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
       createdAt: project?.createdAt || now,
       updatedAt: now,
     };
+
+    // Filter out the old campaign goal to avoid duplicates before we add the new/updated one.
+    projectToSave.goals = projectToSave.goals.filter(g => g.name !== CAMPAIGN_METRIC_GOAL);
+
+    if (formData.projectCategory?.trim().toLowerCase() === 'email campaign') {
+        const campaignMetrics = Object.entries(campaignFormData).map(([fieldName, fieldValue]) => ({
+            id: crypto.randomUUID(),
+            fieldName,
+            fieldValue: String(fieldValue || 0),
+        }));
+        
+        projectToSave.goals.push({
+            id: crypto.randomUUID(),
+            name: CAMPAIGN_METRIC_GOAL,
+            metrics: campaignMetrics,
+        });
+    }
+
     onSave(projectToSave);
   });
 
