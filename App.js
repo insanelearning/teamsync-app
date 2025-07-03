@@ -2,6 +2,7 @@
 import { renderProjectsPage } from './pages/ProjectsPage.js';
 import { renderAttendancePage } from './pages/AttendancePage.js';
 import { renderNotesPage } from './pages/NotesPage.js';
+import { renderCampaignsPage } from './pages/CampaignsPage.js';
 import { Navbar } from './components/Navbar.js';
 import { INITIAL_TEAM_MEMBERS } from './constants.js';
 import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery } from './services/firebaseService.js';
@@ -313,6 +314,15 @@ function renderApp() {
       onExport: () => handleExport('projects'),
       onImport: (file) => handleImport(file, 'projects'),
     });
+  } else if (currentView === 'campaigns') {
+    renderCampaignsPage(mainContentElement, {
+      projects,
+      teamMembers,
+      projectStatuses: Object.values(ProjectStatus),
+      onAddProject: addProject,
+      onUpdateProject: updateProject,
+      onDeleteProject: deleteProject,
+    });
   } else if (currentView === 'attendance') {
     renderAttendancePage(mainContentElement, {
       attendanceRecords: attendance,
@@ -404,7 +414,7 @@ export async function initializeApp(appRootElement) {
 
   const footer = document.createElement('footer');
   footer.className = 'app-footer';
-  footer.innerHTML = `Team Management Application &copy; ${new Date().getFullYear()}`;
+  footer.innerHTML = `TeamSync &copy; ${new Date().getFullYear()}`;
   rootElement.appendChild(footer);
 
   // Set theme based on preference
