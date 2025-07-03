@@ -2,6 +2,7 @@
 export function Navbar({ currentView, onNavChange, onThemeToggle }) {
   const navItems = [
     { view: 'projects', label: 'Projects', icon: 'fas fa-tasks' },
+    { view: 'campaigns', label: 'Campaigns', icon: 'fas fa-bullhorn' },
     { view: 'attendance', label: 'Attendance', icon: 'fas fa-user-check' },
     { view: 'notes', label: 'Notes', icon: 'fas fa-sticky-note' },
   ];
@@ -27,7 +28,7 @@ export function Navbar({ currentView, onNavChange, onThemeToggle }) {
   logoShrinkDiv.className = 'navbar-logo-shrink';
   const logoSpan = document.createElement('span');
   logoSpan.className = 'navbar-logo-text';
-  logoSpan.innerHTML = '<i class="fa-solid fa-sitemap navbar-logo-icon"></i>Media Team Management';
+  logoSpan.innerHTML = '<i class="fas fa-sync-alt navbar-logo-icon"></i>TeamSync';
   logoShrinkDiv.appendChild(logoSpan);
   logoDiv.appendChild(logoShrinkDiv);
   leftSection.appendChild(logoDiv);
