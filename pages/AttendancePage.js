@@ -48,7 +48,12 @@ export function renderAttendancePage(container, props) {
   dateInput.type = "date"; dateInput.value = selectedDate;
   dateInput.className = "form-input";
   dateInput.setAttribute('aria-label', 'Select date for daily log');
-  dateInput.onchange = (e) => { selectedDate = e.target.value; renderDailyLogGrid(); updateDailyLogTitle(); };
+  dateInput.onchange = (e) => { 
+      selectedDate = e.target.value; 
+      renderDailyLogGrid(); 
+      updateDailyLogTitle(); 
+      renderTeamList();
+  };
   datePickerDiv.appendChild(dateInput);
   headerDiv.appendChild(datePickerDiv);
   pageWrapper.appendChild(headerDiv);
@@ -138,6 +143,24 @@ export function renderAttendancePage(container, props) {
 
   function renderTeamList() {
     teamListContainer.innerHTML = '';
+
+    const getAttendanceStatusBadge = (status) => {
+        if (!status) {
+            return `<span class="attendance-status-badge status-not-marked">Not Marked</span>`;
+        }
+        const statusClassMap = {
+            'Present': 'status-present',
+            'Work From Home': 'status-wfh',
+            'Leave': 'status-leave'
+        };
+        const className = statusClassMap[status] || 'status-default';
+        const text = status === 'Work From Home' ? 'WFH' : status;
+        return `<span class="attendance-status-badge ${className}">${text}</span>`;
+    };
+
+    const recordsForDate = attendanceRecords.filter(r => r.date === selectedDate);
+    const formattedDateForHeader = new Date(selectedDate + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
     let filteredMembers = teamMembers.filter(member => 
         member.name.toLowerCase().includes(teamSearchTerm.toLowerCase()) &&
         (!departmentFilter || member.department === departmentFilter)
@@ -178,19 +201,21 @@ export function renderAttendancePage(container, props) {
 
           const table = document.createElement('table');
           table.className = 'data-table team-members-table';
-          table.innerHTML = `<thead><tr><th>Name</th><th>Designation</th><th>Department</th><th>Active Projects</th></tr></thead>`;
+          table.innerHTML = `<thead><tr><th>Name</th><th>Designation</th><th>Department</th><th>Active Projects</th><th>Attendance (${formattedDateForHeader})</th></tr></thead>`;
           const tbody = document.createElement('tbody');
           members.forEach(member => {
             const tr = document.createElement('tr');
             tr.dataset.memberId = member.id;
             
             const activeProjectsCount = projects.filter(p => p.status !== 'Done' && (p.assignees || []).includes(member.id)).length;
+            const record = recordsForDate.find(r => r.memberId === member.id);
 
             tr.innerHTML = `
                 <td>${member.name}</td>
                 <td>${member.designation || 'N/A'}</td>
                 <td>${member.department || 'N/A'}</td>
                 <td>${activeProjectsCount}</td>
+                <td>${getAttendanceStatusBadge(record?.status)}</td>
             `;
             
             tbody.appendChild(tr);
