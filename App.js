@@ -2,7 +2,6 @@
 import { renderProjectsPage } from './pages/ProjectsPage.js';
 import { renderAttendancePage } from './pages/AttendancePage.js';
 import { renderNotesPage } from './pages/NotesPage.js';
-import { renderCampaignsPage } from './pages/CampaignsPage.js';
 import { Navbar } from './components/Navbar.js';
 import { INITIAL_TEAM_MEMBERS } from './constants.js';
 import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery } from './services/firebaseService.js';
@@ -208,10 +207,27 @@ const deleteTeamMember = async (memberId) => {
 const handleExport = (dataType) => {
   if (dataType === 'projects') {
     const projectsToExport = projects.map(p => ({
-      ...p,
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      status: p.status,
       assignees: p.assignees.join(';'),
+      dueDate: p.dueDate,
+      priority: p.priority,
       tags: p.tags ? p.tags.join(';') : '',
+      createdAt: p.createdAt,
+      updatedAt: p.updatedAt,
+      stakeholderName: p.stakeholderName || '',
+      teamLeadId: p.teamLeadId || '',
+      projectType: p.projectType || '',
+      projectCategory: p.projectCategory || '',
       goals: p.goals ? JSON.stringify(p.goals) : '[]',
+      mediaProduct: p.mediaProduct || '',
+      pilotScope: p.pilotScope || '',
+      clientNames: p.clientNames || '',
+      projectApproach: p.projectApproach || '',
+      deliverables: p.deliverables || '',
+      resultsAchieved: p.resultsAchieved || '',
     }));
     exportToCSV(projectsToExport, 'projects.csv');
   } else if (dataType === 'attendance') {
@@ -243,7 +259,13 @@ const handleImport = async (file, dataType) => {
               assignees: Array.isArray(item.assignees) ? item.assignees : (item.assignees || '').split(';').map(s=>s.trim()).filter(Boolean),
               tags: Array.isArray(item.tags) ? item.tags : (item.tags || '').split(';').map(s=>s.trim()).filter(Boolean),
               goals: Array.isArray(item.goals) ? item.goals : (JSON.parse(item.goals || '[]')),
-              // Set defaults for missing fields
+              stakeholderName: item.stakeholderName || '',
+              mediaProduct: item.mediaProduct || '',
+              pilotScope: item.pilotScope || '',
+              clientNames: item.clientNames || '',
+              projectApproach: item.projectApproach || '',
+              deliverables: item.deliverables || '',
+              resultsAchieved: item.resultsAchieved || '',
             };
         }).filter(Boolean);
     } else if (dataType === 'attendance') {
@@ -283,6 +305,9 @@ const handleImport = async (file, dataType) => {
 
 
 function handleNavChange(view) {
+  if (view === 'campaigns') {
+    view = 'projects'; // Campaigns page is removed, redirect to projects.
+  }
   currentView = view;
   localStorage.setItem('currentView', view);
   renderApp();
@@ -313,15 +338,6 @@ function renderApp() {
       onDeleteProject: deleteProject,
       onExport: () => handleExport('projects'),
       onImport: (file) => handleImport(file, 'projects'),
-    });
-  } else if (currentView === 'campaigns') {
-    renderCampaignsPage(mainContentElement, {
-      projects,
-      teamMembers,
-      projectStatuses: Object.values(ProjectStatus),
-      onAddProject: addProject,
-      onUpdateProject: updateProject,
-      onDeleteProject: deleteProject,
     });
   } else if (currentView === 'attendance') {
     renderAttendancePage(mainContentElement, {
