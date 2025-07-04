@@ -1446,6 +1446,7 @@ footer.app-footer {
 /* Pilot Details display in Project Detail View */
 .pilot-details-container {
   margin-top: 1.25rem;
+  font-size: small;
 }
 .pilot-details-title {
   font-size: 1.25rem;
