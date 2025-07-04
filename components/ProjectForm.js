@@ -24,12 +24,53 @@ const getDefaultProject = () => ({
   resultsAchieved: '',
 });
 
+/**
+ * Updates the calculated fields for an email campaign goal without a full re-render.
+ * @param {HTMLElement} fieldset The fieldset element containing the campaign inputs.
+ */
+function updateCampaignCalculations(fieldset) {
+    const getValue = (metricName) => {
+        const input = fieldset.querySelector(`input[data-metric-name="${metricName}"]`);
+        return input ? Number(input.value) || 0 : 0;
+    };
+
+    const totalProspects = getValue('Total Prospects');
+    const delivered = getValue('Delivered');
+    const undelivered = getValue('Undelivered');
+    const leadConversions = getValue('Lead Conversions');
+
+    const totalSent = delivered + undelivered;
+    const conversionRate = delivered > 0 ? ((leadConversions / delivered) * 100).toFixed(2) : 0;
+    const toBeSent = totalProspects - totalSent;
+
+    const setValue = (metricName, value) => {
+        const span = fieldset.querySelector(`span[data-metric-name="${metricName}"]`);
+        if (span) span.textContent = value;
+    };
+
+    setValue('Total Sent', totalSent.toLocaleString());
+    setValue('Conversion Rate', `${conversionRate}%`);
+    setValue('To Be Sent', toBeSent.toLocaleString());
+}
+
 
 export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onCancel }) {
   let formData = project 
     ? { ...getDefaultProject(), ...project, assignees: project.assignees || [], tags: project.tags || [], goals: project.goals || [] } 
     : { ...getDefaultProject(), id: undefined, createdAt: undefined, updatedAt: undefined };
   
+  // Data migration: Rename 'Total Leads' to 'Total Prospects' for older projects
+  if (formData.goals) {
+    formData.goals.forEach(goal => {
+        if (goal.name && goal.name.trim().toLowerCase() === 'email campaign') {
+            const totalLeadsMetric = (goal.metrics || []).find(m => m.fieldName === 'Total Leads');
+            if (totalLeadsMetric) {
+                totalLeadsMetric.fieldName = 'Total Prospects';
+            }
+        }
+    });
+  }
+
   let currentTag = '';
 
   const form = document.createElement('form');
@@ -256,10 +297,8 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
         goalNameInput.placeholder = 'Goal Name (e.g., Lead Generation)';
         goalNameInput.onchange = (e) => {
             goal.name = e.target.value;
-            // If name is changed to 'Email Campaign', we need to re-render to show the special UI
-            if (e.target.value.trim().toLowerCase() === 'email campaign') {
-                renderGoalsAndMetrics();
-            }
+            // If name is changed to 'Email Campaign' or back, re-render to show correct UI
+            renderGoalsAndMetrics();
         };
         
         const goalActions = document.createElement('div');
@@ -302,20 +341,10 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
                 }
             };
             
-            const clientName = getMetric('Client Name')?.fieldValue || '';
-            const totalLeads = Number(getMetric('Total Leads')?.fieldValue) || 0;
-            const delivered = Number(getMetric('Delivered')?.fieldValue) || 0;
-            const undelivered = Number(getMetric('Undelivered')?.fieldValue) || 0;
-            const leadConversions = Number(getMetric('Lead Conversions')?.fieldValue) || 0;
-
-            const totalSent = delivered + undelivered;
-            const conversionRate = delivered > 0 ? ((leadConversions / delivered) * 100).toFixed(2) : 0;
-            const toBeSent = totalLeads - totalSent;
-
             const campaignGrid = document.createElement('div');
             campaignGrid.className = 'email-campaign-grid';
             
-            const createCampaignField = (label, type, value, onUpdate, placeholder = '') => {
+            const createCampaignField = (label, metricName, type, value, placeholder = '') => {
                 const div = document.createElement('div');
                 const labelEl = document.createElement('label');
                 labelEl.className = 'form-label';
@@ -324,18 +353,21 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
                 const input = document.createElement('input');
                 input.type = type;
                 input.className = 'form-input';
+                input.dataset.metricName = metricName; // For selection
                 input.value = value;
                 if(type === 'number') input.min = 0;
                 input.placeholder = placeholder;
                 input.addEventListener('input', (e) => {
-                    onUpdate(e.target.value);
-                    renderGoalsAndMetrics(); // Re-render to update calculated fields
+                    updateMetric(metricName, e.target.value);
+                    if (type === 'number') {
+                        updateCampaignCalculations(goalFieldset); // Update calculated fields, no re-render
+                    }
                 });
                 div.appendChild(input);
                 return div;
             };
 
-            const createCalculatedField = (label, value) => {
+            const createCalculatedField = (label, metricName, value) => {
                 const div = document.createElement('div');
                 div.className = 'calculated-field';
                 const labelEl = document.createElement('label');
@@ -343,19 +375,30 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
                 labelEl.textContent = label;
                 const valueEl = document.createElement('span');
                 valueEl.className = 'calculated-value';
+                valueEl.dataset.metricName = metricName; // For selection
                 valueEl.textContent = value;
                 div.append(labelEl, valueEl);
                 return div;
             };
 
-            campaignGrid.appendChild(createCampaignField('Client Name', 'text', clientName, val => updateMetric('Client Name', val), 'Client Name'));
-            campaignGrid.appendChild(createCampaignField('Total Leads', 'number', totalLeads, val => updateMetric('Total Leads', val)));
-            campaignGrid.appendChild(createCampaignField('Delivered', 'number', delivered, val => updateMetric('Delivered', val)));
-            campaignGrid.appendChild(createCampaignField('Undelivered', 'number', undelivered, val => updateMetric('Undelivered', val)));
-            campaignGrid.appendChild(createCampaignField('Lead Conversions', 'number', leadConversions, val => updateMetric('Lead Conversions', val)));
-            campaignGrid.appendChild(createCalculatedField('Total Sent', totalSent.toLocaleString()));
-            campaignGrid.appendChild(createCalculatedField('Conversion Rate', `${conversionRate}%`));
-            campaignGrid.appendChild(createCalculatedField('To Be Sent', toBeSent.toLocaleString()));
+            const clientName = getMetric('Client Name')?.fieldValue || '';
+            const totalProspects = Number(getMetric('Total Prospects')?.fieldValue) || 0;
+            const delivered = Number(getMetric('Delivered')?.fieldValue) || 0;
+            const undelivered = Number(getMetric('Undelivered')?.fieldValue) || 0;
+            const leadConversions = Number(getMetric('Lead Conversions')?.fieldValue) || 0;
+
+            const totalSent = delivered + undelivered;
+            const conversionRate = delivered > 0 ? ((leadConversions / delivered) * 100).toFixed(2) : 0;
+            const toBeSent = totalProspects - totalSent;
+
+            campaignGrid.appendChild(createCampaignField('Client Name', 'Client Name', 'text', clientName, 'Client Name'));
+            campaignGrid.appendChild(createCampaignField('Total Prospects', 'Total Prospects', 'number', totalProspects));
+            campaignGrid.appendChild(createCampaignField('Delivered', 'Delivered', 'number', delivered));
+            campaignGrid.appendChild(createCampaignField('Undelivered', 'Undelivered', 'number', undelivered));
+            campaignGrid.appendChild(createCampaignField('Lead Conversions', 'Lead Conversions', 'number', leadConversions));
+            campaignGrid.appendChild(createCalculatedField('Total Sent', 'Total Sent', totalSent.toLocaleString()));
+            campaignGrid.appendChild(createCalculatedField('Conversion Rate', 'Conversion Rate', `${conversionRate}%`));
+            campaignGrid.appendChild(createCalculatedField('To Be Sent', 'To Be Sent', toBeSent.toLocaleString()));
 
             goalFieldset.appendChild(campaignGrid);
         } else {
