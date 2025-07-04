@@ -14,10 +14,9 @@ export const AttendanceStatus = {
 
 export const LeaveType = {
   Sick: 'Sick Leave',
-  Casual: 'Casual Leave',
   Vacation: 'Vacation',
-  Maternity: 'Maternity Leave',
-  Beverement: 'Beverement Leave',
+  Personal: 'Personal Day',
+  Unpaid: 'Unpaid Leave',
   Other: 'Other',
 };
 
@@ -64,11 +63,17 @@ export const NoteStatus = {
 //   tags?: string[];
 //   createdAt: string; // ISO date string
 //   updatedAt: string; // ISO date string
-//   clientName?: string;
+//   stakeholderName?: string;
 //   teamLeadId?: string; // TeamMember ID
 //   projectType?: string;
 //   projectCategory?: string;
 //   goals?: Goal[];
+//   mediaProduct?: string;
+//   pilotScope?: string;
+//   clientNames?: string;
+//   projectApproach?: string;
+//   deliverables?: string;
+//   resultsAchieved?: string;
 // }
 
 // interface AttendanceRecord {
