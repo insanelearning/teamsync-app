@@ -11,15 +11,18 @@ const getDefaultProject = () => ({
   dueDate: new Date().toISOString().split('T')[0],
   priority: 'Medium',
   tags: [],
-  clientName: '',
+  stakeholderName: '',
   teamLeadId: '',
   projectType: '',
   projectCategory: '',
   goals: [],
+  mediaProduct: '',
+  pilotScope: '',
+  clientNames: '',
+  projectApproach: '',
+  deliverables: '',
+  resultsAchieved: '',
 });
-
-const CAMPAIGN_METRIC_GOAL = 'Email Campaign Metrics';
-const CAMPAIGN_FIELDS = ['Delivered', 'Undelivered', 'Total Sent', 'HubSpot Leads', 'To be Sent'];
 
 
 export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onCancel }) {
@@ -27,17 +30,6 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
     ? { ...getDefaultProject(), ...project, assignees: project.assignees || [], tags: project.tags || [], goals: project.goals || [] } 
     : { ...getDefaultProject(), id: undefined, createdAt: undefined, updatedAt: undefined };
   
-  let campaignFormData = {};
-  const campaignGoal = formData.goals.find(g => g.name === CAMPAIGN_METRIC_GOAL);
-  if (campaignGoal) {
-    CAMPAIGN_FIELDS.forEach(field => {
-        const metric = campaignGoal.metrics.find(m => m.fieldName === field);
-        campaignFormData[field] = metric ? metric.fieldValue : 0;
-    });
-  } else {
-    CAMPAIGN_FIELDS.forEach(field => campaignFormData[field] = 0);
-  }
-
   let currentTag = '';
 
   const form = document.createElement('form');
@@ -109,13 +101,13 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
   form.appendChild(createField('Project Name', 'text', 'name', formData.name, {}, true));
   form.appendChild(createField('Description', 'textarea', 'description', formData.description));
 
-  const clientStatusGrid = document.createElement('div');
-  clientStatusGrid.className = 'form-grid-cols-2';
-  clientStatusGrid.appendChild(createField('Client Name', 'text', 'clientName', formData.clientName));
-  clientStatusGrid.appendChild(createField('Status', 'select', 'status', formData.status, {
+  const stakeholderStatusGrid = document.createElement('div');
+  stakeholderStatusGrid.className = 'form-grid-cols-2';
+  stakeholderStatusGrid.appendChild(createField('Stakeholder Name', 'text', 'stakeholderName', formData.stakeholderName));
+  stakeholderStatusGrid.appendChild(createField('Status', 'select', 'status', formData.status, {
     options: projectStatuses.map(s => ({ value: s, label: s }))
   }, true));
-  form.appendChild(clientStatusGrid);
+  form.appendChild(stakeholderStatusGrid);
 
   const assigneesLeadGrid = document.createElement('div');
   assigneesLeadGrid.className = 'form-grid-cols-2';
@@ -131,7 +123,7 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
   const typeCategoryGrid = document.createElement('div');
   typeCategoryGrid.className = 'form-grid-cols-2';
   typeCategoryGrid.appendChild(createField('Project Type', 'text', 'projectType', formData.projectType, {}, false, 'e.g., Client Project, Internal'));
-  const categoryField = createField('Project Category', 'text', 'projectCategory', formData.projectCategory, {}, false, 'e.g., Email Campaign');
+  const categoryField = createField('Project Category', 'text', 'projectCategory', formData.projectCategory, {}, false, 'e.g., Lead Generation');
   typeCategoryGrid.appendChild(categoryField);
   form.appendChild(typeCategoryGrid);
   
@@ -142,45 +134,6 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
     options: PRIORITIES.map(p => ({ value: p, label: p }))
   }));
   form.appendChild(datePriorityGrid);
-
-  // Email Campaign Stats Section
-  const campaignStatsContainer = document.createElement('div');
-  campaignStatsContainer.className = 'campaign-stats-container';
-  form.appendChild(campaignStatsContainer);
-
-  const renderCampaignStatsUI = () => {
-      campaignStatsContainer.innerHTML = '';
-      const isCampaign = formData.projectCategory?.trim().toLowerCase() === 'email campaign';
-      campaignStatsContainer.style.display = isCampaign ? 'block' : 'none';
-
-      if (!isCampaign) return;
-
-      const fieldset = document.createElement('fieldset');
-      fieldset.className = 'goal-fieldset';
-      const legend = document.createElement('legend');
-      legend.className = 'goal-legend';
-      legend.innerHTML = '<i class="fas fa-chart-line" style="margin-right: 0.5rem;"></i> Email Campaign Stats';
-      fieldset.appendChild(legend);
-
-      const grid = document.createElement('div');
-      grid.className = 'campaign-stats-grid';
-      CAMPAIGN_FIELDS.forEach(fieldName => {
-          const field = createField(fieldName, 'number', fieldName, campaignFormData[fieldName] || 0);
-          field.querySelector('input').min = 0;
-          field.querySelector('input').addEventListener('change', e => {
-              campaignFormData[fieldName] = e.target.value;
-          });
-          grid.appendChild(field);
-      });
-      fieldset.appendChild(grid);
-      campaignStatsContainer.appendChild(fieldset);
-  };
-  
-  categoryField.querySelector('input').addEventListener('input', (e) => {
-      formData.projectCategory = e.target.value;
-      renderCampaignStatsUI();
-  });
-  renderCampaignStatsUI();
 
 
   // Tags Section
@@ -235,6 +188,24 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
     });
   }
   renderTags();
+  
+  // Pilot-Specific Details
+  const pilotDetailsFieldset = document.createElement('fieldset');
+  pilotDetailsFieldset.className = 'pilot-details-fieldset';
+  const pilotLegend = document.createElement('legend');
+  pilotLegend.className = 'pilot-details-legend';
+  pilotLegend.textContent = 'Pilot-Specific Details';
+  pilotDetailsFieldset.appendChild(pilotLegend);
+
+  pilotDetailsFieldset.appendChild(createField('Media Product', 'text', 'mediaProduct', formData.mediaProduct, {}, false, 'e.g., Engage'));
+  pilotDetailsFieldset.appendChild(createField('Client Names (if any)', 'text', 'clientNames', formData.clientNames, {}, false, 'e.g., TAV, Endress and HIAB'));
+  pilotDetailsFieldset.appendChild(createField('Pilot Scope', 'textarea', 'pilotScope', formData.pilotScope, { rows: 4 }));
+  pilotDetailsFieldset.appendChild(createField('Project Approach', 'textarea', 'projectApproach', formData.projectApproach, { rows: 4 }));
+  pilotDetailsFieldset.appendChild(createField('Deliverables', 'textarea', 'deliverables', formData.deliverables, { rows: 3 }));
+  pilotDetailsFieldset.appendChild(createField('Results Achieved', 'textarea', 'resultsAchieved', formData.resultsAchieved, { rows: 3 }));
+
+  form.appendChild(pilotDetailsFieldset);
+
 
   // Project Goals Section
   const goalsContainer = document.createElement('div');
@@ -267,13 +238,11 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
     goalsListDiv.innerHTML = '';
     const availableAssigneesForMetrics = teamMembers.filter(tm => (formData.assignees || []).includes(tm.id));
 
-    const standardGoals = (formData.goals || []).filter(g => g.name !== CAMPAIGN_METRIC_GOAL);
-
-    if (standardGoals.length === 0) {
+    if (!formData.goals || formData.goals.length === 0) {
         goalsListDiv.innerHTML = `<p class="project-form-goals-list-placeholder">No advanced goals defined. Click "Add Goal" to get started.</p>`;
     }
 
-    standardGoals.forEach((goal, goalIndex) => {
+    (formData.goals || []).forEach((goal, goalIndex) => {
         const goalFieldset = document.createElement('fieldset');
         goalFieldset.className = 'goal-fieldset';
 
@@ -285,19 +254,28 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
         goalNameInput.className = 'form-input goal-name-input';
         goalNameInput.value = goal.name;
         goalNameInput.placeholder = 'Goal Name (e.g., Lead Generation)';
-        goalNameInput.onchange = (e) => goal.name = e.target.value;
+        goalNameInput.onchange = (e) => {
+            goal.name = e.target.value;
+            // If name is changed to 'Email Campaign', we need to re-render to show the special UI
+            if (e.target.value.trim().toLowerCase() === 'email campaign') {
+                renderGoalsAndMetrics();
+            }
+        };
         
         const goalActions = document.createElement('div');
         goalActions.className = 'goal-actions';
 
-        const addMetricButton = Button({
-            children: 'Add Metric', variant: 'secondary', size: 'sm',
-            leftIcon: '<i class="fas fa-plus" style="font-size: 0.75rem;"></i>',
-            onClick: () => {
-                goal.metrics = [...(goal.metrics || []), { id: crypto.randomUUID(), fieldName: '', fieldValue: '', targetValue: '', memberId: '' }];
-                renderGoalsAndMetrics();
-            }
-        });
+        if (goal.name.trim().toLowerCase() !== 'email campaign') {
+            const addMetricButton = Button({
+                children: 'Add Metric', variant: 'secondary', size: 'sm',
+                leftIcon: '<i class="fas fa-plus" style="font-size: 0.75rem;"></i>',
+                onClick: () => {
+                    goal.metrics = [...(goal.metrics || []), { id: crypto.randomUUID(), fieldName: '', fieldValue: '', targetValue: '', memberId: '' }];
+                    renderGoalsAndMetrics();
+                }
+            });
+            goalActions.appendChild(addMetricButton);
+        }
         
         const deleteGoalButton = Button({
             children: '<i class="fas fa-trash"></i>', variant: 'danger', size: 'sm', ariaLabel: 'Delete Goal',
@@ -309,88 +287,158 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
             }
         });
 
-        goalActions.append(addMetricButton, deleteGoalButton);
+        goalActions.append(deleteGoalButton);
         legend.append(goalNameInput, goalActions);
         goalFieldset.appendChild(legend);
 
-        if (!goal.metrics || goal.metrics.length === 0) {
-            const placeholder = document.createElement('p');
-            placeholder.className = 'project-form-custom-fields-list-placeholder';
-            placeholder.textContent = 'No metrics for this goal. Click "Add Metric".';
-            goalFieldset.appendChild(placeholder);
-        } else {
-            const table = document.createElement('table');
-            table.className = 'data-table custom-fields-table-editor';
-            table.innerHTML = `
-                <thead>
-                    <tr>
-                        <th>Metric Name</th>
-                        <th>Track for Member</th>
-                        <th>Current Value</th>
-                        <th>Target Value</th>
-                        <th class="action-cell">Action</th>
-                    </tr>
-                </thead>`;
+        if (goal.name.trim().toLowerCase() === 'email campaign') {
+            const getMetric = (name) => (goal.metrics || []).find(m => m.fieldName === name);
+            const updateMetric = (name, value) => {
+                let metric = getMetric(name);
+                if (metric) {
+                    metric.fieldValue = value;
+                } else {
+                    goal.metrics.push({ id: crypto.randomUUID(), fieldName: name, fieldValue: value });
+                }
+            };
             
-            const tbody = document.createElement('tbody');
-            (goal.metrics || []).forEach((metric, metricIndex) => {
-                const tr = document.createElement('tr');
-                
-                const tdName = document.createElement('td');
-                const nameInput = document.createElement('input');
-                nameInput.type = 'text';
-                nameInput.className = 'form-input';
-                nameInput.placeholder = 'e.g., Leads Generated';
-                nameInput.value = metric.fieldName;
-                nameInput.required = true;
-                nameInput.onchange = (e) => metric.fieldName = e.target.value;
-                tdName.appendChild(nameInput);
-                tr.appendChild(tdName);
+            const clientName = getMetric('Client Name')?.fieldValue || '';
+            const totalLeads = Number(getMetric('Total Leads')?.fieldValue) || 0;
+            const delivered = Number(getMetric('Delivered')?.fieldValue) || 0;
+            const undelivered = Number(getMetric('Undelivered')?.fieldValue) || 0;
+            const leadConversions = Number(getMetric('Lead Conversions')?.fieldValue) || 0;
 
-                const tdAssignee = document.createElement('td');
-                const assigneeSelect = document.createElement('select');
-                assigneeSelect.className = 'form-select';
-                assigneeSelect.innerHTML = `<option value="">Project-Level</option>` + availableAssigneesForMetrics.map(m => `<option value="${m.id}" ${metric.memberId === m.id ? 'selected' : ''}>${m.name}</option>`).join('');
-                assigneeSelect.disabled = availableAssigneesForMetrics.length === 0;
-                assigneeSelect.onchange = (e) => metric.memberId = e.target.value;
-                tdAssignee.appendChild(assigneeSelect);
-                tr.appendChild(tdAssignee);
+            const totalSent = delivered + undelivered;
+            const conversionRate = delivered > 0 ? ((leadConversions / delivered) * 100).toFixed(2) : 0;
+            const toBeSent = totalLeads - totalSent;
 
-                const tdValue = document.createElement('td');
-                const valueInput = document.createElement('input');
-                valueInput.type = 'text';
-                valueInput.className = 'form-input';
-                valueInput.placeholder = 'e.g., 25';
-                valueInput.value = metric.fieldValue;
-                valueInput.required = true;
-                valueInput.onchange = (e) => metric.fieldValue = e.target.value;
-                tdValue.appendChild(valueInput);
-                tr.appendChild(tdValue);
-
-                const tdTarget = document.createElement('td');
-                const targetInput = document.createElement('input');
-                targetInput.type = 'text';
-                targetInput.className = 'form-input';
-                targetInput.placeholder = 'e.g., 100';
-                targetInput.value = metric.targetValue || '';
-                targetInput.onchange = (e) => metric.targetValue = e.target.value;
-                tdTarget.appendChild(targetInput);
-                tr.appendChild(tdTarget);
-
-                const tdAction = document.createElement('td');
-                tdAction.className = 'action-cell';
-                const removeMetricButton = Button({
-                    variant: 'ghost', size: 'sm', className: 'team-member-action-btn-delete',
-                    children: '<i class="fas fa-trash-alt"></i>', ariaLabel: `Remove metric ${metric.fieldName}`,
-                    onClick: () => { goal.metrics.splice(metricIndex, 1); renderGoalsAndMetrics(); }
+            const campaignGrid = document.createElement('div');
+            campaignGrid.className = 'email-campaign-grid';
+            
+            const createCampaignField = (label, type, value, onUpdate, placeholder = '') => {
+                const div = document.createElement('div');
+                const labelEl = document.createElement('label');
+                labelEl.className = 'form-label';
+                labelEl.textContent = label;
+                div.appendChild(labelEl);
+                const input = document.createElement('input');
+                input.type = type;
+                input.className = 'form-input';
+                input.value = value;
+                if(type === 'number') input.min = 0;
+                input.placeholder = placeholder;
+                input.addEventListener('input', (e) => {
+                    onUpdate(e.target.value);
+                    renderGoalsAndMetrics(); // Re-render to update calculated fields
                 });
-                tdAction.appendChild(removeMetricButton);
-                tr.appendChild(tdAction);
+                div.appendChild(input);
+                return div;
+            };
 
-                tbody.appendChild(tr);
-            });
-            table.appendChild(tbody);
-            goalFieldset.appendChild(table);
+            const createCalculatedField = (label, value) => {
+                const div = document.createElement('div');
+                div.className = 'calculated-field';
+                const labelEl = document.createElement('label');
+                labelEl.className = 'form-label';
+                labelEl.textContent = label;
+                const valueEl = document.createElement('span');
+                valueEl.className = 'calculated-value';
+                valueEl.textContent = value;
+                div.append(labelEl, valueEl);
+                return div;
+            };
+
+            campaignGrid.appendChild(createCampaignField('Client Name', 'text', clientName, val => updateMetric('Client Name', val), 'Client Name'));
+            campaignGrid.appendChild(createCampaignField('Total Leads', 'number', totalLeads, val => updateMetric('Total Leads', val)));
+            campaignGrid.appendChild(createCampaignField('Delivered', 'number', delivered, val => updateMetric('Delivered', val)));
+            campaignGrid.appendChild(createCampaignField('Undelivered', 'number', undelivered, val => updateMetric('Undelivered', val)));
+            campaignGrid.appendChild(createCampaignField('Lead Conversions', 'number', leadConversions, val => updateMetric('Lead Conversions', val)));
+            campaignGrid.appendChild(createCalculatedField('Total Sent', totalSent.toLocaleString()));
+            campaignGrid.appendChild(createCalculatedField('Conversion Rate', `${conversionRate}%`));
+            campaignGrid.appendChild(createCalculatedField('To Be Sent', toBeSent.toLocaleString()));
+
+            goalFieldset.appendChild(campaignGrid);
+        } else {
+            // Standard metrics table
+            if (!goal.metrics || goal.metrics.length === 0) {
+                const placeholder = document.createElement('p');
+                placeholder.className = 'project-form-custom-fields-list-placeholder';
+                placeholder.textContent = 'No metrics for this goal. Click "Add Metric".';
+                goalFieldset.appendChild(placeholder);
+            } else {
+                const table = document.createElement('table');
+                table.className = 'data-table custom-fields-table-editor';
+                table.innerHTML = `
+                    <thead>
+                        <tr>
+                            <th>Client Name</th>
+                            <th>Track for Member</th>
+                            <th>Current Value</th>
+                            <th>Target Value</th>
+                            <th class="action-cell">Action</th>
+                        </tr>
+                    </thead>`;
+                
+                const tbody = document.createElement('tbody');
+                (goal.metrics || []).forEach((metric, metricIndex) => {
+                    const tr = document.createElement('tr');
+                    
+                    const tdName = document.createElement('td');
+                    const nameInput = document.createElement('input');
+                    nameInput.type = 'text';
+                    nameInput.className = 'form-input';
+                    nameInput.placeholder = 'e.g., Client A';
+                    nameInput.value = metric.fieldName;
+                    nameInput.required = true;
+                    nameInput.onchange = (e) => metric.fieldName = e.target.value;
+                    tdName.appendChild(nameInput);
+                    tr.appendChild(tdName);
+
+                    const tdAssignee = document.createElement('td');
+                    const assigneeSelect = document.createElement('select');
+                    assigneeSelect.className = 'form-select';
+                    assigneeSelect.innerHTML = `<option value="">Project-Level</option>` + availableAssigneesForMetrics.map(m => `<option value="${m.id}" ${metric.memberId === m.id ? 'selected' : ''}>${m.name}</option>`).join('');
+                    assigneeSelect.disabled = availableAssigneesForMetrics.length === 0;
+                    assigneeSelect.onchange = (e) => metric.memberId = e.target.value;
+                    tdAssignee.appendChild(assigneeSelect);
+                    tr.appendChild(tdAssignee);
+
+                    const tdValue = document.createElement('td');
+                    const valueInput = document.createElement('input');
+                    valueInput.type = 'text';
+                    valueInput.className = 'form-input';
+                    valueInput.placeholder = 'e.g., 25';
+                    valueInput.value = metric.fieldValue;
+                    valueInput.required = true;
+                    valueInput.onchange = (e) => metric.fieldValue = e.target.value;
+                    tdValue.appendChild(valueInput);
+                    tr.appendChild(tdValue);
+
+                    const tdTarget = document.createElement('td');
+                    const targetInput = document.createElement('input');
+                    targetInput.type = 'text';
+                    targetInput.className = 'form-input';
+                    targetInput.placeholder = 'e.g., 100';
+                    targetInput.value = metric.targetValue || '';
+                    targetInput.onchange = (e) => metric.targetValue = e.target.value;
+                    tdTarget.appendChild(targetInput);
+                    tr.appendChild(tdTarget);
+
+                    const tdAction = document.createElement('td');
+                    tdAction.className = 'action-cell';
+                    const removeMetricButton = Button({
+                        variant: 'ghost', size: 'sm', className: 'team-member-action-btn-delete',
+                        children: '<i class="fas fa-trash-alt"></i>', ariaLabel: `Remove metric ${metric.fieldName}`,
+                        onClick: () => { goal.metrics.splice(metricIndex, 1); renderGoalsAndMetrics(); }
+                    });
+                    tdAction.appendChild(removeMetricButton);
+                    tr.appendChild(tdAction);
+
+                    tbody.appendChild(tr);
+                });
+                table.appendChild(tbody);
+                goalFieldset.appendChild(table);
+            }
         }
         goalsListDiv.appendChild(goalFieldset);
     });
@@ -413,24 +461,6 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
       createdAt: project?.createdAt || now,
       updatedAt: now,
     };
-
-    // Filter out the old campaign goal to avoid duplicates before we add the new/updated one.
-    projectToSave.goals = projectToSave.goals.filter(g => g.name !== CAMPAIGN_METRIC_GOAL);
-
-    if (formData.projectCategory?.trim().toLowerCase() === 'email campaign') {
-        const campaignMetrics = Object.entries(campaignFormData).map(([fieldName, fieldValue]) => ({
-            id: crypto.randomUUID(),
-            fieldName,
-            fieldValue: String(fieldValue || 0),
-        }));
-        
-        projectToSave.goals.push({
-            id: crypto.randomUUID(),
-            name: CAMPAIGN_METRIC_GOAL,
-            metrics: campaignMetrics,
-        });
-    }
-
     onSave(projectToSave);
   });
 
