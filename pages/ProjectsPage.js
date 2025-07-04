@@ -502,14 +502,15 @@ export function renderProjectsPage(container, props) {
                 };
 
                 const clientName = getMetricValue('Client Name', false);
-                const totalLeads = getMetricValue('Total Leads');
+                // Handle backward compatibility for the name change
+                const totalProspects = getMetricValue('Total Prospects') || getMetricValue('Total Leads');
                 const delivered = getMetricValue('Delivered');
                 const undelivered = getMetricValue('Undelivered');
                 const leadConversions = getMetricValue('Lead Conversions');
 
                 const totalSent = delivered + undelivered;
                 const conversionRate = delivered > 0 ? ((leadConversions / delivered) * 100).toFixed(2) : 0;
-                const toBeSent = totalLeads - totalSent;
+                const toBeSent = totalProspects - totalSent;
                 
                 const campaignContainer = document.createElement('div');
                 campaignContainer.className = 'detail-grid';
@@ -517,7 +518,7 @@ export function renderProjectsPage(container, props) {
 
                 campaignContainer.innerHTML = `
                     <div class="detail-item"><h4 class="detail-label">Client Name</h4><p class="detail-value">${clientName || 'N/A'}</p></div>
-                    <div class="detail-item"><h4 class="detail-label">Total Leads</h4><p class="detail-value">${totalLeads.toLocaleString()}</p></div>
+                    <div class="detail-item"><h4 class="detail-label">Total Prospects</h4><p class="detail-value">${totalProspects.toLocaleString()}</p></div>
                     <div class="detail-item"><h4 class="detail-label">Delivered</h4><p class="detail-value">${delivered.toLocaleString()}</p></div>
                     <div class="detail-item"><h4 class="detail-label">Undelivered</h4><p class="detail-value">${undelivered.toLocaleString()}</p></div>
                     <div class="detail-item"><h4 class="detail-label">Lead Conversions</h4><p class="detail-value">${leadConversions.toLocaleString()}</p></div>
