@@ -322,7 +322,7 @@ export function renderProjectsPage(container, props) {
   function getFilteredAndSortedProjects() {
     return projects.filter(p => {
       const sTerm = searchTerm.toLowerCase();
-      return (p.name.toLowerCase().includes(sTerm) || (p.description||'').toLowerCase().includes(sTerm) || (p.clientName && p.clientName.toLowerCase().includes(sTerm))) &&
+      return (p.name.toLowerCase().includes(sTerm) || (p.description||'').toLowerCase().includes(sTerm) || (p.stakeholderName && p.stakeholderName.toLowerCase().includes(sTerm))) &&
              (!statusFilter || p.status === statusFilter) &&
              (!assigneeFilter || (p.assignees && p.assignees.includes(assigneeFilter))) &&
              (!teamLeadFilter || p.teamLeadId === teamLeadFilter) &&
@@ -420,24 +420,6 @@ export function renderProjectsPage(container, props) {
     }
   }
 
-  const getCampaignStats = (project) => {
-    const stats = {};
-    const campaignGoal = project.goals?.find(g => g.name === 'Email Campaign Metrics');
-    if (!campaignGoal) return null;
-
-    const findMetricValue = (fieldName) => {
-        const metric = campaignGoal.metrics.find(m => m.fieldName === fieldName);
-        return metric ? Number(metric.fieldValue) || 0 : 0;
-    };
-    stats.delivered = findMetricValue('Delivered');
-    stats.undelivered = findMetricValue('Undelivered');
-    stats.totalSent = findMetricValue('Total Sent');
-    stats.hubspotLeads = findMetricValue('HubSpot Leads');
-    stats.toBeSent = findMetricValue('To be Sent');
-    return stats;
-  };
-
-
   function renderProjectDetailView(project) {
     const getMemberName = (id) => teamMembers.find(tm => tm.id === id)?.name || 'Unknown';
     const assigneesNames = project.assignees?.length > 0 ? project.assignees.map(id => getMemberName(id)).join(', ') : 'Unassigned';
@@ -451,7 +433,7 @@ export function renderProjectsPage(container, props) {
             <p class="detail-value">${project.description || 'No description provided.'}</p>
         </div>
         <div class="detail-grid">
-            <div class="detail-item"><h4 class="detail-label">Client</h4><p class="detail-value">${project.clientName || 'N/A'}</p></div>
+            <div class="detail-item"><h4 class="detail-label">Stakeholder</h4><p class="detail-value">${project.stakeholderName || 'N/A'}</p></div>
             <div class="detail-item"><h4 class="detail-label">Status</h4><p class="detail-value"><span class="project-status-badge ${getStatusClass(project.status)}">${project.status}</span></p></div>
             <div class="detail-item"><h4 class="detail-label">Assignees</h4><p class="detail-value">${assigneesNames}</p></div>
             <div class="detail-item"><h4 class="detail-label">Team Lead</h4><p class="detail-value">${teamLeadName}</p></div>
@@ -462,49 +444,95 @@ export function renderProjectsPage(container, props) {
         </div>
     `;
 
-    // Display campaign stats if available
-    const campaignStats = getCampaignStats(project);
-    if (campaignStats) {
-        const campaignContainer = document.createElement('div');
-        campaignContainer.className = 'detail-group';
-        
-        const conversion = campaignStats.delivered > 0 ? ((campaignStats.hubspotLeads / campaignStats.delivered) * 100).toFixed(2) : 0;
+    const hasPilotDetails = project.mediaProduct || project.pilotScope || project.clientNames || project.projectApproach || project.deliverables || project.resultsAchieved;
+    if (hasPilotDetails) {
+        const pilotDetailsContainer = document.createElement('div');
+        pilotDetailsContainer.className = 'pilot-details-container';
 
-        campaignContainer.innerHTML = `
-            <h4 class="detail-label"><i class="fas fa-bullhorn"></i> Campaign Stats</h4>
-            <div class="detail-grid">
-                <div class="detail-item"><h4 class="detail-label">Delivered</h4><p class="detail-value">${campaignStats.delivered.toLocaleString()}</p></div>
-                <div class="detail-item"><h4 class="detail-label">Undelivered</h4><p class="detail-value">${campaignStats.undelivered.toLocaleString()}</p></div>
-                <div class="detail-item"><h4 class="detail-label">Total Sent</h4><p class="detail-value">${campaignStats.totalSent.toLocaleString()}</p></div>
-                <div class="detail-item"><h4 class="detail-label">HubSpot Leads</h4><p class="detail-value">${campaignStats.hubspotLeads.toLocaleString()}</p></div>
-                <div class="detail-item"><h4 class="detail-label">Conversion</h4><p class="detail-value">${conversion}%</p></div>
-                <div class="detail-item"><h4 class="detail-label">To Be Sent</h4><p class="detail-value">${campaignStats.toBeSent.toLocaleString()}</p></div>
-            </div>
-        `;
-        detailView.appendChild(campaignContainer);
+        const title = document.createElement('h4');
+        title.className = 'pilot-details-title';
+        title.textContent = 'Pilot-Specific Details';
+        pilotDetailsContainer.appendChild(title);
+
+        const table = document.createElement('table');
+        table.className = 'pilot-details-table';
+        const tbody = document.createElement('tbody');
+
+        const addRow = (label, value) => {
+            if (!value) return;
+            const tr = document.createElement('tr');
+            const th = document.createElement('th');
+            th.textContent = label;
+            const td = document.createElement('td');
+            td.textContent = value;
+            tr.append(th, td);
+            tbody.appendChild(tr);
+        };
+
+        addRow('Media Product', project.mediaProduct);
+        addRow('Pilot Scope', project.pilotScope);
+        addRow('Client Names (if any)', project.clientNames);
+        addRow('Project Approach', project.projectApproach);
+        addRow('Deliverables', project.deliverables);
+        addRow('Results Achieved', project.resultsAchieved);
+
+        table.appendChild(tbody);
+        pilotDetailsContainer.appendChild(table);
+        detailView.appendChild(pilotDetailsContainer);
     }
 
-
-    const standardGoals = project.goals?.filter(g => g.name !== 'Email Campaign Metrics');
-    if (standardGoals && standardGoals.length > 0) {
+    if (project.goals && project.goals.length > 0) {
         const goalsContainerDiv = document.createElement('div');
         goalsContainerDiv.className = 'project-detail-goals-container';
         
-        standardGoals.forEach(goal => {
+        project.goals.forEach(goal => {
             const goalDiv = document.createElement('div');
             goalDiv.className = 'project-detail-goal';
 
             const goalTitle = document.createElement('h4');
             goalTitle.className = 'detail-label goal-title';
-            goalTitle.textContent = goal.name;
+            goalTitle.innerHTML = `<i class="fas fa-bullseye" style="margin-right: 0.5rem"></i> ${goal.name}`;
             goalDiv.appendChild(goalTitle);
 
-            if (goal.metrics && goal.metrics.length > 0) {
+            if (goal.name.trim().toLowerCase() === 'email campaign') {
+                 const getMetricValue = (name, isNumber = true) => {
+                    const metric = (goal.metrics || []).find(m => m.fieldName === name);
+                    if (!metric) return isNumber ? 0 : '';
+                    return isNumber ? Number(metric.fieldValue) || 0 : metric.fieldValue;
+                };
+
+                const clientName = getMetricValue('Client Name', false);
+                const totalLeads = getMetricValue('Total Leads');
+                const delivered = getMetricValue('Delivered');
+                const undelivered = getMetricValue('Undelivered');
+                const leadConversions = getMetricValue('Lead Conversions');
+
+                const totalSent = delivered + undelivered;
+                const conversionRate = delivered > 0 ? ((leadConversions / delivered) * 100).toFixed(2) : 0;
+                const toBeSent = totalLeads - totalSent;
+                
+                const campaignContainer = document.createElement('div');
+                campaignContainer.className = 'detail-grid';
+                campaignContainer.style.marginTop = '0.5rem';
+
+                campaignContainer.innerHTML = `
+                    <div class="detail-item"><h4 class="detail-label">Client Name</h4><p class="detail-value">${clientName || 'N/A'}</p></div>
+                    <div class="detail-item"><h4 class="detail-label">Total Leads</h4><p class="detail-value">${totalLeads.toLocaleString()}</p></div>
+                    <div class="detail-item"><h4 class="detail-label">Delivered</h4><p class="detail-value">${delivered.toLocaleString()}</p></div>
+                    <div class="detail-item"><h4 class="detail-label">Undelivered</h4><p class="detail-value">${undelivered.toLocaleString()}</p></div>
+                    <div class="detail-item"><h4 class="detail-label">Lead Conversions</h4><p class="detail-value">${leadConversions.toLocaleString()}</p></div>
+                    <div class="detail-item"><h4 class="detail-label">Total Sent</h4><p class="detail-value">${totalSent.toLocaleString()}</p></div>
+                    <div class="detail-item"><h4 class="detail-label">Conversion</h4><p class="detail-value">${conversionRate}%</p></div>
+                    <div class="detail-item"><h4 class="detail-label">To Be Sent</h4><p class="detail-value">${toBeSent.toLocaleString()}</p></div>
+                `;
+                goalDiv.appendChild(campaignContainer);
+
+            } else if (goal.metrics && goal.metrics.length > 0) {
                 const tableContainer = document.createElement('div');
                 tableContainer.className = 'data-table-container';
                 const table = document.createElement('table');
                 table.className = 'data-table';
-                table.innerHTML = `<thead><tr><th>Metric</th><th>For</th><th>Progress</th><th>Target</th></tr></thead>`;
+                table.innerHTML = `<thead><tr><th>Client Name</th><th>For</th><th>Progress</th><th>Target</th></tr></thead>`;
                 const tbody = document.createElement('tbody');
 
                 goal.metrics.forEach(metric => {
