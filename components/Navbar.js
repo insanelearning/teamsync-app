@@ -2,7 +2,6 @@
 export function Navbar({ currentView, onNavChange, onThemeToggle }) {
   const navItems = [
     { view: 'projects', label: 'Projects', icon: 'fas fa-tasks' },
-    { view: 'campaigns', label: 'Campaigns', icon: 'fas fa-bullhorn' },
     { view: 'attendance', label: 'Attendance', icon: 'fas fa-user-check' },
     { view: 'notes', label: 'Notes', icon: 'fas fa-sticky-note' },
   ];
