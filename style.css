@@ -1141,7 +1141,7 @@ footer.app-footer {
 }
 @media (min-width: 640px) {
   .detail-grid {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 .detail-grid-small {
@@ -1446,7 +1446,6 @@ footer.app-footer {
 /* Pilot Details display in Project Detail View */
 .pilot-details-container {
   margin-top: 1.25rem;
-  font-size: small;
 }
 .pilot-details-title {
   font-size: 1.25rem;
@@ -2080,6 +2079,64 @@ footer.app-footer {
 .conversion-rate-low { color: #991b1b; background-color: #fee2e2; }
 .dark .conversion-rate-low { color: #fca5a5; background-color: #991b1b; }
 
+
+/* --- Evaluation Page --- */
+.evaluation-overview-container {
+    background-color: #ffffff;
+    border-radius: .5rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px -1px rgba(0,0,0,0.1);
+}
+.dark .evaluation-overview-container {
+    background-color: #1f2937;
+}
+.evaluation-overview-container .kpi-grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+.stat-card-subtext {
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin-top: 2px;
+}
+.dark .stat-card-subtext {
+    color: #9ca3af;
+}
+
+.evaluation-modal-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+.evaluation-modal-content .detail-label {
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.evaluation-modal-content .detail-label-small {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #6b7280;
+    text-transform: uppercase;
+    margin-bottom: 0.1rem;
+}
+.dark .evaluation-modal-content .detail-label-small {
+    color: #9ca3af;
+}
+.evaluation-modal-content .detail-value-large {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #4f46e5;
+}
+.dark .evaluation-modal-content .detail-value-large {
+    color: #a5b4fc;
+}
+.evaluation-modal-content .detail-grid {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 1.5rem;
+    text-align: center;
+}
 
 /* Helper for truncation */
 .truncate {
