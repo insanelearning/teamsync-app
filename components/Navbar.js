@@ -3,6 +3,7 @@ export function Navbar({ currentView, onNavChange, onThemeToggle }) {
   const navItems = [
     { view: 'projects', label: 'Projects', icon: 'fas fa-tasks' },
     { view: 'attendance', label: 'Attendance', icon: 'fas fa-user-check' },
+    { view: 'evaluation', label: 'Evaluation', icon: 'fas fa-chart-line' },
     { view: 'notes', label: 'Notes', icon: 'fas fa-sticky-note' },
   ];
 
