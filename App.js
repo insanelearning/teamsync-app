@@ -2,6 +2,7 @@
 import { renderProjectsPage } from './pages/ProjectsPage.js';
 import { renderAttendancePage } from './pages/AttendancePage.js';
 import { renderNotesPage } from './pages/NotesPage.js';
+import { renderEvaluationPage } from './pages/EvaluationPage.js';
 import { Navbar } from './components/Navbar.js';
 import { INITIAL_TEAM_MEMBERS } from './constants.js';
 import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery } from './services/firebaseService.js';
@@ -366,6 +367,12 @@ function renderApp() {
         onDeleteNote: deleteNote,
         onExport: () => handleExport('notes'),
         onImport: (file) => handleImport(file, 'notes'),
+    });
+  } else if (currentView === 'evaluation') {
+    renderEvaluationPage(mainContentElement, {
+      teamMembers,
+      projects,
+      attendanceRecords: attendance,
     });
   }
   
