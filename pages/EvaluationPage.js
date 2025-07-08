@@ -1,4 +1,3 @@
-
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { ProjectStatus, AttendanceStatus } from "../types.js";
@@ -40,13 +39,149 @@ function getAttendanceStatsForEmployee(employeeId, attendanceRecords, days = 90)
 }
 
 
-// --- UI Rendering Components ---
+// --- UI Chart Components ---
+
+function createBarChart(data, title) {
+    const container = document.createElement('div');
+    container.className = 'bar-chart-container';
+    
+    if (title) {
+        const chartTitle = document.createElement('h5');
+        chartTitle.className = 'chart-title-small';
+        chartTitle.textContent = title;
+        container.appendChild(chartTitle);
+    }
+
+    const chart = document.createElement('div');
+    chart.className = 'bar-chart';
+    
+    const maxValue = Math.max(...data.map(d => d.value), 0);
+    
+    if (maxValue === 0) {
+        chart.innerHTML = `<p class="chart-empty-text">No data available</p>`;
+    } else {
+        data.forEach(item => {
+            const barWrapper = document.createElement('div');
+            barWrapper.className = 'bar-chart-item';
+            
+            const barLabel = document.createElement('span');
+            barLabel.className = 'bar-chart-label';
+            barLabel.textContent = item.label;
+            
+            const barElement = document.createElement('div');
+            barElement.className = 'bar-chart-bar-wrapper';
+            
+            const barFill = document.createElement('div');
+            barFill.className = 'bar-chart-bar';
+            barFill.style.width = `${(item.value / maxValue) * 100}%`;
+            barFill.style.backgroundColor = item.color;
+            
+            const barValue = document.createElement('span');
+            barValue.className = 'bar-chart-value';
+            barValue.textContent = item.value;
+            
+            barElement.appendChild(barFill);
+            barWrapper.append(barLabel, barElement, barValue);
+            chart.appendChild(barWrapper);
+        });
+    }
+    container.appendChild(chart);
+    return container;
+}
+
+function createDonutChart(data, title) {
+    const container = document.createElement('div');
+    container.className = 'donut-chart-wrapper';
+
+    if (title) {
+        const chartTitle = document.createElement('h5');
+        chartTitle.className = 'chart-title-small';
+        chartTitle.textContent = title;
+        container.appendChild(chartTitle);
+    }
+    
+    const chartAndLegend = document.createElement('div');
+    chartAndLegend.className = 'donut-chart-and-legend';
+
+    const chartContainer = document.createElement('div');
+    chartContainer.className = 'donut-chart-container';
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 100 100');
+    svg.setAttribute('class', 'donut-chart-svg');
+
+    const totalValue = data.reduce((sum, item) => sum + item.value, 0);
+
+    if (totalValue === 0) {
+        svg.innerHTML = `<circle cx="50" cy="50" r="45" fill="none" stroke="#e5e7eb" stroke-width="10"/>
+        <text x="50" y="55" class="pie-chart-empty-text" text-anchor="middle">N/A</text>`;
+    } else {
+        const radius = 45;
+        const strokeWidth = 12;
+        const cx = 50;
+        const cy = 50;
+        let cumulativePercent = 0;
+
+        data.forEach(item => {
+            if (item.value === 0) return;
+            const percent = (item.value / totalValue) * 100;
+            const segment = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            segment.setAttribute('cx', String(cx));
+            segment.setAttribute('cy', String(cy));
+            segment.setAttribute('r', String(radius));
+            segment.setAttribute('fill', 'none');
+            segment.setAttribute('stroke', item.color);
+            segment.setAttribute('stroke-width', String(strokeWidth));
+            segment.setAttribute('stroke-dasharray', `${percent} ${100 - percent}`);
+            segment.setAttribute('stroke-dashoffset', String(-cumulativePercent));
+            segment.setAttribute('transform', `rotate(-90 ${cx} ${cy})`);
+            svg.appendChild(segment);
+            cumulativePercent += percent;
+        });
+
+        const totalText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        totalText.setAttribute('x', '50');
+        totalText.setAttribute('y', '50');
+        totalText.setAttribute('class', 'donut-chart-total-label');
+        totalText.setAttribute('text-anchor', 'middle');
+        totalText.setAttribute('dy', '-0.2em');
+        totalText.textContent = totalValue;
+        
+        const totalSubText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        totalSubText.setAttribute('x', '50');
+        totalSubText.setAttribute('y', '50');
+        totalSubText.setAttribute('class', 'donut-chart-sub-label');
+        totalSubText.setAttribute('text-anchor', 'middle');
+        totalSubText.setAttribute('dy', '1em');
+        totalSubText.textContent = 'days';
+
+        svg.appendChild(totalText);
+        svg.appendChild(totalSubText);
+    }
+    chartContainer.appendChild(svg);
+    chartAndLegend.appendChild(chartContainer);
+
+    const legend = document.createElement('div');
+    legend.className = 'pie-chart-legend';
+    data.forEach(item => {
+        const legendItem = document.createElement('div');
+        legendItem.className = 'pie-chart-legend-item';
+        legendItem.innerHTML = `<span class="legend-color-box" style="background-color: ${item.color};"></span>
+                                <span class="legend-label">${item.label} (${item.value})</span>`;
+        legend.appendChild(legendItem);
+    });
+    chartAndLegend.appendChild(legend);
+    container.appendChild(chartAndLegend);
+    return container;
+}
+
+
+// --- Main UI Rendering ---
 
 function renderTeamOverview(teamMembers, projects, attendanceRecords) {
     const overviewContainer = document.createElement('div');
     overviewContainer.className = 'evaluation-overview-container';
 
-    // KPI Cards
     const kpiContainer = document.createElement('div');
     kpiContainer.className = 'kpi-grid';
 
@@ -102,7 +237,7 @@ function renderTeamOverview(teamMembers, projects, attendanceRecords) {
 }
 
 function renderIndividualEvaluation(container, props) {
-    const { teamMembers, projects, attendanceRecords, onSelectEmployee } = props;
+    const { teamMembers, projects, onSelectEmployee } = props;
 
     const section = document.createElement('div');
     section.className = 'attendance-page-section';
@@ -114,7 +249,8 @@ function renderIndividualEvaluation(container, props) {
     
     if (teamMembers.length === 0) {
         section.innerHTML += `<p class="no-data-placeholder">No team members to evaluate.</p>`;
-        return section;
+        container.appendChild(section);
+        return;
     }
     
     const tableContainer = document.createElement('div');
@@ -166,25 +302,37 @@ function openEvaluationModal(employee, projects, attendanceRecords) {
     const modalContent = document.createElement('div');
     modalContent.className = 'evaluation-modal-content';
 
-    modalContent.innerHTML = `
-        <div class="detail-section">
-            <h4 class="detail-label">Project Performance</h4>
-            <div class="detail-grid">
-                <div class="detail-item"><h5 class="detail-label-small">Assigned</h5><p class="detail-value-large">${projectStats.assigned}</p></div>
-                <div class="detail-item"><h5 class="detail-label-small">Completed</h5><p class="detail-value-large">${projectStats.completed}</p></div>
-                <div class="detail-item"><h5 class="detail-label-small">Overdue</h5><p class="detail-value-large">${projectStats.overdue}</p></div>
-                <div class="detail-item"><h5 class="detail-label-small">On-Time Rate</h5><p class="detail-value-large">${projectStats.onTimeRate}%</p></div>
-            </div>
-        </div>
-        <div class="detail-section">
-            <h4 class="detail-label">Attendance (Last 90 Days)</h4>
-            <div class="detail-grid">
-                <div class="detail-item"><h5 class="detail-label-small">Present</h5><p class="detail-value-large">${attendanceStats.present}</p></div>
-                <div class="detail-item"><h5 class="detail-label-small">Work From Home</h5><p class="detail-value-large">${attendanceStats.wfh}</p></div>
-                <div class="detail-item"><h5 class="detail-label-small">On Leave</h5><p class="detail-value-large">${attendanceStats.leave}</p></div>
-            </div>
-        </div>
+    // Project Performance Section
+    const projectSection = document.createElement('div');
+    projectSection.className = 'detail-section';
+    projectSection.innerHTML = `<h4 class="detail-label"><i class="fas fa-tasks"></i> Project Performance</h4>`;
+
+    const projectKpis = document.createElement('div');
+    projectKpis.className = 'detail-grid';
+    projectKpis.innerHTML = `
+        <div class="detail-item"><h5 class="detail-label-small">Assigned</h5><p class="detail-value-large">${projectStats.assigned}</p></div>
+        <div class="detail-item"><h5 class="detail-label-small">Completed</h5><p class="detail-value-large">${projectStats.completed}</p></div>
+        <div class="detail-item"><h5 class="detail-label-small">Overdue</h5><p class="detail-value-large">${projectStats.overdue}</p></div>
+        <div class="detail-item"><h5 class="detail-label-small">On-Time Rate</h5><p class="detail-value-large">${projectStats.onTimeRate}%</p></div>
     `;
+    projectSection.appendChild(projectKpis);
+    projectSection.appendChild(createBarChart([
+        { label: 'Completed', value: projectStats.completed, color: '#22c55e' },
+        { label: 'In Progress', value: projectStats.inProgress, color: '#3b82f6' },
+        { label: 'Overdue', value: projectStats.overdue, color: '#ef4444' },
+    ], 'Project Status Breakdown'));
+
+    // Attendance Section
+    const attendanceSection = document.createElement('div');
+    attendanceSection.className = 'detail-section';
+    attendanceSection.innerHTML = `<h4 class="detail-label"><i class="fas fa-user-check"></i> Attendance (Last 90 Days)</h4>`;
+    attendanceSection.appendChild(createDonutChart([
+        { label: 'Present', value: attendanceStats.present, color: '#22c55e' },
+        { label: 'WFH', value: attendanceStats.wfh, color: '#3b82f6' },
+        { label: 'Leave', value: attendanceStats.leave, color: '#f97316' }
+    ]));
+
+    modalContent.append(projectSection, attendanceSection);
 
     currentModalInstance = Modal({
         isOpen: true,
