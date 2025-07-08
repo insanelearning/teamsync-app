@@ -1,4 +1,3 @@
-
 /* Basic Reset & Font */
 body, html {
   margin: 0;
@@ -2109,11 +2108,19 @@ footer.app-footer {
     gap: 1.25rem;
 }
 .evaluation-modal-content .detail-label {
-    font-size: 0.875rem;
+    font-size: 1rem; /* increased size */
+    font-weight: 600;
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e5e7eb;
+    margin-bottom: 1rem;
 }
+.dark .evaluation-modal-content .detail-label {
+    border-color: #374151;
+}
+
 .evaluation-modal-content .detail-label-small {
     font-size: 0.75rem;
     font-weight: 500;
@@ -2136,6 +2143,109 @@ footer.app-footer {
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
     gap: 1.5rem;
     text-align: center;
+    margin-bottom: 1rem; /* Space after kpis */
+}
+
+.chart-title-small {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #4b5563;
+    margin-bottom: 0.75rem;
+}
+.dark .chart-title-small {
+    color: #d1d5db;
+}
+
+/* Bar Chart Styles */
+.bar-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+.bar-chart-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+.bar-chart-label {
+    font-size: 0.8rem;
+    width: 80px;
+    text-align: right;
+    flex-shrink: 0;
+    color: #6b7280;
+}
+.dark .bar-chart-label {
+    color: #9ca3af;
+}
+.bar-chart-bar-wrapper {
+    flex-grow: 1;
+    background-color: #e5e7eb;
+    border-radius: 4px;
+    height: 20px;
+}
+.dark .bar-chart-bar-wrapper {
+    background-color: #374151;
+}
+.bar-chart-bar {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.5s ease-in-out;
+}
+.bar-chart-value {
+    font-size: 0.8rem;
+    font-weight: 600;
+    width: 25px;
+    text-align: left;
+}
+.chart-empty-text {
+    font-size: 0.875rem;
+    color: #9ca3af;
+    text-align: center;
+    padding: 1rem 0;
+}
+.dark .chart-empty-text {
+    color: #6b7280;
+}
+
+/* Donut Chart Styles */
+.donut-chart-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+.donut-chart-and-legend {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+.donut-chart-container {
+    width: 150px;
+    height: 150px;
+    position: relative;
+}
+.donut-chart-svg {
+    transform-origin: center;
+}
+.donut-chart-svg circle {
+    transition: stroke-dasharray 0.5s ease-in-out, stroke-dashoffset 0.5s ease-in-out;
+}
+.donut-chart-total-label {
+    font-size: 28px;
+    font-weight: 700;
+    fill: #1f2937;
+}
+.dark .donut-chart-total-label {
+    fill: #f3f4f6;
+}
+.donut-chart-sub-label {
+    font-size: 12px;
+    fill: #6b7280;
+}
+.dark .donut-chart-sub-label {
+    fill: #9ca3af;
 }
 
 /* Helper for truncation */
