@@ -14,9 +14,10 @@ export const AttendanceStatus = {
 
 export const LeaveType = {
   Sick: 'Sick Leave',
+  Casual: 'Casual Leave',
+  Maternity: 'Maternity Leave',
+  Beverement: 'Beverement Leave',
   Vacation: 'Vacation',
-  Personal: 'Personal Day',
-  Unpaid: 'Unpaid Leave',
   Other: 'Other',
 };
 
@@ -44,6 +45,8 @@ export const NoteStatus = {
 //   fieldValue: string | number;
 //   targetValue?: string | number;
 //   memberId?: string; // TeamMember ID
+//   completed?: boolean;
+//   completionDate?: string; // ISO date string
 // }
 
 // interface Goal {
@@ -74,6 +77,7 @@ export const NoteStatus = {
 //   projectApproach?: string;
 //   deliverables?: string;
 //   resultsAchieved?: string;
+//   completionDate?: string; // ISO date string
 // }
 
 // interface AttendanceRecord {
