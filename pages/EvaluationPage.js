@@ -1,3 +1,4 @@
+
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { ProjectStatus, AttendanceStatus } from "../types.js";
@@ -11,7 +12,7 @@ function getProjectStatsForEmployee(employeeId, projects) {
     const completed = assignedProjects.filter(p => p.status === ProjectStatus.Done);
     const overdue = assignedProjects.filter(p => p.status !== ProjectStatus.Done && new Date(p.dueDate) < new Date());
     
-    const onTimeCompletions = completed.filter(p => new Date(p.updatedAt) <= new Date(p.dueDate)).length;
+    const onTimeCompletions = completed.filter(p => p.completionDate && new Date(p.completionDate) <= new Date(p.dueDate)).length;
     const onTimeRate = completed.length > 0 ? (onTimeCompletions / completed.length) * 100 : 0;
 
     return {
@@ -89,90 +90,95 @@ function createBarChart(data, title) {
     return container;
 }
 
-function createDonutChart(data, title) {
-    const container = document.createElement('div');
-    container.className = 'donut-chart-wrapper';
+function renderAttendanceSummaryCard(attendanceStats) {
+  const container = document.createElement('div');
+  container.className = 'attendance-summary-card';
 
-    if (title) {
-        const chartTitle = document.createElement('h5');
-        chartTitle.className = 'chart-title-small';
-        chartTitle.textContent = title;
-        container.appendChild(chartTitle);
-    }
-    
-    const chartAndLegend = document.createElement('div');
-    chartAndLegend.className = 'donut-chart-and-legend';
+  const header = document.createElement('div');
+  header.className = 'attendance-summary-header';
+  header.innerHTML = `
+    <div class="title-group">
+      <i class="fas fa-user-check"></i>
+      <h3>ATTENDANCE (LAST 90 DAYS)</h3>
+    </div>
+    <i class="fas fa-chevron-down"></i>
+  `;
+  container.appendChild(header);
 
-    const chartContainer = document.createElement('div');
-    chartContainer.className = 'donut-chart-container';
+  const body = document.createElement('div');
+  body.className = 'attendance-summary-body';
 
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('viewBox', '0 0 100 100');
-    svg.setAttribute('class', 'donut-chart-svg');
+  const chartContainer = document.createElement('div');
+  chartContainer.className = 'donut-chart-container';
 
-    const totalValue = data.reduce((sum, item) => sum + item.value, 0);
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 100 100');
+  svg.setAttribute('class', 'donut-chart-svg');
 
-    if (totalValue === 0) {
-        svg.innerHTML = `<circle cx="50" cy="50" r="45" fill="none" stroke="#e5e7eb" stroke-width="10"/>
-        <text x="50" y="55" class="pie-chart-empty-text" text-anchor="middle">N/A</text>`;
-    } else {
-        const radius = 45;
-        const strokeWidth = 12;
-        const cx = 50;
-        const cy = 50;
-        let cumulativePercent = 0;
+  const data = [
+    { label: 'Present', value: attendanceStats.present, color: '#22c55e' }, // green
+    { label: 'WFH', value: attendanceStats.wfh, color: '#3b82f6' }, // blue
+    { label: 'Leave', value: attendanceStats.leave, color: '#f97316' } // orange
+  ];
+  const totalValue = data.reduce((sum, item) => sum + item.value, 0);
 
-        data.forEach(item => {
-            if (item.value === 0) return;
-            const percent = (item.value / totalValue) * 100;
-            const segment = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-            segment.setAttribute('cx', String(cx));
-            segment.setAttribute('cy', String(cy));
-            segment.setAttribute('r', String(radius));
-            segment.setAttribute('fill', 'none');
-            segment.setAttribute('stroke', item.color);
-            segment.setAttribute('stroke-width', String(strokeWidth));
-            segment.setAttribute('stroke-dasharray', `${percent} ${100 - percent}`);
-            segment.setAttribute('stroke-dashoffset', String(-cumulativePercent));
-            segment.setAttribute('transform', `rotate(-90 ${cx} ${cy})`);
-            svg.appendChild(segment);
-            cumulativePercent += percent;
-        });
+  if (totalValue === 0) {
+    svg.innerHTML = `<circle cx="50" cy="50" r="40" stroke="#e5e7eb" stroke-width="15" fill="none"/>
+    <text x="50" y="48" class="donut-center-value" text-anchor="middle">0</text>
+    <text x="50" y="62" class="donut-center-label" text-anchor="middle">days</text>`;
+  } else {
+    const radius = 40;
+    const strokeWidth = 15;
+    const circumference = 2 * Math.PI * radius;
+    let offset = 0;
 
-        const totalText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        totalText.setAttribute('x', '50');
-        totalText.setAttribute('y', '50');
-        totalText.setAttribute('class', 'donut-chart-total-label');
-        totalText.setAttribute('text-anchor', 'middle');
-        totalText.setAttribute('dy', '-0.2em');
-        totalText.textContent = totalValue;
-        
-        const totalSubText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        totalSubText.setAttribute('x', '50');
-        totalSubText.setAttribute('y', '50');
-        totalSubText.setAttribute('class', 'donut-chart-sub-label');
-        totalSubText.setAttribute('text-anchor', 'middle');
-        totalSubText.setAttribute('dy', '1em');
-        totalSubText.textContent = 'days';
+    // A small gap between segments
+    const gapSize = 2; // in percentage of circumference
+    const totalGapSize = data.filter(d => d.value > 0).length * gapSize;
+    const scaleFactor = (circumference - totalGapSize) / circumference;
 
-        svg.appendChild(totalText);
-        svg.appendChild(totalSubText);
-    }
-    chartContainer.appendChild(svg);
-    chartAndLegend.appendChild(chartContainer);
-
-    const legend = document.createElement('div');
-    legend.className = 'pie-chart-legend';
     data.forEach(item => {
-        const legendItem = document.createElement('div');
-        legendItem.className = 'pie-chart-legend-item';
-        legendItem.innerHTML = `<span class="legend-color-box" style="background-color: ${item.color};"></span>
-                                <span class="legend-label">${item.label} (${item.value})</span>`;
-        legend.appendChild(legendItem);
+        if (item.value === 0) return;
+        const percent = (item.value / totalValue) * 100;
+        const segmentLength = (percent / 100) * circumference * scaleFactor;
+        const strokeDasharray = `${segmentLength} ${circumference - segmentLength}`;
+        const segment = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        segment.setAttribute('cx', '50');
+        segment.setAttribute('cy', '50');
+        segment.setAttribute('r', String(radius));
+        segment.setAttribute('fill', 'none');
+        segment.setAttribute('stroke', item.color);
+        segment.setAttribute('stroke-width', String(strokeWidth));
+        segment.setAttribute('stroke-dasharray', strokeDasharray);
+        segment.setAttribute('stroke-dashoffset', String(-offset));
+        segment.setAttribute('transform', `rotate(-90 50 50)`);
+        svg.appendChild(segment);
+        offset += segmentLength + (gapSize / 100 * circumference);
     });
-    chartAndLegend.appendChild(legend);
-    container.appendChild(chartAndLegend);
-    return container;
+
+    const totalText = `
+    <text x="50" y="48" class="donut-center-value" text-anchor="middle">${totalValue}</text>
+    <text x="50" y="62" class="donut-center-label" text-anchor="middle">days</text>`;
+    svg.innerHTML += totalText;
+  }
+  chartContainer.appendChild(svg);
+  body.appendChild(chartContainer);
+
+  const legend = document.createElement('div');
+  legend.className = 'attendance-summary-legend';
+  data.forEach(item => {
+    const legendItem = document.createElement('div');
+    legendItem.className = 'legend-item';
+    legendItem.innerHTML = `
+        <span class="legend-color-box" style="background-color: ${item.color};"></span>
+        <span class="legend-label">${item.label} (${item.value})</span>
+    `;
+    legend.appendChild(legendItem);
+  });
+  body.appendChild(legend);
+
+  container.appendChild(body);
+  return container;
 }
 
 
@@ -180,7 +186,7 @@ function createDonutChart(data, title) {
 
 function renderTeamOverview(teamMembers, projects, attendanceRecords) {
     const overviewContainer = document.createElement('div');
-    overviewContainer.className = 'evaluation-overview-container';
+    overviewContainer.className = 'evaluation-overview-container evaluation-page-overview';
 
     const kpiContainer = document.createElement('div');
     kpiContainer.className = 'kpi-grid';
@@ -325,12 +331,7 @@ function openEvaluationModal(employee, projects, attendanceRecords) {
     // Attendance Section
     const attendanceSection = document.createElement('div');
     attendanceSection.className = 'detail-section';
-    attendanceSection.innerHTML = `<h4 class="detail-label"><i class="fas fa-user-check"></i> Attendance (Last 90 Days)</h4>`;
-    attendanceSection.appendChild(createDonutChart([
-        { label: 'Present', value: attendanceStats.present, color: '#22c55e' },
-        { label: 'WFH', value: attendanceStats.wfh, color: '#3b82f6' },
-        { label: 'Leave', value: attendanceStats.leave, color: '#f97316' }
-    ]));
+    attendanceSection.appendChild(renderAttendanceSummaryCard(attendanceStats));
 
     modalContent.append(projectSection, attendanceSection);
 
