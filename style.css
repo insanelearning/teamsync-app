@@ -2280,7 +2280,7 @@ footer.app-footer {
 
 /* Donut Chart SVG Styles */
 .donut-chart-svg .donut-center-value {
-    font-size: 2.25rem;
+    font-size: 1.25rem;
     font-weight: 700;
     fill: #1f2937;
 }
