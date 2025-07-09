@@ -192,7 +192,7 @@ function renderTeamOverview(teamMembers, projects, attendanceRecords) {
     kpiContainer.className = 'kpi-grid';
 
     let topPerformer = { name: 'N/A', count: 0 };
-    let mostPunctual = { name: 'N/A', rate: 0 };
+    let mostPunctual = { name: 'N/A', rate: 0, presentDays: 0 };
     let highestWorkload = { name: 'N/A', count: 0 };
     
     teamMembers.forEach(member => {
@@ -206,10 +206,19 @@ function renderTeamOverview(teamMembers, projects, attendanceRecords) {
         }
         const attendanceStats = getAttendanceStatsForEmployee(member.id, attendanceRecords);
         const workDays = attendanceStats.present + attendanceStats.wfh;
-        if (workDays > 0) {
-            const rate = (workDays / (workDays + attendanceStats.leave)) * 100;
+        const totalLoggedDays = workDays + attendanceStats.leave;
+
+        if (totalLoggedDays > 0) {
+            const rate = (workDays / totalLoggedDays) * 100;
+            
             if (rate > mostPunctual.rate) {
-                mostPunctual = { name: member.name, rate: rate };
+                // Higher rate wins
+                mostPunctual = { name: member.name, rate: rate, presentDays: attendanceStats.present };
+            } else if (rate === mostPunctual.rate) {
+                // Tie-breaker: more present days wins
+                if (attendanceStats.present > mostPunctual.presentDays) {
+                    mostPunctual = { name: member.name, rate: rate, presentDays: attendanceStats.present };
+                }
             }
         }
     });
