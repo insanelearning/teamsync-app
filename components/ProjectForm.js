@@ -418,6 +418,7 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
                             <th>Track for Member</th>
                             <th>Current Value</th>
                             <th>Target Value</th>
+                            <th>Completed</th>
                             <th class="action-cell">Action</th>
                         </tr>
                     </thead>`;
@@ -466,6 +467,20 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
                     targetInput.onchange = (e) => metric.targetValue = e.target.value;
                     tdTarget.appendChild(targetInput);
                     tr.appendChild(tdTarget);
+
+                    const tdCompleted = document.createElement('td');
+                    tdCompleted.style.textAlign = 'center';
+                    const completedCheckbox = document.createElement('input');
+                    completedCheckbox.type = 'checkbox';
+                    completedCheckbox.style.width = '20px';
+                    completedCheckbox.style.height = '20px';
+                    completedCheckbox.checked = !!metric.completed;
+                    completedCheckbox.onchange = (e) => {
+                        metric.completed = e.target.checked;
+                        metric.completionDate = e.target.checked ? new Date().toISOString() : null;
+                    };
+                    tdCompleted.appendChild(completedCheckbox);
+                    tr.appendChild(tdCompleted);
 
                     const tdAction = document.createElement('td');
                     tdAction.className = 'action-cell';
