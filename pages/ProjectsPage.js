@@ -540,7 +540,11 @@ export function renderProjectsPage(container, props) {
                     const tr = document.createElement('tr');
                     
                     const tdName = document.createElement('td');
-                    tdName.textContent = metric.fieldName;
+                    if (metric.completed) {
+                        tdName.innerHTML = `<i class="fas fa-check-circle" style="color: #22c55e; margin-right: 0.5rem;" title="Completed on ${new Date(metric.completionDate).toLocaleDateString()}"></i>${metric.fieldName}`;
+                    } else {
+                        tdName.textContent = metric.fieldName;
+                    }
                     tr.appendChild(tdName);
 
                     const tdMember = document.createElement('td');
