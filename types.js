@@ -15,6 +15,7 @@ export const AttendanceStatus = {
 export const LeaveType = {
   Sick: 'Sick Leave',
   Casual: 'Casual Leave',
+  Birthday: 'Birthday Leave',
   Maternity: 'Maternity Leave',
   Beverement: 'Beverement Leave',
   Vacation: 'Vacation',
