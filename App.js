@@ -36,6 +36,11 @@ const addProject = async (project) => {
 
 const updateProject = async (updatedProject) => {
   try {
+    const originalProject = projects.find(p => p.id === updatedProject.id);
+    if (originalProject && originalProject.status !== ProjectStatus.Done && updatedProject.status === ProjectStatus.Done) {
+        updatedProject.completionDate = new Date().toISOString();
+    }
+
     const { id, ...data } = updatedProject;
     await updateDocument('projects', id, data);
     projects = projects.map(p => p.id === id ? updatedProject : p);
@@ -229,6 +234,7 @@ const handleExport = (dataType) => {
       projectApproach: p.projectApproach || '',
       deliverables: p.deliverables || '',
       resultsAchieved: p.resultsAchieved || '',
+      completionDate: p.completionDate || '',
     }));
     exportToCSV(projectsToExport, 'projects.csv');
   } else if (dataType === 'attendance') {
@@ -267,6 +273,7 @@ const handleImport = async (file, dataType) => {
               projectApproach: item.projectApproach || '',
               deliverables: item.deliverables || '',
               resultsAchieved: item.resultsAchieved || '',
+              completionDate: item.completionDate || null,
             };
         }).filter(Boolean);
     } else if (dataType === 'attendance') {
