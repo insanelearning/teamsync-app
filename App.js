@@ -363,7 +363,10 @@ function renderApp() {
         currentUser,
         teamMembers,
         projects,
-        attendanceRecords: attendance
+        attendanceRecords: attendance,
+        projectStatuses: Object.values(ProjectStatus),
+        onAddProject: addProject,
+        onAddNote: addNote
     });
   } else if (currentView === 'projects') {
     renderProjectsPage(mainContentElement, {
