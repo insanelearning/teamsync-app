@@ -22,6 +22,7 @@ const getDefaultProject = () => ({
   projectApproach: '',
   deliverables: '',
   resultsAchieved: '',
+  completionPercentage: 0,
 });
 
 /**
@@ -124,13 +125,6 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
     input.addEventListener('change', (e) => {
       if (inputType === 'select' && options.multiple) {
         formData[name] = Array.from(e.target.selectedOptions).map(opt => opt.value);
-        if (name === 'assignees') { 
-            formData.goals = (formData.goals || []).map(goal => ({
-              ...goal,
-              metrics: (goal.metrics || []).filter(metric => !metric.memberId || formData.assignees.includes(metric.memberId))
-            }));
-            renderGoalsAndMetrics(); 
-        }
       } else {
         formData[name] = e.target.value;
       }
@@ -152,10 +146,145 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
 
   const assigneesLeadGrid = document.createElement('div');
   assigneesLeadGrid.className = 'form-grid-cols-2';
-  assigneesLeadGrid.appendChild(createField('Assignees (Ctrl/Cmd + Click)', 'select', 'assignees', formData.assignees, {
-    multiple: true,
-    options: teamMembers.map(m => ({ value: m.id, label: m.name })),
-  }));
+
+  // --- New Assignee Selector ---
+  function createAssigneeSelector(selectedAssignees) {
+      let isOpen = false;
+      let searchTerm = '';
+      const container = document.createElement('div');
+      container.className = 'assignee-select-container';
+
+      const label = document.createElement('label');
+      label.className = 'form-label';
+      label.textContent = 'Assignees';
+      container.appendChild(label);
+
+      const inputWrapper = document.createElement('div');
+      inputWrapper.className = 'assignee-select-input';
+      inputWrapper.tabIndex = 0;
+
+      const pillsContainer = document.createElement('div');
+      pillsContainer.className = 'flex flex-wrap gap-1';
+
+      const dropdown = document.createElement('div');
+      dropdown.className = 'assignee-select-dropdown';
+      dropdown.style.display = 'none';
+
+      const searchInput = document.createElement('div');
+      searchInput.className = 'assignee-select-search';
+      searchInput.innerHTML = `<input type="text" placeholder="Search members..." class="form-input">`;
+      
+      const list = document.createElement('ul');
+      list.className = 'assignee-select-list';
+
+      const updatePills = () => {
+          pillsContainer.innerHTML = '';
+          selectedAssignees.forEach(id => {
+              const member = teamMembers.find(m => m.id === id);
+              if (!member) return;
+              const pill = document.createElement('span');
+              pill.className = 'assignee-select-pill';
+              pill.textContent = member.name;
+              const removeBtn = document.createElement('button');
+              removeBtn.type = 'button';
+              removeBtn.className = 'assignee-select-pill-remove';
+              removeBtn.innerHTML = '&times;';
+              removeBtn.onclick = (e) => {
+                  e.stopPropagation();
+                  formData.assignees = formData.assignees.filter(assigneeId => assigneeId !== id);
+                  selectedAssignees = formData.assignees;
+                  updatePills();
+                  renderList();
+              };
+              pill.appendChild(removeBtn);
+              pillsContainer.appendChild(pill);
+          });
+          if (selectedAssignees.length === 0) {
+              pillsContainer.innerHTML = `<span class="text-gray-400 text-sm py-1">Select members...</span>`;
+          }
+      };
+
+      const filterList = () => {
+        const items = list.querySelectorAll('.assignee-select-list-item');
+        items.forEach(item => {
+            const name = item.textContent.toLowerCase();
+            if (name.includes(searchTerm.toLowerCase())) {
+                item.classList.remove('hidden');
+            } else {
+                item.classList.add('hidden');
+            }
+        });
+      };
+
+      const renderList = () => {
+          list.innerHTML = '';
+          teamMembers.forEach(member => {
+              const li = document.createElement('li');
+              li.className = 'assignee-select-list-item';
+              li.dataset.id = member.id;
+              
+              const checkbox = document.createElement('input');
+              checkbox.type = 'checkbox';
+              checkbox.checked = selectedAssignees.includes(member.id);
+              
+              li.innerHTML = `<span>${member.name}</span>`;
+              li.prepend(checkbox);
+
+              li.onclick = (e) => {
+                  e.stopPropagation();
+                  if (selectedAssignees.includes(member.id)) {
+                      formData.assignees = selectedAssignees.filter(id => id !== member.id);
+                  } else {
+                      formData.assignees = [...selectedAssignees, member.id];
+                  }
+                  selectedAssignees = formData.assignees;
+                  updatePills();
+                  renderList();
+                  // Re-filter metrics in goals if assignees change
+                  formData.goals = (formData.goals || []).map(goal => ({
+                    ...goal,
+                    metrics: (goal.metrics || []).filter(metric => !metric.memberId || formData.assignees.includes(metric.memberId))
+                  }));
+                  renderGoalsAndMetrics(); 
+              };
+              list.appendChild(li);
+          });
+          filterList();
+      };
+      
+      searchInput.querySelector('input').addEventListener('input', (e) => {
+        searchTerm = e.target.value;
+        filterList();
+      });
+
+      inputWrapper.addEventListener('click', () => {
+          if (!isOpen) {
+              isOpen = true;
+              dropdown.style.display = 'block';
+              inputWrapper.focus();
+              renderList();
+          }
+      });
+
+      document.addEventListener('click', (e) => {
+          if (!container.contains(e.target)) {
+              isOpen = false;
+              dropdown.style.display = 'none';
+          }
+      });
+      
+      dropdown.append(searchInput, list);
+      inputWrapper.appendChild(pillsContainer);
+      container.append(inputWrapper, dropdown);
+      
+      updatePills();
+      
+      return container;
+  }
+
+  assigneesLeadGrid.appendChild(createAssigneeSelector(formData.assignees));
+  // --- End New Assignee Selector ---
+
   assigneesLeadGrid.appendChild(createField('Team Lead', 'select', 'teamLeadId', formData.teamLeadId, {
     options: [{ value: '', label: 'None' }, ...teamMembers.map(m => ({ value: m.id, label: m.name }))]
   }));
@@ -263,7 +392,7 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
   const addGoalButton = Button({
       children: 'Add Goal', variant: 'success', size: 'sm', leftIcon: '<i class="fas fa-bullseye"></i>',
       onClick: () => {
-          formData.goals = [...(formData.goals || []), { id: crypto.randomUUID(), name: `New Goal ${(formData.goals || []).length + 1}`, metrics: [] }];
+          formData.goals = [...(formData.goals || []), { id: crypto.randomUUID(), name: `New Goal ${(formData.goals || []).length + 1}`, metrics: [], completed: false }];
           renderGoalsAndMetrics();
       }
   });
@@ -289,7 +418,7 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
 
         const legend = document.createElement('legend');
         legend.className = 'goal-legend';
-
+        
         const goalNameInput = document.createElement('input');
         goalNameInput.type = 'text';
         goalNameInput.className = 'form-input goal-name-input';
@@ -300,6 +429,20 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
             // If name is changed to 'Email Campaign' or back, re-render to show correct UI
             renderGoalsAndMetrics();
         };
+
+        const goalMetaDiv = document.createElement('div');
+        goalMetaDiv.className = 'goal-meta';
+
+        const completedToggle = document.createElement('label');
+        completedToggle.className = 'goal-completed-toggle';
+        const completedCheckbox_Goal = document.createElement('input');
+        completedCheckbox_Goal.type = 'checkbox';
+        completedCheckbox_Goal.checked = !!goal.completed;
+        completedCheckbox_Goal.onchange = (e) => {
+            goal.completed = e.target.checked;
+        };
+        completedToggle.append(completedCheckbox_Goal, 'Completed');
+        goalMetaDiv.appendChild(completedToggle);
         
         const goalActions = document.createElement('div');
         goalActions.className = 'goal-actions';
@@ -327,7 +470,8 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
         });
 
         goalActions.append(deleteGoalButton);
-        legend.append(goalNameInput, goalActions);
+        goalMetaDiv.appendChild(goalActions);
+        legend.append(goalNameInput, goalMetaDiv);
         goalFieldset.appendChild(legend);
 
         if (goal.name.trim().toLowerCase() === 'email campaign') {
@@ -513,11 +657,18 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     const now = new Date().toISOString();
+
+    // Calculate completion percentage based on goals
+    const totalGoals = formData.goals.length;
+    const completedGoals = formData.goals.filter(g => g.completed).length;
+    const completionPercentage = totalGoals > 0 ? (completedGoals / totalGoals) * 100 : 0;
+
     const projectToSave = {
       ...formData,
       id: project?.id || crypto.randomUUID(),
       createdAt: project?.createdAt || now,
       updatedAt: now,
+      completionPercentage: completionPercentage,
     };
     onSave(projectToSave);
   });
