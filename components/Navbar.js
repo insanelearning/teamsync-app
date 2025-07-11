@@ -1,6 +1,7 @@
 
-export function Navbar({ currentView, onNavChange, onThemeToggle }) {
+export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, teamMembers, onSetCurrentUser }) {
   const navItems = [
+    { view: 'dashboard', label: 'Dashboard', icon: 'fas fa-home' },
     { view: 'projects', label: 'Projects', icon: 'fas fa-tasks' },
     { view: 'attendance', label: 'Attendance', icon: 'fas fa-user-check' },
     { view: 'evaluation', label: 'Evaluation', icon: 'fas fa-chart-line' },
@@ -34,7 +35,7 @@ export function Navbar({ currentView, onNavChange, onThemeToggle }) {
   leftSection.appendChild(logoDiv);
   flexDiv.appendChild(leftSection);
   
-  // --- Right Section (Menu, Theme Toggle, Mobile Button) ---
+  // --- Right Section (Menu, View As, Theme Toggle, Mobile Button) ---
   const rightSection = document.createElement('div');
   rightSection.className = 'navbar-right-section';
 
@@ -52,6 +53,34 @@ export function Navbar({ currentView, onNavChange, onThemeToggle }) {
   });
   desktopMenuDiv.appendChild(desktopMenuItemsDiv);
   rightSection.appendChild(desktopMenuDiv); // Add desktop menu to the right section
+  
+  // "View As" User Selector
+  if (teamMembers && teamMembers.length > 0) {
+      const viewAsContainer = document.createElement('div');
+      viewAsContainer.className = 'view-as-selector-container';
+      
+      const viewAsLabel = document.createElement('span');
+      viewAsLabel.className = 'view-as-label';
+      viewAsLabel.textContent = 'View As:';
+      viewAsContainer.appendChild(viewAsLabel);
+
+      const viewAsSelect = document.createElement('select');
+      viewAsSelect.className = 'view-as-select';
+      viewAsSelect.setAttribute('aria-label', 'Select user to view dashboard as');
+      teamMembers.forEach(member => {
+        const option = document.createElement('option');
+        option.value = member.id;
+        option.textContent = member.name;
+        if (currentUser && currentUser.id === member.id) {
+            option.selected = true;
+        }
+        viewAsSelect.appendChild(option);
+      });
+      viewAsSelect.onchange = (e) => onSetCurrentUser(e.target.value);
+      viewAsContainer.appendChild(viewAsSelect);
+      rightSection.appendChild(viewAsContainer);
+  }
+
 
   // Theme Toggle Button
   const themeToggleButton = document.createElement('button');
