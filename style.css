@@ -470,18 +470,13 @@ footer.app-footer {
 }
 
 /* Progress Bar */
-.progress-bar-with-text {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
 .progress-bar-container {
   width: 100%;
   background-color: #e5e7eb;
   border-radius: 9999px;
-  height: 8px;
+  height: 1.25rem; /* h-5 */
+  position: relative;
   overflow: hidden;
-  flex-grow: 1;
 }
 .dark .progress-bar-container {
   background-color: #374151;
@@ -491,14 +486,23 @@ footer.app-footer {
   height: 100%;
   border-radius: 9999px;
   transition: width 0.3s ease-in-out;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .dark .progress-bar-fill {
   background-color: #818cf8;
 }
 .progress-bar-text {
-  font-size: 0.8rem;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.75rem;
   font-weight: 500;
-  white-space: nowrap;
+  color: #1f2937;
+}
+.progress-bar-fill .progress-bar-text {
+  color: #ffffff; /* Text is white when on the filled part */
 }
 
 /* Filters Div */
@@ -1256,10 +1260,115 @@ footer.app-footer {
 }
 .dark .project-form-actions { border-color: #374151; /* dark:border-gray-700 */ }
 
-/* Form select multiple height */
-.form-select-multiple {
-  min-height: 6rem; /* h-24 */
-  max-height: 10rem; /* max-h-40 */
+/* Assignee Multi-Select Component */
+.assignee-select-container {
+  position: relative;
+}
+.assignee-select-input {
+  width: 100%;
+  min-height: 38px; /* Same as form-input */
+  padding: 0.25rem 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  background-color: #ffffff;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  align-items: center;
+  cursor: text;
+  box-sizing: border-box;
+}
+.dark .assignee-select-input {
+  background-color: #374151;
+  border-color: #4b5563;
+}
+.assignee-select-input:focus-within {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.3);
+}
+.dark .assignee-select-input:focus-within {
+  border-color: #818cf8;
+  box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.3);
+}
+.assignee-select-pill {
+  background-color: #e0e7ff;
+  color: #3730a3;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+.dark .assignee-select-pill {
+  background-color: #4338ca;
+  color: #e0e7ff;
+}
+.assignee-select-pill-remove {
+  background: none;
+  border: none;
+  color: #4f46e5;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  line-height: 1;
+}
+.dark .assignee-select-pill-remove {
+  color: #a5b4fc;
+}
+.assignee-select-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background-color: #ffffff;
+  border: 1px solid #d1d5db;
+  border-top: none;
+  border-radius: 0 0 0.375rem 0.375rem;
+  z-index: 10;
+  max-height: 200px;
+  overflow-y: auto;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+.dark .assignee-select-dropdown {
+  background-color: #1f2937;
+  border-color: #4b5563;
+}
+.assignee-select-search {
+  padding: 0.5rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+.dark .assignee-select-search {
+  border-color: #374151;
+}
+.assignee-select-search input {
+  width: 100%;
+}
+.assignee-select-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.assignee-select-list-item {
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.assignee-select-list-item:hover {
+  background-color: #f3f4f6;
+}
+.dark .assignee-select-list-item:hover {
+  background-color: #374151;
+}
+.assignee-select-list-item.hidden {
+  display: none;
+}
+.assignee-select-list-item input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
 }
 
 /* Project Card Goals */
@@ -1402,6 +1511,22 @@ footer.app-footer {
 .dark .goal-name-input:focus {
     background-color: #3730a3;
 }
+.goal-meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.goal-completed-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  color: #374151;
+}
+.dark .goal-completed-toggle {
+  color: #d1d5db;
+}
 .goal-actions {
   display: flex;
   gap: 0.5rem;
@@ -1529,6 +1654,30 @@ footer.app-footer {
   color: #818cf8;
   border-color: #4338ca;
 }
+.goal-completion-status {
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  margin-left: 0.75rem;
+}
+.goal-completion-status.completed {
+  background-color: #dcfce7;
+  color: #166534;
+}
+.dark .goal-completion-status.completed {
+  background-color: #16a34a;
+  color: #dcfce7;
+}
+.goal-completion-status.pending {
+  background-color: #ffedd5;
+  color: #9a3412;
+}
+.dark .goal-completion-status.pending {
+  background-color: #c2410c;
+  color: #ffedd5;
+}
+
 
 /* Attendance Page */
 .attendance-page-section {
@@ -2280,7 +2429,7 @@ footer.app-footer {
 
 /* Donut Chart SVG Styles */
 .donut-chart-svg .donut-center-value {
-    font-size: 1.25rem;
+    font-size: 2.25rem;
     font-weight: 700;
     fill: #1f2937;
 }
