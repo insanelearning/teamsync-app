@@ -1,9 +1,12 @@
 
+
+
 import { renderDashboardPage } from './pages/DashboardPage.js';
 import { renderProjectsPage } from './pages/ProjectsPage.js';
 import { renderAttendancePage } from './pages/AttendancePage.js';
 import { renderNotesPage } from './pages/NotesPage.js';
-import { renderEvaluationPage } from './pages/EvaluationPage.js';
+import { renderReportsPage } from './pages/EvaluationPage.js';
+import { renderTimesheetPage } from './pages/TimelinePage.js';
 import { Navbar } from './components/Navbar.js';
 import { INITIAL_TEAM_MEMBERS } from './constants.js';
 import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery } from './services/firebaseService.js';
@@ -19,6 +22,7 @@ let projects = [];
 let attendance = [];
 let notes = [];
 let teamMembers = [];
+let workLogs = [];
 let currentUser = null;
 
 // --- Handler Functions ---
@@ -63,6 +67,9 @@ const deleteProject = async (projectId) => {
   try {
     await deleteDocument('projects', projectId);
     projects = projects.filter(p => p.id !== projectId);
+    // Also delete associated work logs
+    await deleteByQuery('workLogs', 'projectId', projectId);
+    workLogs = workLogs.filter(wl => wl.projectId !== projectId);
     renderApp();
   } catch (error) {
     console.error("Failed to delete project:", error);
@@ -135,6 +142,43 @@ const deleteNote = async (noteId) => {
   }
 };
 
+// Work Log Handlers
+const addWorkLog = async (log) => {
+    try {
+        const { id, ...data } = log;
+        await setDocument('workLogs', id, data);
+        workLogs.push(log);
+        renderApp();
+    } catch (error) {
+        console.error("Failed to add work log:", error);
+        alert("Error: Could not save the new work log.");
+    }
+};
+
+const updateWorkLog = async (updatedLog) => {
+    try {
+        const { id, ...data } = updatedLog;
+        await updateDocument('workLogs', id, data);
+        workLogs = workLogs.map(wl => wl.id === id ? updatedLog : wl);
+        renderApp();
+    } catch (error) {
+        console.error("Failed to update work log:", error);
+        alert("Error: Could not update the work log.");
+    }
+};
+
+const deleteWorkLog = async (logId) => {
+    try {
+        await deleteDocument('workLogs', logId);
+        workLogs = workLogs.filter(wl => wl.id !== logId);
+        renderApp();
+    } catch (error) {
+        console.error("Failed to delete work log:", error);
+        alert("Error: Could not delete the work log.");
+    }
+};
+
+
 // Team Member handlers
 const addTeamMember = async (member) => {
   if (teamMembers.length >= 20) {
@@ -202,16 +246,20 @@ const deleteTeamMember = async (memberId) => {
 
     // 2. Delete all attendance records for the member
     await deleteByQuery('attendance', 'memberId', memberId);
+    
+    // 3. Delete all work logs for the member
+    await deleteByQuery('workLogs', 'memberId', memberId);
 
-    // 3. Delete the team member itself
+    // 4. Delete the team member itself
     await deleteDocument('teamMembers', memberId);
     
-    // 4. Update local state and re-render
+    // 5. Update local state and re-render
     projects = currentProjects;
     attendance = attendance.filter(a => a.memberId !== memberId);
+    workLogs = workLogs.filter(wl => wl.memberId !== memberId);
     teamMembers = teamMembers.filter(m => m.id !== memberId);
 
-    // 5. Reset current user if they were deleted
+    // 6. Reset current user if they were deleted
     if (currentUser && currentUser.id === memberId) {
         setCurrentUser(teamMembers[0]?.id || null);
     }
@@ -407,11 +455,20 @@ function renderApp() {
         onExport: () => handleExport('notes'),
         onImport: (file) => handleImport(file, 'notes'),
     });
-  } else if (currentView === 'evaluation') {
-    renderEvaluationPage(mainContentElement, {
+  } else if (currentView === 'timesheet') {
+    renderTimesheetPage(mainContentElement, {
+        currentUser,
+        projects,
+        workLogs,
+        onAddWorkLog: addWorkLog,
+        onUpdateWorkLog: updateWorkLog,
+        onDeleteWorkLog: deleteWorkLog,
+    });
+  } else if (currentView === 'reports') {
+    renderReportsPage(mainContentElement, {
       teamMembers,
       projects,
-      attendanceRecords: attendance,
+      workLogs,
     });
   }
   
@@ -431,16 +488,18 @@ function renderApp() {
 
 async function loadInitialData(seedIfEmpty = true) {
   try {
-    const [projectData, attendanceData, notesData, teamMemberData] = await Promise.all([
+    const [projectData, attendanceData, notesData, teamMemberData, workLogData] = await Promise.all([
         getCollection('projects'),
         getCollection('attendance'),
         getCollection('notes'),
-        getCollection('teamMembers')
+        getCollection('teamMembers'),
+        getCollection('workLogs')
     ]);
     
     projects = projectData;
     attendance = attendanceData;
     notes = notesData;
+    workLogs = workLogData;
 
     // Check if team members need to be seeded. This is more robust.
     if (seedIfEmpty && teamMemberData.length === 0) {
