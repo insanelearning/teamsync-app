@@ -1,4 +1,3 @@
-
 import { TeamMemberRole, AttendanceStatus, ProjectStatus } from '../types.js';
 import { GoogleGenAI } from "@google/genai";
 import { Button } from '../components/Button.js';
@@ -47,10 +46,13 @@ function renderDailyBriefing(currentUser, teamMembers, projects, attendanceRecor
         generateButton.disabled = true;
 
         try {
-            if (!process.env.API_KEY || process.env.API_KEY.includes("YOUR_")) {
+            // Safely access the API key to prevent errors if `process` is not defined.
+            const apiKey = (typeof process !== 'undefined' && process.env && process.env.API_KEY) ? process.env.API_KEY : null;
+
+            if (!apiKey || apiKey.includes("YOUR_")) {
                 throw new Error("API_KEY environment variable not set or is a placeholder.");
             }
-            const ai = new GoogleGenAI({apiKey: process.env.API_KEY});
+            const ai = new GoogleGenAI({apiKey: apiKey});
 
             const systemInstruction = "You are 'Sync', a friendly and insightful AI assistant for the TeamSync application. Your goal is to provide a concise, encouraging, and actionable daily briefing for the user. Summarize the most important information. Use a positive and professional tone. Do not use markdown formatting. Keep the summary to a maximum of 3-4 short sentences.";
 
@@ -110,7 +112,12 @@ function renderDailyBriefing(currentUser, teamMembers, projects, attendanceRecor
         } catch (error) {
             console.error("Gemini API Error:", error);
             briefingContainer.classList.add('error');
-            briefingTextElement.textContent = "Could not generate summary. Please check your API key and try again.";
+            // Provide a more specific error message if the issue is the API key.
+            if (error.message && error.message.includes("API_KEY")) {
+                 briefingTextElement.textContent = "Error: API Key is not configured. Please ensure it is set in your environment variables and try again.";
+            } else {
+                 briefingTextElement.textContent = "Could not generate summary. An unexpected error occurred.";
+            }
         } finally {
             briefingContainer.classList.remove('loading');
             generateButton.disabled = false;
