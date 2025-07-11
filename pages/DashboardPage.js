@@ -7,96 +7,120 @@ import { ProjectForm } from '../components/ProjectForm.js';
 import { NoteForm } from '../components/NoteForm.js';
 
 let currentModalInstance = null;
-let briefingGenerated = false; // Prevent re-fetching the briefing on every render
 
 // --- AI Daily Briefing ---
-async function fetchDailyBriefing(currentUser, teamMembers, projects, attendanceRecords) {
-    const briefingTextElement = document.getElementById('daily-briefing-text');
-    const briefingContainer = document.getElementById('daily-briefing-container');
-    if (!briefingTextElement || !briefingContainer) return;
-
-    try {
-        if (!process.env.API_KEY) {
-            throw new Error("API_KEY environment variable not set.");
-        }
-        const ai = new GoogleGenAI({apiKey: process.env.API_KEY});
-
-        const systemInstruction = "You are 'Sync', a friendly and insightful AI assistant for the TeamSync application. Your goal is to provide a concise, encouraging, and actionable daily briefing for the user. Summarize the most important information. Use a positive and professional tone. Do not use markdown formatting. Keep the summary to a maximum of 3-4 short sentences.";
-
-        const isManager = currentUser.role === TeamMemberRole.Manager;
-        let prompt;
-        const today = new Date();
-        const oneWeekFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
-
-        if (isManager) {
-            const todaysRecords = attendanceRecords.filter(r => r.date === today.toISOString().split('T')[0]);
-            const presentCount = todaysRecords.filter(r => r.status === AttendanceStatus.Present || r.status === AttendanceStatus.WorkFromHome).length;
-            const leaveCount = todaysRecords.filter(r => r.status === AttendanceStatus.Leave).length;
-            const activeProjects = projects.filter(p => p.status !== ProjectStatus.Done);
-            const overdueProjects = activeProjects.filter(p => new Date(p.dueDate) < today);
-            
-            prompt = `Generate a daily briefing for the manager, ${currentUser.name}.
-            Today's date is ${today.toDateString()}.
-            Team Summary:
-            - Total Team Members: ${teamMembers.length}
-            - Members Present Today: ${presentCount}
-            - Members on Leave Today: ${leaveCount}
-            Project Summary:
-            - Total Active Projects: ${activeProjects.length}
-            - Overdue Projects: ${overdueProjects.length} (${overdueProjects.map(p => p.name).join(', ')})
-            Based on this data, provide a helpful and encouraging summary for the manager.`;
-        } else {
-            const myProjects = projects.filter(p => (p.assignees || []).includes(currentUser.id));
-            const myActiveProjects = myProjects.filter(p => p.status !== ProjectStatus.Done);
-            const myOverdue = myActiveProjects.filter(p => new Date(p.dueDate) < today);
-            const myDueThisWeek = myActiveProjects.filter(p => {
-                const dueDate = new Date(p.dueDate);
-                return dueDate >= today && dueDate <= oneWeekFromNow;
-            });
-            const myAttendance = attendanceRecords.find(r => r.memberId === currentUser.id && r.date === today.toISOString().split('T')[0]);
-            
-            prompt = `Generate a daily briefing for the team member, ${currentUser.name}.
-            Today's date is ${today.toDateString()}.
-            Personal Task Summary:
-            - Active Projects Assigned: ${myActiveProjects.length}
-            - Overdue Tasks: ${myOverdue.length} (${myOverdue.map(p => p.name).join(', ')})
-            - Tasks Due This Week: ${myDueThisWeek.length}
-            - Your Attendance Today: ${myAttendance?.status || 'Not Marked'}
-            Based on this data, provide a helpful and encouraging summary for the team member.`;
-        }
-
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: {
-                systemInstruction: systemInstruction,
-            },
-        });
-        
-        briefingContainer.classList.remove('loading');
-        briefingTextElement.textContent = response.text;
-
-    } catch (error) {
-        console.error("Gemini API Error:", error);
-        briefingContainer.classList.remove('loading');
-        briefingContainer.classList.add('error');
-        briefingTextElement.textContent = "Could not generate your daily briefing. Please ensure your API key is correctly configured.";
-    }
-}
-
-
-function renderDailyBriefing() {
+function renderDailyBriefing(currentUser, teamMembers, projects, attendanceRecords) {
     const briefingContainer = document.createElement('div');
     briefingContainer.id = 'daily-briefing-container';
-    briefingContainer.className = 'dashboard-widget daily-briefing loading'; // Start in loading state
+    briefingContainer.className = 'dashboard-widget daily-briefing';
 
-    briefingContainer.innerHTML = `
-        <div class="briefing-header">
-            <h3><i class="fas fa-wand-magic-sparkles widget-icon"></i> Daily Briefing</h3>
-            <div class="spinner"></div>
-        </div>
-        <p id="daily-briefing-text" class="briefing-text">Generating your personalized summary...</p>
-    `;
+    const briefingHeader = document.createElement('div');
+    briefingHeader.className = 'briefing-header';
+
+    const title = document.createElement('h3');
+    title.innerHTML = `<i class="fas fa-wand-magic-sparkles widget-icon"></i> Daily Briefing`;
+    
+    const spinner = document.createElement('div');
+    spinner.className = 'spinner';
+
+    briefingHeader.append(title, spinner);
+
+    const briefingTextElement = document.createElement('p');
+    briefingTextElement.id = 'daily-briefing-text';
+    briefingTextElement.className = 'briefing-text';
+    briefingTextElement.textContent = "Click 'Generate' to get a personalized AI summary for your day.";
+    
+    const actionsContainer = document.createElement('div');
+    actionsContainer.className = 'briefing-actions';
+
+    const generateButton = Button({
+        children: 'Generate Briefing',
+        variant: 'primary',
+        size: 'sm',
+        leftIcon: '<i class="fas fa-wand-magic-sparkles"></i>',
+    });
+
+    async function handleGenerate() {
+        briefingContainer.classList.add('loading');
+        briefingContainer.classList.remove('error');
+        briefingTextElement.textContent = 'Generating your personalized summary...';
+        generateButton.disabled = true;
+
+        try {
+            if (!process.env.API_KEY || process.env.API_KEY.includes("YOUR_")) {
+                throw new Error("API_KEY environment variable not set or is a placeholder.");
+            }
+            const ai = new GoogleGenAI({apiKey: process.env.API_KEY});
+
+            const systemInstruction = "You are 'Sync', a friendly and insightful AI assistant for the TeamSync application. Your goal is to provide a concise, encouraging, and actionable daily briefing for the user. Summarize the most important information. Use a positive and professional tone. Do not use markdown formatting. Keep the summary to a maximum of 3-4 short sentences.";
+
+            const isManager = currentUser.role === TeamMemberRole.Manager;
+            let prompt;
+            const today = new Date();
+            const oneWeekFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+            if (isManager) {
+                const todaysRecords = attendanceRecords.filter(r => r.date === today.toISOString().split('T')[0]);
+                const presentCount = todaysRecords.filter(r => r.status === AttendanceStatus.Present || r.status === AttendanceStatus.WorkFromHome).length;
+                const leaveCount = todaysRecords.filter(r => r.status === AttendanceStatus.Leave).length;
+                const activeProjects = projects.filter(p => p.status !== ProjectStatus.Done);
+                const overdueProjects = activeProjects.filter(p => new Date(p.dueDate) < today);
+                
+                prompt = `Generate a daily briefing for the manager, ${currentUser.name}.
+                Today's date is ${today.toDateString()}.
+                Team Summary:
+                - Total Team Members: ${teamMembers.length}
+                - Members Present Today: ${presentCount}
+                - Members on Leave Today: ${leaveCount}
+                Project Summary:
+                - Total Active Projects: ${activeProjects.length}
+                - Overdue Projects: ${overdueProjects.length} (${overdueProjects.map(p => p.name).join(', ')})
+                Based on this data, provide a helpful and encouraging summary for the manager.`;
+            } else {
+                const myProjects = projects.filter(p => (p.assignees || []).includes(currentUser.id));
+                const myActiveProjects = myProjects.filter(p => p.status !== ProjectStatus.Done);
+                const myOverdue = myActiveProjects.filter(p => new Date(p.dueDate) < today);
+                const myDueThisWeek = myActiveProjects.filter(p => {
+                    const dueDate = new Date(p.dueDate);
+                    return dueDate >= today && dueDate <= oneWeekFromNow;
+                });
+                const myAttendance = attendanceRecords.find(r => r.memberId === currentUser.id && r.date === today.toISOString().split('T')[0]);
+                
+                prompt = `Generate a daily briefing for the team member, ${currentUser.name}.
+                Today's date is ${today.toDateString()}.
+                Personal Task Summary:
+                - Active Projects Assigned: ${myActiveProjects.length}
+                - Overdue Tasks: ${myOverdue.length} (${myOverdue.map(p => p.name).join(', ')})
+                - Tasks Due This Week: ${myDueThisWeek.length}
+                - Your Attendance Today: ${myAttendance?.status || 'Not Marked'}
+                Based on this data, provide a helpful and encouraging summary for the team member.`;
+            }
+
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: prompt,
+                config: {
+                    systemInstruction: systemInstruction,
+                },
+            });
+            
+            briefingTextElement.textContent = response.text;
+            generateButton.innerHTML = `<span class="button-left-icon"><i class="fas fa-sync-alt"></i></span>Regenerate`;
+
+        } catch (error) {
+            console.error("Gemini API Error:", error);
+            briefingContainer.classList.add('error');
+            briefingTextElement.textContent = "Could not generate summary. Please check your API key and try again.";
+        } finally {
+            briefingContainer.classList.remove('loading');
+            generateButton.disabled = false;
+        }
+    }
+    
+    generateButton.onclick = handleGenerate;
+    actionsContainer.appendChild(generateButton);
+    briefingContainer.append(briefingHeader, briefingTextElement, actionsContainer);
+
     return briefingContainer;
 }
 
@@ -359,13 +383,6 @@ function createBarChart(data) {
 export function renderDashboardPage(container, props) {
     const { currentUser, teamMembers, projects, attendanceRecords } = props;
 
-    // Reset flag when dashboard is re-rendered for a new user
-    const savedUserId = localStorage.getItem('currentUserId');
-    if(currentUser.id !== savedUserId) {
-        briefingGenerated = false;
-    }
-
-
     container.innerHTML = '';
     const pageWrapper = document.createElement('div');
     pageWrapper.className = 'page-container';
@@ -384,7 +401,7 @@ export function renderDashboardPage(container, props) {
     const isManager = currentUser.role === TeamMemberRole.Manager;
 
     // Add briefing container first
-    pageWrapper.appendChild(renderDailyBriefing());
+    pageWrapper.appendChild(renderDailyBriefing(currentUser, teamMembers, projects, attendanceRecords));
 
     const dashboardGrid = document.createElement('div');
     dashboardGrid.className = 'dashboard-grid';
@@ -403,9 +420,4 @@ export function renderDashboardPage(container, props) {
     pageWrapper.appendChild(dashboardGrid);
     container.appendChild(pageWrapper);
 
-    // Fetch briefing after the element is in the DOM
-    if (!briefingGenerated) {
-        fetchDailyBriefing(currentUser, teamMembers, projects, attendanceRecords);
-        briefingGenerated = true;
-    }
 }
