@@ -1,5 +1,4 @@
 import { TeamMemberRole, AttendanceStatus, ProjectStatus } from '../types.js';
-import { GoogleGenAI } from "@google/genai";
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { ProjectForm } from '../components/ProjectForm.js';
@@ -7,129 +6,54 @@ import { NoteForm } from '../components/NoteForm.js';
 
 let currentModalInstance = null;
 
-// --- AI Daily Briefing ---
-function renderDailyBriefing(currentUser, teamMembers, projects, attendanceRecords) {
+// --- Daily Summary ---
+function renderDailySummary(currentUser, teamMembers, projects, attendanceRecords) {
     const briefingContainer = document.createElement('div');
-    briefingContainer.id = 'daily-briefing-container';
+    briefingContainer.id = 'daily-summary-container';
     briefingContainer.className = 'dashboard-widget daily-briefing';
 
-    const briefingHeader = document.createElement('div');
-    briefingHeader.className = 'briefing-header';
-
     const title = document.createElement('h3');
-    title.innerHTML = `<i class="fas fa-wand-magic-sparkles widget-icon"></i> Daily Briefing`;
-    
-    const spinner = document.createElement('div');
-    spinner.className = 'spinner';
-
-    briefingHeader.append(title, spinner);
+    title.innerHTML = `<i class="fas fa-clipboard-check widget-icon"></i> Daily Summary`;
 
     const briefingTextElement = document.createElement('p');
-    briefingTextElement.id = 'daily-briefing-text';
+    briefingTextElement.id = 'daily-summary-text';
     briefingTextElement.className = 'briefing-text';
-    briefingTextElement.textContent = "Click 'Generate' to get a personalized AI summary for your day.";
     
-    const actionsContainer = document.createElement('div');
-    actionsContainer.className = 'briefing-actions';
+    const isManager = currentUser.role === TeamMemberRole.Manager;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Normalize to start of day for comparisons
+    const oneWeekFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+    
+    let summaryText = '';
 
-    const generateButton = Button({
-        children: 'Generate Briefing',
-        variant: 'primary',
-        size: 'sm',
-        leftIcon: '<i class="fas fa-wand-magic-sparkles"></i>',
-    });
+    if (isManager) {
+        const todaysRecords = attendanceRecords.filter(r => r.date === today.toISOString().split('T')[0]);
+        const presentCount = todaysRecords.filter(r => r.status === AttendanceStatus.Present || r.status === AttendanceStatus.WorkFromHome).length;
+        const activeProjectsCount = projects.filter(p => p.status !== ProjectStatus.Done).length;
+        const overdueProjectsCount = projects.filter(p => p.status !== ProjectStatus.Done && new Date(p.dueDate) < today).length;
 
-    async function handleGenerate() {
-        briefingContainer.classList.add('loading');
-        briefingContainer.classList.remove('error');
-        briefingTextElement.textContent = 'Generating your personalized summary...';
-        generateButton.disabled = true;
+        summaryText = `Welcome, ${currentUser.name}. Today, ${presentCount} of ${teamMembers.length} members are active. There are ${activeProjectsCount} active projects, with ${overdueProjectsCount} currently overdue.`;
+    } else {
+        const myProjects = projects.filter(p => (p.assignees || []).includes(currentUser.id));
+        const myActiveProjects = myProjects.filter(p => p.status !== ProjectStatus.Done);
+        const myActiveProjectsCount = myActiveProjects.length;
+        const myOverdueCount = myActiveProjects.filter(p => new Date(p.dueDate) < today).length;
+        const myDueThisWeekCount = myActiveProjects.filter(p => {
+            const dueDate = new Date(p.dueDate);
+            return dueDate >= today && dueDate <= oneWeekFromNow;
+        }).length;
+        const myAttendance = attendanceRecords.find(r => r.memberId === currentUser.id && r.date === today.toISOString().split('T')[0]);
+        const attendanceStatus = myAttendance?.status || 'Not Marked';
 
-        try {
-            // Safely access the API key to prevent errors if `process` is not defined.
-            const apiKey = (typeof process !== 'undefined' && process.env && process.env.API_KEY) ? process.env.API_KEY : null;
-
-            if (!apiKey || apiKey.includes("YOUR_")) {
-                throw new Error("API_KEY environment variable not set or is a placeholder.");
-            }
-            const ai = new GoogleGenAI({apiKey: apiKey});
-
-            const systemInstruction = "You are 'Sync', a friendly and insightful AI assistant for the TeamSync application. Your goal is to provide a concise, encouraging, and actionable daily briefing for the user. Summarize the most important information. Use a positive and professional tone. Do not use markdown formatting. Keep the summary to a maximum of 3-4 short sentences.";
-
-            const isManager = currentUser.role === TeamMemberRole.Manager;
-            let prompt;
-            const today = new Date();
-            const oneWeekFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
-
-            if (isManager) {
-                const todaysRecords = attendanceRecords.filter(r => r.date === today.toISOString().split('T')[0]);
-                const presentCount = todaysRecords.filter(r => r.status === AttendanceStatus.Present || r.status === AttendanceStatus.WorkFromHome).length;
-                const leaveCount = todaysRecords.filter(r => r.status === AttendanceStatus.Leave).length;
-                const activeProjects = projects.filter(p => p.status !== ProjectStatus.Done);
-                const overdueProjects = activeProjects.filter(p => new Date(p.dueDate) < today);
-                
-                prompt = `Generate a daily briefing for the manager, ${currentUser.name}.
-                Today's date is ${today.toDateString()}.
-                Team Summary:
-                - Total Team Members: ${teamMembers.length}
-                - Members Present Today: ${presentCount}
-                - Members on Leave Today: ${leaveCount}
-                Project Summary:
-                - Total Active Projects: ${activeProjects.length}
-                - Overdue Projects: ${overdueProjects.length} (${overdueProjects.map(p => p.name).join(', ')})
-                Based on this data, provide a helpful and encouraging summary for the manager.`;
-            } else {
-                const myProjects = projects.filter(p => (p.assignees || []).includes(currentUser.id));
-                const myActiveProjects = myProjects.filter(p => p.status !== ProjectStatus.Done);
-                const myOverdue = myActiveProjects.filter(p => new Date(p.dueDate) < today);
-                const myDueThisWeek = myActiveProjects.filter(p => {
-                    const dueDate = new Date(p.dueDate);
-                    return dueDate >= today && dueDate <= oneWeekFromNow;
-                });
-                const myAttendance = attendanceRecords.find(r => r.memberId === currentUser.id && r.date === today.toISOString().split('T')[0]);
-                
-                prompt = `Generate a daily briefing for the team member, ${currentUser.name}.
-                Today's date is ${today.toDateString()}.
-                Personal Task Summary:
-                - Active Projects Assigned: ${myActiveProjects.length}
-                - Overdue Tasks: ${myOverdue.length} (${myOverdue.map(p => p.name).join(', ')})
-                - Tasks Due This Week: ${myDueThisWeek.length}
-                - Your Attendance Today: ${myAttendance?.status || 'Not Marked'}
-                Based on this data, provide a helpful and encouraging summary for the team member.`;
-            }
-
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt,
-                config: {
-                    systemInstruction: systemInstruction,
-                },
-            });
-            
-            briefingTextElement.textContent = response.text;
-            generateButton.innerHTML = `<span class="button-left-icon"><i class="fas fa-sync-alt"></i></span>Regenerate`;
-
-        } catch (error) {
-            console.error("Gemini API Error:", error);
-            briefingContainer.classList.add('error');
-            // Provide a more specific error message if the issue is the API key.
-            if (error.message && error.message.includes("API_KEY")) {
-                 briefingTextElement.textContent = "Error: API Key is not configured. Please ensure it is set in your environment variables and try again.";
-            } else {
-                 briefingTextElement.textContent = "Could not generate summary. An unexpected error occurred.";
-            }
-        } finally {
-            briefingContainer.classList.remove('loading');
-            generateButton.disabled = false;
-        }
+        summaryText = `Hello, ${currentUser.name}. You're assigned to ${myActiveProjectsCount} active project${myActiveProjectsCount !== 1 ? 's' : ''}. Of these, ${myOverdueCount} ${myOverdueCount !== 1 ? 'is' : 'are'} overdue and ${myDueThisWeekCount} ${myDueThisWeekCount !== 1 ? 'is' : 'are'} due this week. Your attendance today is marked as '${attendanceStatus}'.`;
     }
-    
-    generateButton.onclick = handleGenerate;
-    actionsContainer.appendChild(generateButton);
-    briefingContainer.append(briefingHeader, briefingTextElement, actionsContainer);
 
+    briefingTextElement.textContent = summaryText;
+    
+    briefingContainer.append(title, briefingTextElement);
     return briefingContainer;
 }
+
 
 // --- Quick Actions ---
 function renderQuickActions(currentUser, props) {
@@ -407,8 +331,8 @@ export function renderDashboardPage(container, props) {
     
     const isManager = currentUser.role === TeamMemberRole.Manager;
 
-    // Add briefing container first
-    pageWrapper.appendChild(renderDailyBriefing(currentUser, teamMembers, projects, attendanceRecords));
+    // Add summary container first
+    pageWrapper.appendChild(renderDailySummary(currentUser, teamMembers, projects, attendanceRecords));
 
     const dashboardGrid = document.createElement('div');
     dashboardGrid.className = 'dashboard-grid';
