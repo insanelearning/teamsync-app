@@ -1,5 +1,160 @@
 
 import { TeamMemberRole, AttendanceStatus, ProjectStatus } from '../types.js';
+import { GoogleGenAI } from "@google/genai";
+import { Button } from '../components/Button.js';
+import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
+import { ProjectForm } from '../components/ProjectForm.js';
+import { NoteForm } from '../components/NoteForm.js';
+
+let currentModalInstance = null;
+let briefingGenerated = false; // Prevent re-fetching the briefing on every render
+
+// --- AI Daily Briefing ---
+async function fetchDailyBriefing(currentUser, teamMembers, projects, attendanceRecords) {
+    const briefingTextElement = document.getElementById('daily-briefing-text');
+    const briefingContainer = document.getElementById('daily-briefing-container');
+    if (!briefingTextElement || !briefingContainer) return;
+
+    try {
+        if (!process.env.API_KEY) {
+            throw new Error("API_KEY environment variable not set.");
+        }
+        const ai = new GoogleGenAI({apiKey: process.env.API_KEY});
+
+        const systemInstruction = "You are 'Sync', a friendly and insightful AI assistant for the TeamSync application. Your goal is to provide a concise, encouraging, and actionable daily briefing for the user. Summarize the most important information. Use a positive and professional tone. Do not use markdown formatting. Keep the summary to a maximum of 3-4 short sentences.";
+
+        const isManager = currentUser.role === TeamMemberRole.Manager;
+        let prompt;
+        const today = new Date();
+        const oneWeekFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+        if (isManager) {
+            const todaysRecords = attendanceRecords.filter(r => r.date === today.toISOString().split('T')[0]);
+            const presentCount = todaysRecords.filter(r => r.status === AttendanceStatus.Present || r.status === AttendanceStatus.WorkFromHome).length;
+            const leaveCount = todaysRecords.filter(r => r.status === AttendanceStatus.Leave).length;
+            const activeProjects = projects.filter(p => p.status !== ProjectStatus.Done);
+            const overdueProjects = activeProjects.filter(p => new Date(p.dueDate) < today);
+            
+            prompt = `Generate a daily briefing for the manager, ${currentUser.name}.
+            Today's date is ${today.toDateString()}.
+            Team Summary:
+            - Total Team Members: ${teamMembers.length}
+            - Members Present Today: ${presentCount}
+            - Members on Leave Today: ${leaveCount}
+            Project Summary:
+            - Total Active Projects: ${activeProjects.length}
+            - Overdue Projects: ${overdueProjects.length} (${overdueProjects.map(p => p.name).join(', ')})
+            Based on this data, provide a helpful and encouraging summary for the manager.`;
+        } else {
+            const myProjects = projects.filter(p => (p.assignees || []).includes(currentUser.id));
+            const myActiveProjects = myProjects.filter(p => p.status !== ProjectStatus.Done);
+            const myOverdue = myActiveProjects.filter(p => new Date(p.dueDate) < today);
+            const myDueThisWeek = myActiveProjects.filter(p => {
+                const dueDate = new Date(p.dueDate);
+                return dueDate >= today && dueDate <= oneWeekFromNow;
+            });
+            const myAttendance = attendanceRecords.find(r => r.memberId === currentUser.id && r.date === today.toISOString().split('T')[0]);
+            
+            prompt = `Generate a daily briefing for the team member, ${currentUser.name}.
+            Today's date is ${today.toDateString()}.
+            Personal Task Summary:
+            - Active Projects Assigned: ${myActiveProjects.length}
+            - Overdue Tasks: ${myOverdue.length} (${myOverdue.map(p => p.name).join(', ')})
+            - Tasks Due This Week: ${myDueThisWeek.length}
+            - Your Attendance Today: ${myAttendance?.status || 'Not Marked'}
+            Based on this data, provide a helpful and encouraging summary for the team member.`;
+        }
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                systemInstruction: systemInstruction,
+            },
+        });
+        
+        briefingContainer.classList.remove('loading');
+        briefingTextElement.textContent = response.text;
+
+    } catch (error) {
+        console.error("Gemini API Error:", error);
+        briefingContainer.classList.remove('loading');
+        briefingContainer.classList.add('error');
+        briefingTextElement.textContent = "Could not generate your daily briefing. Please ensure your API key is correctly configured.";
+    }
+}
+
+
+function renderDailyBriefing() {
+    const briefingContainer = document.createElement('div');
+    briefingContainer.id = 'daily-briefing-container';
+    briefingContainer.className = 'dashboard-widget daily-briefing loading'; // Start in loading state
+
+    briefingContainer.innerHTML = `
+        <div class="briefing-header">
+            <h3><i class="fas fa-wand-magic-sparkles widget-icon"></i> Daily Briefing</h3>
+            <div class="spinner"></div>
+        </div>
+        <p id="daily-briefing-text" class="briefing-text">Generating your personalized summary...</p>
+    `;
+    return briefingContainer;
+}
+
+// --- Quick Actions ---
+function renderQuickActions(currentUser, props) {
+    const { onAddProject, onAddNote, teamMembers, projectStatuses } = props;
+    const container = document.createElement('div');
+    container.className = 'dashboard-widget';
+    container.innerHTML = '<h3><i class="fas fa-bolt widget-icon"></i>Quick Actions</h3>';
+    
+    const actionsContainer = document.createElement('div');
+    actionsContainer.className = 'quick-actions-container';
+
+    function closeModal() {
+        closeGlobalModal();
+        currentModalInstance = null;
+    }
+
+    const openAddNoteModal = () => {
+        const form = NoteForm({
+            note: null,
+            onSave: (noteData) => { onAddNote(noteData); closeModal(); },
+            onCancel: closeModal,
+        });
+        currentModalInstance = Modal({ isOpen: true, onClose: closeModal, title: 'Add New Note', children: form, size: 'lg' });
+    };
+
+    const openAddProjectModal = () => {
+        const form = ProjectForm({
+            project: null, teamMembers, projectStatuses,
+            onSave: (projectData) => { onAddProject(projectData); closeModal(); },
+            onCancel: closeModal,
+        });
+        currentModalInstance = Modal({ isOpen: true, onClose: closeModal, title: 'Add New Project', children: form, size: 'xl' });
+    };
+
+    // Actions for everyone
+    actionsContainer.appendChild(Button({
+        children: 'Add Note',
+        variant: 'secondary',
+        leftIcon: '<i class="fas fa-sticky-note"></i>',
+        onClick: openAddNoteModal,
+    }));
+
+    // Actions for Managers
+    if (currentUser.role === TeamMemberRole.Manager) {
+        actionsContainer.appendChild(Button({
+            children: 'Add Project',
+            variant: 'secondary',
+            leftIcon: '<i class="fas fa-tasks"></i>',
+            onClick: openAddProjectModal,
+        }));
+    }
+
+    container.appendChild(actionsContainer);
+    return container;
+}
+
 
 // --- Member View Components ---
 
@@ -9,7 +164,7 @@ function renderMemberWelcome(currentUser) {
     const name = currentUser ? currentUser.name.split(' ')[0] : 'User';
     welcomeHeader.innerHTML = `
         <h2>Welcome back, ${name}!</h2>
-        <p>Here’s a look at your tasks and deadlines. Let's make it a productive day!</p>
+        <p>Here’s your briefing for the day. Let's make it productive!</p>
     `;
     return welcomeHeader;
 }
@@ -204,6 +359,13 @@ function createBarChart(data) {
 export function renderDashboardPage(container, props) {
     const { currentUser, teamMembers, projects, attendanceRecords } = props;
 
+    // Reset flag when dashboard is re-rendered for a new user
+    const savedUserId = localStorage.getItem('currentUserId');
+    if(currentUser.id !== savedUserId) {
+        briefingGenerated = false;
+    }
+
+
     container.innerHTML = '';
     const pageWrapper = document.createElement('div');
     pageWrapper.className = 'page-container';
@@ -221,20 +383,29 @@ export function renderDashboardPage(container, props) {
     
     const isManager = currentUser.role === TeamMemberRole.Manager;
 
+    // Add briefing container first
+    pageWrapper.appendChild(renderDailyBriefing());
+
     const dashboardGrid = document.createElement('div');
     dashboardGrid.className = 'dashboard-grid';
 
     if (isManager) {
-        pageWrapper.appendChild(renderMemberWelcome(currentUser)); // Managers are members too
         dashboardGrid.appendChild(renderTeamWorkload(teamMembers, projects));
         dashboardGrid.appendChild(renderAtRiskProjects(projects));
         dashboardGrid.appendChild(renderDailyAttendance(teamMembers, attendanceRecords));
+        dashboardGrid.appendChild(renderQuickActions(currentUser, props));
     } else {
-        pageWrapper.appendChild(renderMemberWelcome(currentUser));
         dashboardGrid.appendChild(renderMyTasks(currentUser, projects));
         dashboardGrid.appendChild(renderAtRiskProjects(projects.filter(p => (p.assignees || []).includes(currentUser.id))));
+        dashboardGrid.appendChild(renderQuickActions(currentUser, props));
     }
     
     pageWrapper.appendChild(dashboardGrid);
     container.appendChild(pageWrapper);
+
+    // Fetch briefing after the element is in the DOM
+    if (!briefingGenerated) {
+        fetchDailyBriefing(currentUser, teamMembers, projects, attendanceRecords);
+        briefingGenerated = true;
+    }
 }
