@@ -107,3 +107,16 @@ export const TeamMemberRole = {
 //   createdAt: string; // ISO date string
 //   updatedAt: string; // ISO date string
 // }
+
+// interface WorkLog {
+//   id: string;
+//   memberId: string; // TeamMember ID
+//   projectId: string; // Project ID
+//   date: string; // ISO date string YYYY-MM-DD
+//   taskName: string;
+//   requestedFrom: string;
+//   timeSpentMinutes: number;
+//   comments?: string;
+//   createdAt: string; // ISO date string
+//   updatedAt: string; // ISO date string
+// }
