@@ -1,5 +1,6 @@
 
 import { Button } from './Button.js';
+import { TeamMemberRole } from '../types.js';
 
 const getDefaultTeamMember = () => ({
   name: '',
@@ -10,6 +11,7 @@ const getDefaultTeamMember = () => ({
   designation: '',
   department: '',
   company: '',
+  role: TeamMemberRole.Member,
 });
 
 export function TeamMemberForm({ member, onSave, onCancel }) {
@@ -20,7 +22,7 @@ export function TeamMemberForm({ member, onSave, onCancel }) {
   const form = document.createElement('form');
   form.className = 'project-form'; // Re-use project form's base class for spacing etc.
 
-  function createField(labelText, inputType, name, value, required = false) {
+  function createField(labelText, inputType, name, value, required = false, options = {}) {
     const div = document.createElement('div');
     const label = document.createElement('label');
     label.className = 'form-label';
@@ -28,12 +30,28 @@ export function TeamMemberForm({ member, onSave, onCancel }) {
     label.textContent = labelText + (required ? '*' : '');
     div.appendChild(label);
 
-    const input = document.createElement('input');
-    input.type = inputType;
+    let input;
+    if (inputType === 'select') {
+      input = document.createElement('select');
+      input.className = 'form-select';
+      (options.options || []).forEach(opt => {
+        const optionEl = document.createElement('option');
+        optionEl.value = opt.value;
+        optionEl.textContent = opt.label;
+        if (value === opt.value) {
+            optionEl.selected = true;
+        }
+        input.appendChild(optionEl);
+      });
+    } else {
+        input = document.createElement('input');
+        input.type = inputType;
+        input.className = 'form-input';
+        input.value = value || '';
+    }
+
     input.id = `member${name.charAt(0).toUpperCase() + name.slice(1)}`;
     input.name = name;
-    input.value = value || '';
-    input.className = 'form-input';
     if (required) input.required = true;
     
     input.addEventListener('input', (e) => {
@@ -55,17 +73,23 @@ export function TeamMemberForm({ member, onSave, onCancel }) {
   idDesignationGrid.appendChild(createField('Designation', 'text', 'designation', formData.designation));
   form.appendChild(idDesignationGrid);
   
+  const roleDepartmentGrid = document.createElement('div');
+  roleDepartmentGrid.className = 'form-grid-cols-2';
+  roleDepartmentGrid.appendChild(createField('Role', 'select', 'role', formData.role, true, {
+      options: Object.values(TeamMemberRole).map(r => ({ value: r, label: r }))
+  }));
+  roleDepartmentGrid.appendChild(createField('Department', 'text', 'department', formData.department));
+  form.appendChild(roleDepartmentGrid);
+  
   const datesGrid = document.createElement('div');
   datesGrid.className = "form-grid-cols-2";
   datesGrid.appendChild(createField('Join Date', 'date', 'joinDate', formData.joinDate));
   datesGrid.appendChild(createField('Birth Date', 'date', 'birthDate', formData.birthDate));
   form.appendChild(datesGrid);
 
-  const deptCompanyGrid = document.createElement('div');
-  deptCompanyGrid.className = "form-grid-cols-2";
-  deptCompanyGrid.appendChild(createField('Department', 'text', 'department', formData.department));
-  deptCompanyGrid.appendChild(createField('Company', 'text', 'company', formData.company));
-  form.appendChild(deptCompanyGrid);
+  const companyField = createField('Company', 'text', 'company', formData.company);
+  form.appendChild(companyField);
+
 
   const actionsDiv = document.createElement('div');
   actionsDiv.className = 'project-form-actions'; // Re-use class for consistent spacing/alignment
@@ -85,6 +109,7 @@ export function TeamMemberForm({ member, onSave, onCancel }) {
     const memberToSave = {
       id: member?.id || crypto.randomUUID(),
       name: formData.name.trim(),
+      role: formData.role,
     };
     
     if (formData.email?.trim()) memberToSave.email = formData.email.trim();
