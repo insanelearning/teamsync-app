@@ -4,6 +4,7 @@ export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, t
     { view: 'dashboard', label: 'Dashboard', icon: 'fas fa-home' },
     { view: 'projects', label: 'Projects', icon: 'fas fa-tasks' },
     { view: 'attendance', label: 'Attendance', icon: 'fas fa-user-check' },
+    { view: 'worklog', label: 'Work Log', icon: 'fas fa-clock' },
     { view: 'evaluation', label: 'Evaluation', icon: 'fas fa-chart-line' },
     { view: 'notes', label: 'Notes', icon: 'fas fa-sticky-note' },
   ];
