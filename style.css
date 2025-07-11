@@ -333,9 +333,14 @@ footer.app-footer {
     animation: pulse-briefing 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
     user-select: none;
 }
-.dark .daily-briefing.loading .briefing-text {
-    /* Animation handles color/opacity, no dark mode specific style needed */
+.briefing-actions {
+    margin-top: 1rem;
+    display: flex;
 }
+.daily-briefing.loading .briefing-actions {
+    display: none;
+}
+
 
 /* Quick Actions Widget */
 .quick-actions-container {
