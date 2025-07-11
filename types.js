@@ -1,3 +1,4 @@
+
 export const ProjectStatus = {
   ToDo: 'To Do',
   InProgress: 'In Progress',
@@ -13,11 +14,9 @@ export const AttendanceStatus = {
 
 export const LeaveType = {
   Sick: 'Sick Leave',
-  Casual: 'Casual Leave',
-  Birthday: 'Birthday Leave',
-  Maternity: 'Maternity Leave',
-  Beverement: 'Beverement Leave',
   Vacation: 'Vacation',
+  Personal: 'Personal Day',
+  Unpaid: 'Unpaid Leave',
   Other: 'Other',
 };
 
@@ -107,16 +106,4 @@ export const TeamMemberRole = {
 //   color: string; // hex code
 //   createdAt: string; // ISO date string
 //   updatedAt: string; // ISO date string
-// }
-
-// interface WorkLog {
-//   id: string;
-//   memberId: string;
-//   projectId: string;
-//   date: string; // YYYY-MM-DD
-//   taskName: string;
-//   requestedBy: string;
-//   timeMinutes: number;
-//   comments?: string;
-//   createdAt: string; // ISO timestamp
 // }

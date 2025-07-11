@@ -1,15 +1,12 @@
 
-
-
 import { renderDashboardPage } from './pages/DashboardPage.js';
 import { renderProjectsPage } from './pages/ProjectsPage.js';
 import { renderAttendancePage } from './pages/AttendancePage.js';
 import { renderNotesPage } from './pages/NotesPage.js';
-import { renderReportsPage } from './pages/EvaluationPage.js';
-import { renderTimesheetPage } from './pages/TimelinePage.js';
+import { renderEvaluationPage } from './pages/EvaluationPage.js';
 import { Navbar } from './components/Navbar.js';
 import { INITIAL_TEAM_MEMBERS } from './constants.js';
-import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery, getFirebaseError } from './services/firebaseService.js';
+import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery } from './services/firebaseService.js';
 import { exportToCSV, importFromCSV } from './services/csvService.js';
 import { ProjectStatus, AttendanceStatus, LeaveType, NoteStatus, TeamMemberRole } from './types.js'; // Enums
 
@@ -22,7 +19,6 @@ let projects = [];
 let attendance = [];
 let notes = [];
 let teamMembers = [];
-let workLogs = [];
 let currentUser = null;
 
 // --- Handler Functions ---
@@ -67,9 +63,6 @@ const deleteProject = async (projectId) => {
   try {
     await deleteDocument('projects', projectId);
     projects = projects.filter(p => p.id !== projectId);
-    // Also delete associated work logs
-    await deleteByQuery('workLogs', 'projectId', projectId);
-    workLogs = workLogs.filter(wl => wl.projectId !== projectId);
     renderApp();
   } catch (error) {
     console.error("Failed to delete project:", error);
@@ -142,43 +135,6 @@ const deleteNote = async (noteId) => {
   }
 };
 
-// Work Log Handlers
-const addWorkLog = async (log) => {
-    try {
-        const { id, ...data } = log;
-        await setDocument('workLogs', id, data);
-        workLogs.push(log);
-        renderApp();
-    } catch (error) {
-        console.error("Failed to add work log:", error);
-        alert("Error: Could not save the new work log.");
-    }
-};
-
-const updateWorkLog = async (updatedLog) => {
-    try {
-        const { id, ...data } = updatedLog;
-        await updateDocument('workLogs', id, data);
-        workLogs = workLogs.map(wl => wl.id === id ? updatedLog : wl);
-        renderApp();
-    } catch (error) {
-        console.error("Failed to update work log:", error);
-        alert("Error: Could not update the work log.");
-    }
-};
-
-const deleteWorkLog = async (logId) => {
-    try {
-        await deleteDocument('workLogs', logId);
-        workLogs = workLogs.filter(wl => wl.id !== logId);
-        renderApp();
-    } catch (error) {
-        console.error("Failed to delete work log:", error);
-        alert("Error: Could not delete the work log.");
-    }
-};
-
-
 // Team Member handlers
 const addTeamMember = async (member) => {
   if (teamMembers.length >= 20) {
@@ -246,20 +202,16 @@ const deleteTeamMember = async (memberId) => {
 
     // 2. Delete all attendance records for the member
     await deleteByQuery('attendance', 'memberId', memberId);
-    
-    // 3. Delete all work logs for the member
-    await deleteByQuery('workLogs', 'memberId', memberId);
 
-    // 4. Delete the team member itself
+    // 3. Delete the team member itself
     await deleteDocument('teamMembers', memberId);
     
-    // 5. Update local state and re-render
+    // 4. Update local state and re-render
     projects = currentProjects;
     attendance = attendance.filter(a => a.memberId !== memberId);
-    workLogs = workLogs.filter(wl => wl.memberId !== memberId);
     teamMembers = teamMembers.filter(m => m.id !== memberId);
 
-    // 6. Reset current user if they were deleted
+    // 5. Reset current user if they were deleted
     if (currentUser && currentUser.id === memberId) {
         setCurrentUser(teamMembers[0]?.id || null);
     }
@@ -455,20 +407,11 @@ function renderApp() {
         onExport: () => handleExport('notes'),
         onImport: (file) => handleImport(file, 'notes'),
     });
-  } else if (currentView === 'timesheet') {
-    renderTimesheetPage(mainContentElement, {
-        currentUser,
-        projects,
-        workLogs,
-        onAddWorkLog: addWorkLog,
-        onUpdateWorkLog: updateWorkLog,
-        onDeleteWorkLog: deleteWorkLog,
-    });
-  } else if (currentView === 'reports') {
-    renderReportsPage(mainContentElement, {
+  } else if (currentView === 'evaluation') {
+    renderEvaluationPage(mainContentElement, {
       teamMembers,
       projects,
-      workLogs,
+      attendanceRecords: attendance,
     });
   }
   
@@ -488,18 +431,16 @@ function renderApp() {
 
 async function loadInitialData(seedIfEmpty = true) {
   try {
-    const [projectData, attendanceData, notesData, teamMemberData, workLogData] = await Promise.all([
+    const [projectData, attendanceData, notesData, teamMemberData] = await Promise.all([
         getCollection('projects'),
         getCollection('attendance'),
         getCollection('notes'),
-        getCollection('teamMembers'),
-        getCollection('workLogs')
+        getCollection('teamMembers')
     ]);
     
     projects = projectData;
     attendance = attendanceData;
     notes = notesData;
-    workLogs = workLogData;
 
     // Check if team members need to be seeded. This is more robust.
     if (seedIfEmpty && teamMemberData.length === 0) {
@@ -541,33 +482,6 @@ async function loadInitialData(seedIfEmpty = true) {
 
 export async function initializeApp(appRootElement) {
   rootElement = appRootElement;
-
-  const firebaseInitError = getFirebaseError();
-  if (firebaseInitError) {
-      rootElement.innerHTML = `<div class="firebase-config-error-container">
-            <h1><i class="fas fa-cogs"></i> Firebase Configuration Needed</h1>
-            <p>Welcome to TeamSync! To get started, you need to connect the app to your own Firebase backend.</p>
-            <div class="steps">
-                <div class="step">
-                    <div class="step-number">1</div>
-                    <div class="step-text">
-                        Open the file named <code>firebaseConfig.js</code> in the editor.
-                    </div>
-                </div>
-                <div class="step">
-                    <div class="step-number">2</div>
-                    <div class="step-text">
-                       Paste your Firebase project's configuration object into this file. You can find this in your <a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer">Firebase Console</a> under Project Settings.
-                    </div>
-                </div>
-            </div>
-            <h2>Why is this needed?</h2>
-            <p>This application uses Firebase to securely store and sync all your data (projects, notes, attendance, etc.) in real-time across devices. Without a connection, there's nowhere to save your work!</p>
-            <p class="error-message"><strong>Technical Detail:</strong> ${firebaseInitError.message}</p>
-        </div>`;
-      return;
-  }
-
   rootElement.innerHTML = `<div class="loading-container"><div class="spinner"></div><p>Loading Team Data...</p></div>`;
 
   await loadInitialData();
