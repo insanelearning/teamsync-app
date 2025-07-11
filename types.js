@@ -1,4 +1,3 @@
-
 export const ProjectStatus = {
   ToDo: 'To Do',
   InProgress: 'In Progress',
@@ -54,6 +53,7 @@ export const NoteStatus = {
 //   id: string;
 //   name: string;
 //   metrics: Metric[];
+//   completed?: boolean;
 // }
 
 // interface Project {
@@ -79,6 +79,7 @@ export const NoteStatus = {
 //   deliverables?: string;
 //   resultsAchieved?: string;
 //   completionDate?: string; // ISO date string
+//   completionPercentage?: number;
 // }
 
 // interface AttendanceRecord {
