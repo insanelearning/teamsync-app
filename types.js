@@ -20,10 +20,14 @@ export const LeaveType = {
   Vacation: 'Vacation',
   Other: 'Other',
 };
-
 export const NoteStatus = {
     Pending: 'Pending',
     Completed: 'Completed',
+};
+
+export const TeamMemberRole = {
+  Manager: 'Manager',
+  Member: 'Member',
 };
 
 // Interfaces are conceptual in JS. These comments describe the expected object shapes.
@@ -37,6 +41,7 @@ export const NoteStatus = {
 //   designation?: string;
 //   department?: string;
 //   company?: string;
+//   role: TeamMemberRole value;
 // }
 
 // interface Metric {
