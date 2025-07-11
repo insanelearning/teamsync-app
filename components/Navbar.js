@@ -1,12 +1,19 @@
 
+
+
+import { TeamMemberRole } from '../types.js';
+
 export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, teamMembers, onSetCurrentUser }) {
+  const isManager = currentUser?.role === TeamMemberRole.Manager;
+
   const navItems = [
-    { view: 'dashboard', label: 'Dashboard', icon: 'fas fa-home' },
-    { view: 'projects', label: 'Projects', icon: 'fas fa-tasks' },
-    { view: 'attendance', label: 'Attendance', icon: 'fas fa-user-check' },
-    { view: 'evaluation', label: 'Evaluation', icon: 'fas fa-chart-line' },
-    { view: 'notes', label: 'Notes', icon: 'fas fa-sticky-note' },
-  ];
+    { view: 'dashboard', label: 'Dashboard', icon: 'fas fa-home', show: true },
+    { view: 'projects', label: 'Projects', icon: 'fas fa-tasks', show: true },
+    { view: 'attendance', label: 'Attendance', icon: 'fas fa-user-check', show: true },
+    { view: 'timesheet', label: 'Timesheet', icon: 'fas fa-clock', show: true },
+    { view: 'reports', label: 'Reports', icon: 'fas fa-chart-pie', show: isManager },
+    { view: 'notes', label: 'Notes', icon: 'fas fa-sticky-note', show: true },
+  ].filter(item => item.show);
 
   const navElement = document.createElement('nav');
   navElement.className = 'navbar';
