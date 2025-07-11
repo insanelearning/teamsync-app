@@ -193,7 +193,7 @@ footer.app-footer {
 .page-container {
   margin-left: auto;
   margin-right: auto;
-  /* max-w-7xl typically, but depends on page */
+  max-width: 80rem; /* max-w-7xl */
 }
 
 /* Header Div used in pages */
@@ -243,6 +243,170 @@ footer.app-footer {
   .page-header-actions {
     justify-content: flex-end;
   }
+}
+
+/* --- Dashboard Styles --- */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+}
+@media(min-width: 1024px) {
+    .dashboard-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+@media(min-width: 1280px) {
+    .dashboard-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+.dashboard-widget {
+    background-color: #ffffff;
+    border-radius: 0.5rem;
+    padding: 1.25rem;
+    box-shadow: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px -1px rgba(0,0,0,0.1);
+}
+.dark .dashboard-widget {
+    background-color: #1f2937;
+}
+.dashboard-widget h3 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin: 0 0 1rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.dashboard-widget .widget-icon {
+    color: #4f46e5;
+}
+.dark .dashboard-widget .widget-icon {
+    color: #818cf8;
+}
+.welcome-header {
+    background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+    color: #ffffff;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+.dark .welcome-header {
+    background: linear-gradient(135deg, #3730a3 0%, #4f46e5 100%);
+}
+.welcome-header h2 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin: 0 0 0.25rem 0;
+}
+.welcome-header p {
+    margin: 0;
+    opacity: 0.9;
+    font-size: 0.9rem;
+}
+
+.widget-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+.widget-list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #f3f4f6;
+}
+.dark .widget-list-item {
+    border-color: #374151;
+}
+.widget-list-item:last-child {
+    border-bottom: none;
+}
+
+.my-tasks-item-name {
+    font-weight: 500;
+}
+.my-tasks-item-due {
+    font-size: 0.8rem;
+    color: #6b7280;
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+}
+.dark .my-tasks-item-due {
+    color: #9ca3af;
+}
+.my-tasks-item-due.date-overdue {
+    color: #ef4444;
+    font-weight: 600;
+}
+.at-risk-item-due {
+    font-size: 0.8rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+}
+.at-risk-item-due.date-overdue { color: #ef4444; }
+.at-risk-item-due.date-upcoming { color: #f59e0b; }
+
+.daily-attendance-summary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    text-align: center;
+    margin-bottom: 1rem;
+}
+.daily-attendance-summary .stat-item .count {
+    display: block;
+    font-size: 1.75rem;
+    font-weight: 700;
+}
+.daily-attendance-summary .stat-item span:last-child {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: #6b7280;
+}
+.dark .daily-attendance-summary .stat-item span:last-child {
+    color: #9ca3af;
+}
+.daily-attendance-summary .stat-item.present .count { color: #22c55e; }
+.daily-attendance-summary .stat-item.wfh .count { color: #3b82f6; }
+.daily-attendance-summary .stat-item.leave .count { color: #f97316; }
+.daily-attendance-summary .stat-item.not-marked .count { color: #6b7280; }
+
+.on-leave-list {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #f3f4f6;
+}
+.dark .on-leave-list { border-color: #374151; }
+.on-leave-list h4 {
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin: 0 0 0.5rem 0;
+}
+.on-leave-list ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    font-size: 0.8rem;
+    color: #6b7280;
+}
+.dark .on-leave-list ul { color: #9ca3af; }
+
+.widget-empty-state {
+    text-align: center;
+    padding: 1rem;
+    font-size: 0.875rem;
+    color: #6b7280;
+}
+.dark .widget-empty-state {
+    color: #9ca3af;
 }
 
 /* Projects Overview Section */
@@ -815,6 +979,39 @@ footer.app-footer {
     background-color: #4f46e5; /* dark:hover:bg-indigo-600 for active */
 }
 .nav-item-icon { margin-right: 0.375rem; /* mr-1.5 */ width: 1.125rem; /* w-4.5 */ text-align: center; }
+
+/* "View As" Selector in Navbar */
+.view-as-selector-container {
+    display: none; /* Hidden on mobile */
+}
+@media (min-width: 768px) {
+    .view-as-selector-container {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+}
+.view-as-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #6b7280;
+}
+.dark .view-as-label {
+    color: #9ca3af;
+}
+.view-as-select {
+    background-color: #f3f4f6;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+.dark .view-as-select {
+    background-color: #374151;
+    border-color: #4b5563;
+    color: #f3f4f6;
+}
 
 .navbar-mobile-button-area { display: flex; align-items: center; }
 @media (min-width: 768px) { /* md */
@@ -2314,7 +2511,7 @@ footer.app-footer {
     color: #d1d5db;
 }
 
-/* Bar Chart Styles */
+/* Bar Chart Styles (re-used in Dashboard) */
 .bar-chart {
     display: flex;
     flex-direction: column;
@@ -2331,6 +2528,9 @@ footer.app-footer {
     text-align: right;
     flex-shrink: 0;
     color: #6b7280;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .dark .bar-chart-label {
     color: #9ca3af;
