@@ -16,6 +16,32 @@ const getPriorityClass = (priority) => {
   return priorityMap[priority] || 'priority-default';
 };
 
+// Helper function to create a progress bar
+function createProgressBar(percentage) {
+    const safePercentage = Math.round(percentage || 0);
+    const container = document.createElement('div');
+    container.className = 'progress-bar-container';
+
+    const fill = document.createElement('div');
+    fill.className = 'progress-bar-fill';
+    fill.style.width = `${safePercentage}%`;
+
+    const text = document.createElement('span');
+    text.className = 'progress-bar-text';
+    text.textContent = `${safePercentage}%`;
+
+    if (safePercentage > 40) { // Only show text inside the fill if there's enough space
+      fill.appendChild(text);
+      container.appendChild(fill);
+    } else {
+      container.appendChild(fill);
+      container.appendChild(text); // Show text on the container (outside the fill)
+    }
+    
+    return container;
+}
+
+
 // Helper function to create SVG pie chart using path elements for robustness
 function createPieChart(data) {
   const container = document.createElement('div');
@@ -348,6 +374,7 @@ export function renderProjectsPage(container, props) {
                 <tr>
                     <th>Project Name</th>
                     <th>Status</th>
+                    <th>Progress</th>
                     <th>Assignees</th>
                     <th>Due Date</th>
                     <th>Priority</th>
@@ -362,13 +389,19 @@ export function renderProjectsPage(container, props) {
                 : 'Unassigned';
             const tr = document.createElement('tr');
             tr.dataset.projectId = p.id;
+
+            const progressCell = document.createElement('td');
+            progressCell.appendChild(createProgressBar(p.completionPercentage));
+
             tr.innerHTML = `
                 <td>${p.name}</td>
                 <td><span class="project-status-badge ${getStatusClass(p.status)}">${p.status}</span></td>
+                <td></td>
                 <td class="truncate" title="${assigneesNames}">${assigneesNames}</td>
                 <td>${new Date(p.dueDate).toLocaleDateString()}</td>
                 <td><span class="${getPriorityClass(p.priority)}">${p.priority}</span></td>
             `;
+            tr.children[2].replaceWith(progressCell); // Replace placeholder TD with progress bar
             tbody.appendChild(tr);
         });
 
@@ -428,6 +461,10 @@ export function renderProjectsPage(container, props) {
     const detailView = document.createElement('div');
     detailView.className = 'project-detail-view';
     detailView.innerHTML = `
+        <div class="detail-group">
+            <h4 class="detail-label">Overall Progress</h4>
+            ${createProgressBar(project.completionPercentage).outerHTML}
+        </div>
         <div class="detail-group">
             <h4 class="detail-label">Description</h4>
             <p class="detail-value">${project.description || 'No description provided.'}</p>
@@ -491,7 +528,10 @@ export function renderProjectsPage(container, props) {
 
             const goalTitle = document.createElement('h4');
             goalTitle.className = 'detail-label goal-title';
-            goalTitle.innerHTML = `<i class="fas fa-bullseye" style="margin-right: 0.5rem"></i> ${goal.name}`;
+            const statusIndicator = goal.completed
+                ? `<span class="goal-completion-status completed">Completed</span>`
+                : `<span class="goal-completion-status pending">Pending</span>`;
+            goalTitle.innerHTML = `<i class="fas fa-bullseye" style="margin-right: 0.5rem"></i> ${goal.name} ${statusIndicator}`;
             goalDiv.appendChild(goalTitle);
 
             if (goal.name.trim().toLowerCase() === 'email campaign') {
