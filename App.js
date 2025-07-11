@@ -1,4 +1,5 @@
 
+import { renderDashboardPage } from './pages/DashboardPage.js';
 import { renderProjectsPage } from './pages/ProjectsPage.js';
 import { renderAttendancePage } from './pages/AttendancePage.js';
 import { renderNotesPage } from './pages/NotesPage.js';
@@ -7,19 +8,26 @@ import { Navbar } from './components/Navbar.js';
 import { INITIAL_TEAM_MEMBERS } from './constants.js';
 import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery } from './services/firebaseService.js';
 import { exportToCSV, importFromCSV } from './services/csvService.js';
-import { ProjectStatus, AttendanceStatus, LeaveType, NoteStatus } from './types.js'; // Enums
+import { ProjectStatus, AttendanceStatus, LeaveType, NoteStatus, TeamMemberRole } from './types.js'; // Enums
 
 let rootElement;
 let mainContentElement;
 
 // State - these are now local caches of the Firestore data.
-let currentView = localStorage.getItem('currentView') || 'projects';
+let currentView = localStorage.getItem('currentView') || 'dashboard';
 let projects = [];
 let attendance = [];
 let notes = [];
 let teamMembers = [];
+let currentUser = null;
 
 // --- Handler Functions ---
+
+const setCurrentUser = (userId) => {
+    currentUser = teamMembers.find(m => m.id === userId) || teamMembers[0];
+    localStorage.setItem('currentUserId', currentUser.id);
+    renderApp();
+};
 
 // Project handlers
 const addProject = async (project) => {
@@ -149,6 +157,10 @@ const updateTeamMember = async (updatedMember) => {
     const { id, ...data } = updatedMember;
     await updateDocument('teamMembers', id, data);
     teamMembers = teamMembers.map(m => m.id === id ? updatedMember : m);
+    // If the currently viewed user was updated, update the currentUser object
+    if (currentUser && currentUser.id === id) {
+        currentUser = updatedMember;
+    }
     renderApp();
   } catch (error) {
     console.error("Failed to update team member:", error);
@@ -198,6 +210,12 @@ const deleteTeamMember = async (memberId) => {
     projects = currentProjects;
     attendance = attendance.filter(a => a.memberId !== memberId);
     teamMembers = teamMembers.filter(m => m.id !== memberId);
+
+    // 5. Reset current user if they were deleted
+    if (currentUser && currentUser.id === memberId) {
+        setCurrentUser(teamMembers[0]?.id || null);
+    }
+    
     renderApp();
 
   } catch (error) {
@@ -320,9 +338,6 @@ const handleImport = async (file, dataType) => {
 
 
 function handleNavChange(view) {
-  if (view === 'campaigns') {
-    view = 'projects'; // Campaigns page is removed, redirect to projects.
-  }
   currentView = view;
   localStorage.setItem('currentView', view);
   renderApp();
@@ -343,7 +358,14 @@ function renderApp() {
 
   mainContentElement.innerHTML = '';
 
-  if (currentView === 'projects') {
+  if (currentView === 'dashboard') {
+    renderDashboardPage(mainContentElement, {
+        currentUser,
+        teamMembers,
+        projects,
+        attendanceRecords: attendance
+    });
+  } else if (currentView === 'projects') {
     renderProjectsPage(mainContentElement, {
       projects,
       teamMembers,
@@ -392,7 +414,14 @@ function renderApp() {
   
   const navbarElement = rootElement.querySelector('nav.navbar');
   if (navbarElement) {
-      const newNavbar = Navbar({ currentView, onNavChange: handleNavChange, onThemeToggle: handleThemeToggle });
+      const newNavbar = Navbar({ 
+          currentView, 
+          onNavChange: handleNavChange, 
+          onThemeToggle: handleThemeToggle,
+          currentUser,
+          teamMembers,
+          onSetCurrentUser: setCurrentUser
+      });
       navbarElement.replaceWith(newNavbar);
   }
 }
@@ -415,12 +444,26 @@ async function loadInitialData(seedIfEmpty = true) {
         console.log("No team members found in database. Seeding with initial data.");
         const membersToSeed = INITIAL_TEAM_MEMBERS;
         await batchWrite('teamMembers', membersToSeed);
-        // After seeding, refetch the team members to ensure we have the correct data from the DB
         teamMembers = await getCollection('teamMembers'); 
     } else {
-        // Otherwise, just use the data we fetched
         teamMembers = teamMemberData;
     }
+
+    // Data migration: ensure all members have a role
+    teamMembers.forEach(m => {
+        if (!m.role) {
+            m.role = TeamMemberRole.Member; // Default to 'Member' if role is missing
+        }
+    });
+
+    // Initialize current user
+    const savedUserId = localStorage.getItem('currentUserId');
+    currentUser = teamMembers.find(m => m.id === savedUserId) || teamMembers[0];
+    if (currentUser) {
+        localStorage.setItem('currentUserId', currentUser.id);
+    }
+
+
   } catch (error) {
     console.error("Failed to load initial data from Firestore:", error);
     rootElement.innerHTML = `<div class="firebase-config-error-container">
@@ -442,7 +485,14 @@ export async function initializeApp(appRootElement) {
   
   rootElement.innerHTML = ''; // Clear loading indicator
 
-  const navbar = Navbar({ currentView, onNavChange: handleNavChange, onThemeToggle: handleThemeToggle });
+  const navbar = Navbar({ 
+      currentView, 
+      onNavChange: handleNavChange, 
+      onThemeToggle: handleThemeToggle,
+      currentUser,
+      teamMembers,
+      onSetCurrentUser: setCurrentUser,
+  });
   rootElement.appendChild(navbar);
 
   mainContentElement = document.createElement('main');
