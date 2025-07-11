@@ -1,320 +1,379 @@
-// This file has been repurposed to implement the Reports Page.
 
 import { Button } from '../components/Button.js';
-import { exportToCSV } from '../services/csvService.js';
+import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
+import { ProjectStatus, AttendanceStatus } from "../types.js";
 
-function formatMinutesToHours(minutes) {
-    if (!minutes) return '0h 0m';
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return `${hours}h ${mins}m`;
+let currentModalInstance = null;
+
+// --- Data Calculation Helpers ---
+
+function getProjectStatsForEmployee(employeeId, projects) {
+    const assignedProjects = projects.filter(p => (p.assignees || []).includes(employeeId));
+    const completed = assignedProjects.filter(p => p.status === ProjectStatus.Done);
+    const overdue = assignedProjects.filter(p => p.status !== ProjectStatus.Done && new Date(p.dueDate) < new Date());
+    
+    const onTimeCompletions = completed.filter(p => p.completionDate && new Date(p.completionDate) <= new Date(p.dueDate)).length;
+    const onTimeRate = completed.length > 0 ? (onTimeCompletions / completed.length) * 100 : 0;
+
+    return {
+        assigned: assignedProjects.length,
+        completed: completed.length,
+        inProgress: assignedProjects.filter(p => p.status === ProjectStatus.InProgress).length,
+        overdue: overdue.length,
+        onTimeRate: onTimeRate.toFixed(0),
+    };
 }
 
-function renderReportsPage(container, props) {
-    const { teamMembers, projects, workLogs } = props;
+function getAttendanceStatsForEmployee(employeeId, attendanceRecords, days = 90) {
+    const dateLimit = new Date();
+    dateLimit.setDate(dateLimit.getDate() - days);
 
-    let memberFilter = '';
-    let projectFilter = '';
-    let startDateFilter = new Date(new Date().setDate(new Date().getDate() - 29)).toISOString().split('T')[0];
-    let endDateFilter = new Date().toISOString().split('T')[0];
-    let sortKey = 'date';
-    let sortOrder = 'desc';
+    const records = attendanceRecords.filter(r => r.memberId === employeeId && new Date(r.date) >= dateLimit);
+    const stats = { present: 0, wfh: 0, leave: 0, total: records.length };
 
-    function getFilteredLogs() {
-        const startDate = new Date(startDateFilter);
-        startDate.setHours(0, 0, 0, 0);
-        const endDate = new Date(endDateFilter);
-        endDate.setHours(23, 59, 59, 999);
-
-        return workLogs
-            .filter(log => {
-                const logDate = new Date(log.date);
-                return logDate >= startDate && logDate <= endDate &&
-                    (!memberFilter || log.memberId === memberFilter) &&
-                    (!projectFilter || log.projectId === projectFilter);
-            })
-            .map(log => ({
-                ...log,
-                projectName: projects.find(p => p.id === log.projectId)?.name || 'Unknown Project',
-                memberName: teamMembers.find(m => m.id === log.memberId)?.name || 'Unknown Member'
-            }))
-            .sort((a, b) => {
-                const aVal = a[sortKey];
-                const bVal = b[sortKey];
-                let comparison = 0;
-                if (typeof aVal === 'string') {
-                    comparison = aVal.localeCompare(bVal);
-                } else {
-                    comparison = aVal - bVal;
-                }
-                return sortOrder === 'asc' ? comparison : -comparison;
-            });
-    }
-
-    function render() {
-        container.innerHTML = '';
-        const pageWrapper = document.createElement('div');
-        pageWrapper.className = 'page-container';
-
-        // Header
-        const headerDiv = document.createElement('div');
-        headerDiv.className = "page-header";
-        headerDiv.innerHTML = `<h1 class="page-header-title">Team Reports</h1>`;
-        pageWrapper.appendChild(headerDiv);
-
-        // Filters
-        const filtersDiv = document.createElement('div');
-        filtersDiv.className = 'filters-container';
-        const filterGrid = document.createElement('div');
-        filterGrid.className = 'reports-filters';
-
-        filterGrid.innerHTML = `
-            <div>
-                <label for="report-start-date" class="form-label">Start Date</label>
-                <input type="date" id="report-start-date" class="form-input" value="${startDateFilter}">
-            </div>
-            <div>
-                <label for="report-end-date" class="form-label">End Date</label>
-                <input type="date" id="report-end-date" class="form-input" value="${endDateFilter}">
-            </div>
-            <div>
-                <label for="report-member-filter" class="form-label">Team Member</label>
-                <select id="report-member-filter" class="form-select">
-                    <option value="">All Members</option>
-                    ${teamMembers.map(m => `<option value="${m.id}" ${memberFilter === m.id ? 'selected' : ''}>${m.name}</option>`).join('')}
-                </select>
-            </div>
-            <div>
-                <label for="report-project-filter" class="form-label">Project</label>
-                <select id="report-project-filter" class="form-select">
-                    <option value="">All Projects</option>
-                    ${projects.map(p => `<option value="${p.id}" ${projectFilter === p.id ? 'selected' : ''}>${p.name}</option>`).join('')}
-                </select>
-            </div>
-        `;
-        filtersDiv.appendChild(filterGrid);
-        pageWrapper.appendChild(filtersDiv);
-
-        const filteredLogs = getFilteredLogs();
-
-        // KPIs
-        const kpiContainer = document.createElement('div');
-        kpiContainer.className = 'reports-grid';
-        
-        const totalMinutes = filteredLogs.reduce((sum, log) => sum + log.timeMinutes, 0);
-        const uniqueDays = new Set(filteredLogs.map(log => log.date)).size;
-        const totalEfficiency = filteredLogs.reduce((acc, log) => {
-            const dayLogs = filteredLogs.filter(l => l.date === log.date && l.memberId === log.memberId);
-            const dailyTotal = dayLogs.reduce((sum, l) => sum + l.timeMinutes, 0);
-            acc[log.date + log.memberId] = (dailyTotal / 480) * 100;
-            return acc;
-        }, {});
-        const avgEfficiency = Object.values(totalEfficiency).length > 0
-            ? (Object.values(totalEfficiency).reduce((sum, eff) => sum + eff, 0) / Object.values(totalEfficiency).length)
-            : 0;
-
-        kpiContainer.innerHTML = `
-            <div class="report-kpi-card">
-                <div class="label">Total Hours Logged</div>
-                <div class="value">${formatMinutesToHours(totalMinutes)}</div>
-            </div>
-            <div class="report-kpi-card">
-                <div class="label">Total Days Worked</div>
-                <div class="value">${uniqueDays}</div>
-            </div>
-            <div class="report-kpi-card">
-                <div class="label">Average Efficiency</div>
-                <div class="value">${avgEfficiency.toFixed(0)}%</div>
-            </div>
-        `;
-        pageWrapper.appendChild(kpiContainer);
-
-        // Charts
-        const chartsContainer = document.createElement('div');
-        chartsContainer.className = 'chart-grid';
-        chartsContainer.appendChild(renderHoursByProjectChart(filteredLogs));
-        chartsContainer.appendChild(renderHoursByMemberChart(filteredLogs));
-        pageWrapper.appendChild(chartsContainer);
-        
-        // Data Table
-        const tableContainer = document.createElement('div');
-        tableContainer.className = 'data-table-container';
-        pageWrapper.appendChild(tableContainer);
-        renderDataTable(tableContainer, filteredLogs);
+    records.forEach(r => {
+        if (r.status === AttendanceStatus.Present) stats.present++;
+        else if (r.status === AttendanceStatus.WorkFromHome) stats.wfh++;
+        else if (r.status === AttendanceStatus.Leave) stats.leave++;
+    });
+    return stats;
+}
 
 
-        // Event Listeners
-        const updateFilters = () => {
-            startDateFilter = pageWrapper.querySelector('#report-start-date').value;
-            endDateFilter = pageWrapper.querySelector('#report-end-date').value;
-            memberFilter = pageWrapper.querySelector('#report-member-filter').value;
-            projectFilter = pageWrapper.querySelector('#report-project-filter').value;
-            render();
-        };
+// --- UI Chart Components ---
 
-        pageWrapper.querySelector('#report-start-date').onchange = updateFilters;
-        pageWrapper.querySelector('#report-end-date').onchange = updateFilters;
-        pageWrapper.querySelector('#report-member-filter').onchange = updateFilters;
-        pageWrapper.querySelector('#report-project-filter').onchange = updateFilters;
-
-        container.appendChild(pageWrapper);
-    }
+function createBarChart(data, title) {
+    const container = document.createElement('div');
+    container.className = 'bar-chart-container';
     
-    function renderHoursByProjectChart(logs) {
-        const container = document.createElement('div');
-        container.className = 'report-chart-container';
-        container.innerHTML = `<h4>Hours by Project</h4>`;
-
-        if (logs.length === 0) {
-            container.innerHTML += `<div class="chart-placeholder">No data for this period</div>`;
-            return container;
-        }
-
-        const dataByProject = logs.reduce((acc, log) => {
-            acc[log.projectId] = (acc[log.projectId] || 0) + log.timeMinutes;
-            return acc;
-        }, {});
-        
-        const chartData = Object.entries(dataByProject).map(([projectId, minutes]) => ({
-            label: projects.find(p => p.id === projectId)?.name || 'Unknown',
-            value: Math.round(minutes / 60), // to hours
-            color: '#4f46e5'
-        })).sort((a,b) => b.value - a.value);
-
-        const chartElement = createBarChart(chartData);
-        container.appendChild(chartElement);
-        return container;
+    if (title) {
+        const chartTitle = document.createElement('h5');
+        chartTitle.className = 'chart-title-small';
+        chartTitle.textContent = title;
+        container.appendChild(chartTitle);
     }
 
-    function renderHoursByMemberChart(logs) {
-        const container = document.createElement('div');
-        container.className = 'report-chart-container';
-        container.innerHTML = `<h4>Hours by Team Member</h4>`;
-
-        if (logs.length === 0) {
-            container.innerHTML += `<div class="chart-placeholder">No data for this period</div>`;
-            return container;
-        }
-        
-        const dataByMember = logs.reduce((acc, log) => {
-            acc[log.memberId] = (acc[log.memberId] || 0) + log.timeMinutes;
-            return acc;
-        }, {});
-
-        const chartData = Object.entries(dataByMember).map(([memberId, minutes]) => ({
-            label: teamMembers.find(m => m.id === memberId)?.name || 'Unknown',
-            value: Math.round(minutes / 60), // to hours
-            color: '#6366f1'
-        })).sort((a,b) => b.value - a.value);
-
-        const chartElement = createBarChart(chartData);
-        container.appendChild(chartElement);
-        return container;
-    }
+    const chart = document.createElement('div');
+    chart.className = 'bar-chart';
     
-    function createBarChart(data) {
-        const chart = document.createElement('div');
-        chart.className = 'bar-chart';
-        
-        const maxValue = Math.max(...data.map(d => d.value), 1);
-        
+    const maxValue = Math.max(...data.map(d => d.value), 0);
+    
+    if (maxValue === 0) {
+        chart.innerHTML = `<p class="chart-empty-text">No data available</p>`;
+    } else {
         data.forEach(item => {
             const barWrapper = document.createElement('div');
             barWrapper.className = 'bar-chart-item';
-            barWrapper.innerHTML = `
-                <span class="bar-chart-label" title="${item.label}">${item.label}</span>
-                <div class="bar-chart-bar-wrapper">
-                    <div class="bar-chart-bar" style="width: ${(item.value / maxValue) * 100}%; background-color: ${item.color};"></div>
-                </div>
-                <span class="bar-chart-value">${item.value}h</span>
-            `;
+            
+            const barLabel = document.createElement('span');
+            barLabel.className = 'bar-chart-label';
+            barLabel.textContent = item.label;
+            
+            const barElement = document.createElement('div');
+            barElement.className = 'bar-chart-bar-wrapper';
+            
+            const barFill = document.createElement('div');
+            barFill.className = 'bar-chart-bar';
+            barFill.style.width = `${(item.value / maxValue) * 100}%`;
+            barFill.style.backgroundColor = item.color;
+            
+            const barValue = document.createElement('span');
+            barValue.className = 'bar-chart-value';
+            barValue.textContent = item.value;
+            
+            barElement.appendChild(barFill);
+            barWrapper.append(barLabel, barElement, barValue);
             chart.appendChild(barWrapper);
         });
-        return chart;
     }
+    container.appendChild(chart);
+    return container;
+}
 
-    function renderDataTable(tableContainer, logs) {
-        tableContainer.innerHTML = '';
-        const tableHeader = document.createElement('div');
-        tableHeader.className = 'timesheet-log-actions';
-        tableHeader.innerHTML = `<h3>Detailed Logs</h3>`;
-        const exportButton = Button({
-            children: 'Export CSV',
-            variant: 'secondary',
-            size: 'sm',
-            leftIcon: '<i class="fas fa-file-export"></i>',
-            onClick: () => {
-                const dataToExport = logs.map(l => ({
-                    Date: l.date,
-                    Member: l.memberName,
-                    Project: l.projectName,
-                    Task: l.taskName,
-                    'Time (Minutes)': l.timeMinutes,
-                    'Requested By': l.requestedBy,
-                    Comments: l.comments || ''
-                }));
-                exportToCSV(dataToExport, 'work_log_report.csv');
-            },
-            disabled: logs.length === 0
-        });
-        tableHeader.appendChild(exportButton);
-        tableContainer.appendChild(tableHeader);
+function renderAttendanceSummaryCard(attendanceStats) {
+  const container = document.createElement('div');
+  container.className = 'attendance-summary-card';
 
-        if (logs.length === 0) {
-            tableContainer.innerHTML += `<div class="no-data-placeholder"><p>No work logs match the current filters.</p></div>`;
-            return;
+  const header = document.createElement('div');
+  header.className = 'attendance-summary-header';
+  header.innerHTML = `
+    <div class="title-group">
+      <i class="fas fa-user-check"></i>
+      <h3>ATTENDANCE (LAST 90 DAYS)</h3>
+    </div>
+    <i class="fas fa-chevron-down"></i>
+  `;
+  container.appendChild(header);
+
+  const body = document.createElement('div');
+  body.className = 'attendance-summary-body';
+
+  const chartContainer = document.createElement('div');
+  chartContainer.className = 'donut-chart-container';
+
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 100 100');
+  svg.setAttribute('class', 'donut-chart-svg');
+
+  const data = [
+    { label: 'Present', value: attendanceStats.present, color: '#22c55e' }, // green
+    { label: 'WFH', value: attendanceStats.wfh, color: '#3b82f6' }, // blue
+    { label: 'Leave', value: attendanceStats.leave, color: '#f97316' } // orange
+  ];
+  const totalValue = data.reduce((sum, item) => sum + item.value, 0);
+
+  if (totalValue === 0) {
+    svg.innerHTML = `<circle cx="50" cy="50" r="40" stroke="#e5e7eb" stroke-width="15" fill="none"/>
+    <text x="50" y="48" class="donut-center-value" text-anchor="middle">0</text>
+    <text x="50" y="62" class="donut-center-label" text-anchor="middle">days</text>`;
+  } else {
+    const radius = 40;
+    const strokeWidth = 15;
+    const circumference = 2 * Math.PI * radius;
+    let offset = 0;
+
+    // A small gap between segments
+    const gapSize = 2; // in percentage of circumference
+    const totalGapSize = data.filter(d => d.value > 0).length * gapSize;
+    const scaleFactor = (circumference - totalGapSize) / circumference;
+
+    data.forEach(item => {
+        if (item.value === 0) return;
+        const percent = (item.value / totalValue) * 100;
+        const segmentLength = (percent / 100) * circumference * scaleFactor;
+        const strokeDasharray = `${segmentLength} ${circumference - segmentLength}`;
+        const segment = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        segment.setAttribute('cx', '50');
+        segment.setAttribute('cy', '50');
+        segment.setAttribute('r', String(radius));
+        segment.setAttribute('fill', 'none');
+        segment.setAttribute('stroke', item.color);
+        segment.setAttribute('stroke-width', String(strokeWidth));
+        segment.setAttribute('stroke-dasharray', strokeDasharray);
+        segment.setAttribute('stroke-dashoffset', String(-offset));
+        segment.setAttribute('transform', `rotate(-90 50 50)`);
+        svg.appendChild(segment);
+        offset += segmentLength + (gapSize / 100 * circumference);
+    });
+
+    const totalText = `
+    <text x="50" y="48" class="donut-center-value" text-anchor="middle">${totalValue}</text>
+    <text x="50" y="62" class="donut-center-label" text-anchor="middle">days</text>`;
+    svg.innerHTML += totalText;
+  }
+  chartContainer.appendChild(svg);
+  body.appendChild(chartContainer);
+
+  const legend = document.createElement('div');
+  legend.className = 'attendance-summary-legend';
+  data.forEach(item => {
+    const legendItem = document.createElement('div');
+    legendItem.className = 'legend-item';
+    legendItem.innerHTML = `
+        <span class="legend-color-box" style="background-color: ${item.color};"></span>
+        <span class="legend-label">${item.label} (${item.value})</span>
+    `;
+    legend.appendChild(legendItem);
+  });
+  body.appendChild(legend);
+
+  container.appendChild(body);
+  return container;
+}
+
+
+// --- Main UI Rendering ---
+
+function renderTeamOverview(teamMembers, projects, attendanceRecords) {
+    const overviewContainer = document.createElement('div');
+    overviewContainer.className = 'evaluation-overview-container evaluation-page-overview';
+
+    const kpiContainer = document.createElement('div');
+    kpiContainer.className = 'kpi-grid';
+
+    let topPerformer = { name: 'N/A', count: 0 };
+    let mostPunctual = { name: 'N/A', rate: 0, presentDays: 0 };
+    let highestWorkload = { name: 'N/A', count: 0 };
+    
+    teamMembers.forEach(member => {
+        const projectStats = getProjectStatsForEmployee(member.id, projects);
+        if (projectStats.completed > topPerformer.count) {
+            topPerformer = { name: member.name, count: projectStats.completed };
         }
+        const activeProjects = projects.filter(p => p.status !== ProjectStatus.Done && (p.assignees || []).includes(member.id)).length;
+        if (activeProjects > highestWorkload.count) {
+            highestWorkload = { name: member.name, count: activeProjects };
+        }
+        const attendanceStats = getAttendanceStatsForEmployee(member.id, attendanceRecords);
+        const workDays = attendanceStats.present + attendanceStats.wfh;
+        const totalLoggedDays = workDays + attendanceStats.leave;
 
-        const table = document.createElement('table');
-        table.className = 'data-table';
-        const thead = document.createElement('thead');
-        thead.innerHTML = `
-            <tr>
-                <th data-sort="date">Date</th>
-                <th data-sort="memberName">Member</th>
-                <th data-sort="projectName">Project</th>
-                <th data-sort="taskName">Task</th>
-                <th data-sort="timeMinutes">Time</th>
-                <th data-sort="requestedBy">Requested By</th>
-            </tr>
-        `;
-        
-        thead.querySelectorAll('th').forEach(th => {
-            th.style.cursor = 'pointer';
-            if (th.dataset.sort === sortKey) {
-                th.innerHTML += sortOrder === 'asc' ? ' <i class="fas fa-sort-up"></i>' : ' <i class="fas fa-sort-down"></i>';
-            } else {
-                th.innerHTML += ' <i class="fas fa-sort"></i>';
-            }
-            th.addEventListener('click', () => {
-                const newSortKey = th.dataset.sort;
-                if (sortKey === newSortKey) {
-                    sortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
-                } else {
-                    sortKey = newSortKey;
-                    sortOrder = 'desc';
+        if (totalLoggedDays > 0) {
+            const rate = (workDays / totalLoggedDays) * 100;
+            
+            if (rate > mostPunctual.rate) {
+                // Higher rate wins
+                mostPunctual = { name: member.name, rate: rate, presentDays: attendanceStats.present };
+            } else if (rate === mostPunctual.rate) {
+                // Tie-breaker: more present days wins
+                if (attendanceStats.present > mostPunctual.presentDays) {
+                    mostPunctual = { name: member.name, rate: rate, presentDays: attendanceStats.present };
                 }
-                render();
-            });
-        });
+            }
+        }
+    });
 
-        const tbody = document.createElement('tbody');
-        logs.forEach(log => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${new Date(log.date + 'T00:00:00').toLocaleDateString()}</td>
-                <td>${log.memberName}</td>
-                <td>${log.projectName}</td>
-                <td><p class="truncate" title="${log.taskName}">${log.taskName}</p></td>
-                <td>${formatMinutesToHours(log.timeMinutes)}</td>
-                <td>${log.requestedBy}</td>
-            `;
-            tbody.appendChild(tr);
-        });
-        
-        table.append(thead, tbody);
-        tableContainer.appendChild(table);
+    const totalCompleted = projects.filter(p => p.status === ProjectStatus.Done).length;
+    const completionRate = projects.length > 0 ? ((totalCompleted / projects.length) * 100).toFixed(0) : 0;
+
+    const kpis = [
+        { label: 'Top Performer', value: topPerformer.name, subtext: `${topPerformer.count} projects completed`, icon: 'fas fa-trophy' },
+        { label: 'Highest Workload', value: highestWorkload.name, subtext: `${highestWorkload.count} active projects`, icon: 'fas fa-tasks' },
+        { label: 'Most Punctual', value: mostPunctual.name, subtext: `${mostPunctual.rate.toFixed(0)}% presence`, icon: 'fas fa-user-check' },
+        { label: 'Project Completion', value: `${completionRate}%`, subtext: `${totalCompleted}/${projects.length} completed`, icon: 'fas fa-check-double' }
+    ];
+
+    kpis.forEach(kpi => {
+        const card = document.createElement('div');
+        card.className = `stat-card`;
+        card.innerHTML = `
+          <div class="stat-card-icon"><i class="${kpi.icon}"></i></div>
+          <div>
+            <div class="stat-card-value">${kpi.value}</div>
+            <div class="stat-card-label">${kpi.label}</div>
+            <p class="stat-card-subtext">${kpi.subtext}</p>
+          </div>
+        `;
+        kpiContainer.appendChild(card);
+    });
+
+    overviewContainer.appendChild(kpiContainer);
+    return overviewContainer;
+}
+
+function renderIndividualEvaluation(container, props) {
+    const { teamMembers, projects, onSelectEmployee } = props;
+
+    const section = document.createElement('div');
+    section.className = 'attendance-page-section';
+
+    const title = document.createElement('h2');
+    title.className = "attendance-section-title";
+    title.textContent = "Individual Evaluations";
+    section.appendChild(title);
+    
+    if (teamMembers.length === 0) {
+        section.innerHTML += `<p class="no-data-placeholder">No team members to evaluate.</p>`;
+        container.appendChild(section);
+        return;
     }
+    
+    const tableContainer = document.createElement('div');
+    tableContainer.className = 'data-table-container';
+    const table = document.createElement('table');
+    table.className = 'data-table team-members-table';
+    table.innerHTML = `<thead><tr><th>Name</th><th>Designation</th><th>Projects Completed</th><th>Active Projects</th><th class="action-cell">Action</th></tr></thead>`;
+    const tbody = document.createElement('tbody');
 
-    render();
+    teamMembers.forEach(member => {
+        const tr = document.createElement('tr');
+        const projectStats = getProjectStatsForEmployee(member.id, projects);
+        
+        tr.innerHTML = `
+            <td>${member.name}</td>
+            <td>${member.designation || 'N/A'}</td>
+            <td>${projectStats.completed}</td>
+            <td>${projects.filter(p => p.status !== ProjectStatus.Done && (p.assignees || []).includes(member.id)).length}</td>
+        `;
+
+        const actionCell = document.createElement('td');
+        actionCell.className = 'action-cell';
+        actionCell.appendChild(Button({
+            children: 'View Evaluation',
+            variant: 'primary',
+            size: 'sm',
+            onClick: () => onSelectEmployee(member)
+        }));
+        tr.appendChild(actionCell);
+        tbody.appendChild(tr);
+    });
+
+    table.appendChild(tbody);
+    tableContainer.appendChild(table);
+    section.appendChild(tableContainer);
+    container.appendChild(section);
+}
+
+
+function openEvaluationModal(employee, projects, attendanceRecords) {
+    const closeModal = () => {
+        closeGlobalModal();
+        currentModalInstance = null;
+    };
+    
+    const projectStats = getProjectStatsForEmployee(employee.id, projects);
+    const attendanceStats = getAttendanceStatsForEmployee(employee.id, attendanceRecords);
+    
+    const modalContent = document.createElement('div');
+    modalContent.className = 'evaluation-modal-content';
+
+    // Project Performance Section
+    const projectSection = document.createElement('div');
+    projectSection.className = 'detail-section';
+    projectSection.innerHTML = `<h4 class="detail-label"><i class="fas fa-tasks"></i> Project Performance</h4>`;
+
+    const projectKpis = document.createElement('div');
+    projectKpis.className = 'detail-grid';
+    projectKpis.innerHTML = `
+        <div class="detail-item"><h5 class="detail-label-small">Assigned</h5><p class="detail-value-large">${projectStats.assigned}</p></div>
+        <div class="detail-item"><h5 class="detail-label-small">Completed</h5><p class="detail-value-large">${projectStats.completed}</p></div>
+        <div class="detail-item"><h5 class="detail-label-small">Overdue</h5><p class="detail-value-large">${projectStats.overdue}</p></div>
+        <div class="detail-item"><h5 class="detail-label-small">On-Time Rate</h5><p class="detail-value-large">${projectStats.onTimeRate}%</p></div>
+    `;
+    projectSection.appendChild(projectKpis);
+    projectSection.appendChild(createBarChart([
+        { label: 'Completed', value: projectStats.completed, color: '#22c55e' },
+        { label: 'In Progress', value: projectStats.inProgress, color: '#3b82f6' },
+        { label: 'Overdue', value: projectStats.overdue, color: '#ef4444' },
+    ], 'Project Status Breakdown'));
+
+    // Attendance Section
+    const attendanceSection = document.createElement('div');
+    attendanceSection.className = 'detail-section';
+    attendanceSection.appendChild(renderAttendanceSummaryCard(attendanceStats));
+
+    modalContent.append(projectSection, attendanceSection);
+
+    currentModalInstance = Modal({
+        isOpen: true,
+        onClose: closeModal,
+        title: `Performance Evaluation: ${employee.name}`,
+        children: modalContent,
+        footer: [Button({ children: 'Close', variant: 'secondary', onClick: closeModal })],
+        size: 'lg'
+    });
+}
+
+
+export function renderEvaluationPage(container, props) {
+  container.innerHTML = '';
+  const pageWrapper = document.createElement('div');
+  pageWrapper.className = 'page-container';
+
+  // Header
+  const headerDiv = document.createElement('div');
+  headerDiv.className = "page-header";
+  const headerTitle = document.createElement('h1');
+  headerTitle.className = 'page-header-title';
+  headerTitle.textContent = 'Employee Evaluation';
+  headerDiv.appendChild(headerTitle);
+  pageWrapper.appendChild(headerDiv);
+
+  // Overview
+  pageWrapper.appendChild(renderTeamOverview(props.teamMembers, props.projects, props.attendanceRecords));
+  
+  // Individual List
+  renderIndividualEvaluation(pageWrapper, { ...props, onSelectEmployee: (employee) => openEvaluationModal(employee, props.projects, props.attendanceRecords)});
+  
+  container.appendChild(pageWrapper);
 }

@@ -159,7 +159,6 @@ export function renderAttendancePage(container, props) {
     };
 
     const recordsForDate = attendanceRecords.filter(r => r.date === selectedDate);
-    const formattedDateForHeader = new Date(selectedDate + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
     let filteredMembers = teamMembers.filter(member => 
         member.name.toLowerCase().includes(teamSearchTerm.toLowerCase()) &&
@@ -201,7 +200,7 @@ export function renderAttendancePage(container, props) {
 
           const table = document.createElement('table');
           table.className = 'data-table team-members-table';
-          table.innerHTML = `<thead><tr><th>Name</th><th>Designation</th><th>Department</th><th>Active Projects</th><th>Attendance (${formattedDateForHeader})</th></tr></thead>`;
+          table.innerHTML = `<thead><tr><th>Name</th><th>Designation</th><th>Department</th><th>Active Projects</th><th>Attendance Status</th></tr></thead>`;
           const tbody = document.createElement('tbody');
           members.forEach(member => {
             const tr = document.createElement('tr');
