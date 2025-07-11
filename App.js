@@ -4,6 +4,7 @@ import { renderProjectsPage } from './pages/ProjectsPage.js';
 import { renderAttendancePage } from './pages/AttendancePage.js';
 import { renderNotesPage } from './pages/NotesPage.js';
 import { renderEvaluationPage } from './pages/EvaluationPage.js';
+import { renderWorkLogPage } from './pages/WorkLogPage.js';
 import { Navbar } from './components/Navbar.js';
 import { INITIAL_TEAM_MEMBERS } from './constants.js';
 import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery } from './services/firebaseService.js';
@@ -19,6 +20,7 @@ let projects = [];
 let attendance = [];
 let notes = [];
 let teamMembers = [];
+let workLogs = [];
 let currentUser = null;
 
 // --- Handler Functions ---
@@ -63,6 +65,9 @@ const deleteProject = async (projectId) => {
   try {
     await deleteDocument('projects', projectId);
     projects = projects.filter(p => p.id !== projectId);
+    // Also delete associated work logs
+    workLogs.filter(wl => wl.projectId === projectId).forEach(wl => deleteDocument('worklogs', wl.id));
+    workLogs = workLogs.filter(wl => wl.projectId !== projectId);
     renderApp();
   } catch (error) {
     console.error("Failed to delete project:", error);
@@ -135,6 +140,43 @@ const deleteNote = async (noteId) => {
   }
 };
 
+// Work Log Handlers
+const addWorkLog = async (workLog) => {
+    try {
+        const { id, ...data } = workLog;
+        await setDocument('worklogs', id, data);
+        workLogs.push(workLog);
+        renderApp();
+    } catch (error) {
+        console.error("Failed to add work log:", error);
+        alert("Error: Could not save the new work log.");
+    }
+};
+
+const updateWorkLog = async (updatedWorkLog) => {
+    try {
+        const { id, ...data } = updatedWorkLog;
+        await updateDocument('worklogs', id, data);
+        workLogs = workLogs.map(wl => wl.id === id ? updatedWorkLog : wl);
+        renderApp();
+    } catch (error) {
+        console.error("Failed to update work log:", error);
+        alert("Error: Could not update the work log.");
+    }
+};
+
+const deleteWorkLog = async (workLogId) => {
+    try {
+        await deleteDocument('worklogs', workLogId);
+        workLogs = workLogs.filter(wl => wl.id !== workLogId);
+        renderApp();
+    } catch (error) {
+        console.error("Failed to delete work log:", error);
+        alert("Error: Could not delete the work log.");
+    }
+};
+
+
 // Team Member handlers
 const addTeamMember = async (member) => {
   if (teamMembers.length >= 20) {
@@ -202,16 +244,20 @@ const deleteTeamMember = async (memberId) => {
 
     // 2. Delete all attendance records for the member
     await deleteByQuery('attendance', 'memberId', memberId);
+    
+    // 3. Delete all work logs for the member
+    await deleteByQuery('worklogs', 'memberId', memberId);
 
-    // 3. Delete the team member itself
+    // 4. Delete the team member itself
     await deleteDocument('teamMembers', memberId);
     
-    // 4. Update local state and re-render
+    // 5. Update local state and re-render
     projects = currentProjects;
     attendance = attendance.filter(a => a.memberId !== memberId);
+    workLogs = workLogs.filter(wl => wl.memberId !== memberId);
     teamMembers = teamMembers.filter(m => m.id !== memberId);
 
-    // 5. Reset current user if they were deleted
+    // 6. Reset current user if they were deleted
     if (currentUser && currentUser.id === memberId) {
         setCurrentUser(teamMembers[0]?.id || null);
     }
@@ -266,6 +312,22 @@ const handleExport = (dataType) => {
         tags: n.tags ? n.tags.join(';') : '',
     }));
     exportToCSV(notesToExport, 'notes.csv');
+  } else if (dataType === 'worklogs') {
+    const logsToExport = workLogs.map(log => {
+        const member = teamMembers.find(m => m.id === log.memberId);
+        const project = projects.find(p => p.id === log.projectId);
+        return {
+            id: log.id,
+            date: log.date,
+            memberName: member?.name || 'Unknown',
+            projectName: project?.name || 'Unknown',
+            taskName: log.taskName,
+            requestedFrom: log.requestedFrom,
+            timeSpentMinutes: log.timeSpentMinutes,
+            comments: log.comments || '',
+        };
+    });
+    exportToCSV(logsToExport, 'work_logs.csv');
   }
 };
 
@@ -320,6 +382,29 @@ const handleImport = async (file, dataType) => {
                 tags: Array.isArray(item.tags) ? item.tags : (item.tags || '').split(';').map(s => s.trim()).filter(Boolean),
             };
         }).filter(Boolean);
+    } else if (dataType === 'worklogs') {
+        collectionName = 'worklogs';
+        // Need to map memberName and projectName back to IDs
+        processedData = data.map(item => {
+            if (!item.id || !item.date || !item.memberName || !item.projectName || !item.timeSpentMinutes) return null;
+            const member = teamMembers.find(m => m.name === item.memberName);
+            const project = projects.find(p => p.name === item.projectName);
+            if (!member || !project) return null; // Skip if no match found
+            
+            const now = new Date().toISOString();
+            return {
+                id: item.id,
+                date: item.date,
+                memberId: member.id,
+                projectId: project.id,
+                taskName: item.taskName || 'N/A',
+                requestedFrom: item.requestedFrom || 'N/A',
+                timeSpentMinutes: Number(item.timeSpentMinutes) || 0,
+                comments: item.comments || '',
+                createdAt: item.createdAt || now,
+                updatedAt: now,
+            };
+        }).filter(Boolean);
     }
     
     if (collectionName && processedData.length > 0) {
@@ -328,7 +413,7 @@ const handleImport = async (file, dataType) => {
         renderApp();
         alert(`${dataType.charAt(0).toUpperCase() + dataType.slice(1)} data imported successfully!`);
     } else {
-        alert(`No valid data to import for ${dataType}.`);
+        alert(`No valid data to import for ${dataType}. Check CSV columns and ensure members/projects exist.`);
     }
   } catch (error) {
     console.error("Import error:", error);
@@ -363,10 +448,14 @@ function renderApp() {
         currentUser,
         teamMembers,
         projects,
+        notes,
+        workLogs,
         attendanceRecords: attendance,
         projectStatuses: Object.values(ProjectStatus),
         onAddProject: addProject,
-        onAddNote: addNote
+        onAddNote: addNote,
+        onAddWorkLog: addWorkLog,
+        onNavChange: handleNavChange,
     });
   } else if (currentView === 'projects') {
     renderProjectsPage(mainContentElement, {
@@ -413,6 +502,18 @@ function renderApp() {
       projects,
       attendanceRecords: attendance,
     });
+  } else if (currentView === 'worklog') {
+    renderWorkLogPage(mainContentElement, {
+        workLogs,
+        teamMembers,
+        projects,
+        currentUser,
+        onAddWorkLog: addWorkLog,
+        onUpdateWorkLog: updateWorkLog,
+        onDeleteWorkLog: deleteWorkLog,
+        onExport: () => handleExport('worklogs'),
+        onImport: (file) => handleImport(file, 'worklogs'),
+    });
   }
   
   const navbarElement = rootElement.querySelector('nav.navbar');
@@ -431,16 +532,18 @@ function renderApp() {
 
 async function loadInitialData(seedIfEmpty = true) {
   try {
-    const [projectData, attendanceData, notesData, teamMemberData] = await Promise.all([
+    const [projectData, attendanceData, notesData, teamMemberData, workLogData] = await Promise.all([
         getCollection('projects'),
         getCollection('attendance'),
         getCollection('notes'),
-        getCollection('teamMembers')
+        getCollection('teamMembers'),
+        getCollection('worklogs'),
     ]);
     
     projects = projectData;
     attendance = attendanceData;
     notes = notesData;
+    workLogs = workLogData;
 
     // Check if team members need to be seeded. This is more robust.
     if (seedIfEmpty && teamMemberData.length === 0) {
