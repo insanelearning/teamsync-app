@@ -235,6 +235,7 @@ const handleExport = (dataType) => {
       deliverables: p.deliverables || '',
       resultsAchieved: p.resultsAchieved || '',
       completionDate: p.completionDate || '',
+      completionPercentage: p.completionPercentage || 0,
     }));
     exportToCSV(projectsToExport, 'projects.csv');
   } else if (dataType === 'attendance') {
@@ -260,12 +261,17 @@ const handleImport = async (file, dataType) => {
         collectionName = 'projects';
         processedData = data.map(item => {
             if (!item.id || !item.name || !item.status || !item.dueDate) return null;
-            // Data validation and processing logic from original function...
+            
+            const goals = Array.isArray(item.goals) ? item.goals : JSON.parse(item.goals || '[]');
+            const totalGoals = goals.length;
+            const completedGoals = goals.filter(g => g.completed).length;
+            const completionPercentage = totalGoals > 0 ? (completedGoals / totalGoals) * 100 : 0;
+
             return {
               ...item,
               assignees: Array.isArray(item.assignees) ? item.assignees : (item.assignees || '').split(';').map(s=>s.trim()).filter(Boolean),
               tags: Array.isArray(item.tags) ? item.tags : (item.tags || '').split(';').map(s=>s.trim()).filter(Boolean),
-              goals: Array.isArray(item.goals) ? item.goals : (JSON.parse(item.goals || '[]')),
+              goals: goals,
               stakeholderName: item.stakeholderName || '',
               mediaProduct: item.mediaProduct || '',
               pilotScope: item.pilotScope || '',
@@ -274,6 +280,7 @@ const handleImport = async (file, dataType) => {
               deliverables: item.deliverables || '',
               resultsAchieved: item.resultsAchieved || '',
               completionDate: item.completionDate || null,
+              completionPercentage: completionPercentage,
             };
         }).filter(Boolean);
     } else if (dataType === 'attendance') {
