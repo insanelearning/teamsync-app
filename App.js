@@ -9,7 +9,7 @@ import { renderReportsPage } from './pages/EvaluationPage.js';
 import { renderTimesheetPage } from './pages/TimelinePage.js';
 import { Navbar } from './components/Navbar.js';
 import { INITIAL_TEAM_MEMBERS } from './constants.js';
-import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery } from './services/firebaseService.js';
+import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery, getFirebaseError } from './services/firebaseService.js';
 import { exportToCSV, importFromCSV } from './services/csvService.js';
 import { ProjectStatus, AttendanceStatus, LeaveType, NoteStatus, TeamMemberRole } from './types.js'; // Enums
 
@@ -541,6 +541,33 @@ async function loadInitialData(seedIfEmpty = true) {
 
 export async function initializeApp(appRootElement) {
   rootElement = appRootElement;
+
+  const firebaseInitError = getFirebaseError();
+  if (firebaseInitError) {
+      rootElement.innerHTML = `<div class="firebase-config-error-container">
+            <h1><i class="fas fa-cogs"></i> Firebase Configuration Needed</h1>
+            <p>Welcome to TeamSync! To get started, you need to connect the app to your own Firebase backend.</p>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <div class="step-text">
+                        Open the file named <code>firebaseConfig.js</code> in the editor.
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <div class="step-text">
+                       Paste your Firebase project's configuration object into this file. You can find this in your <a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer">Firebase Console</a> under Project Settings.
+                    </div>
+                </div>
+            </div>
+            <h2>Why is this needed?</h2>
+            <p>This application uses Firebase to securely store and sync all your data (projects, notes, attendance, etc.) in real-time across devices. Without a connection, there's nowhere to save your work!</p>
+            <p class="error-message"><strong>Technical Detail:</strong> ${firebaseInitError.message}</p>
+        </div>`;
+      return;
+  }
+
   rootElement.innerHTML = `<div class="loading-container"><div class="spinner"></div><p>Loading Team Data...</p></div>`;
 
   await loadInitialData();
