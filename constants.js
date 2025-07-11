@@ -1,5 +1,5 @@
 
-import { ProjectStatus, AttendanceStatus, LeaveType, NoteStatus } from './types.js';
+import { ProjectStatus, AttendanceStatus, LeaveType, NoteStatus, TeamMemberRole } from './types.js';
 
 export const INITIAL_TEAM_MEMBERS = Array.from({ length: 5 }, (_, i) => ({
   id: crypto.randomUUID(),
@@ -8,9 +8,10 @@ export const INITIAL_TEAM_MEMBERS = Array.from({ length: 5 }, (_, i) => ({
   employeeId: `EMP00${i + 1}`,
   joinDate: new Date(new Date().setFullYear(new Date().getFullYear() - i)).toISOString().split('T')[0],
   birthDate: new Date(1990 + i, i % 12, (i*5 % 28) + 1).toISOString().split('T')[0],
-  designation: i % 2 === 0 ? 'Software Engineer' : 'QA Analyst',
+  designation: i === 0 ? 'Project Manager' : (i % 2 === 0 ? 'Software Engineer' : 'QA Analyst'),
   department: i < 3 ? 'Engineering' : 'Quality Assurance',
   company: 'TeamSync Corp',
+  role: i === 0 ? TeamMemberRole.Manager : TeamMemberRole.Member,
 }));
 
 export const PROJECT_STATUSES = Object.values(ProjectStatus);
