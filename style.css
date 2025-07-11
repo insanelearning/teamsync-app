@@ -330,13 +330,11 @@ footer.app-footer {
     animation: spin 1s linear infinite;
 }
 .daily-briefing.loading .briefing-text {
-    background-color: rgba(255, 255, 255, 0.2);
-    border-radius: 0.25rem;
-    color: transparent;
+    animation: pulse-briefing 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
     user-select: none;
 }
 .dark .daily-briefing.loading .briefing-text {
-    background-color: rgba(0, 0, 0, 0.2);
+    /* Animation handles color/opacity, no dark mode specific style needed */
 }
 
 /* Quick Actions Widget */
@@ -362,7 +360,7 @@ footer.app-footer {
 }
 
 .welcome-header {
-    background: linear-gradient(135deg, #13ba4d 0%, #6366f1 100%);
+    background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
     color: #ffffff;
     padding: 1.5rem;
     margin-bottom: 1.5rem;
@@ -961,6 +959,15 @@ footer.app-footer {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+@keyframes pulse-briefing {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 /* Navbar */
