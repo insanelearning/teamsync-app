@@ -1,132 +1,82 @@
 
 import { TeamMemberRole, AttendanceStatus, ProjectStatus } from '../types.js';
-import { GoogleGenAI } from "@google/genai";
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
-import { ProjectForm } from '../components/ProjectForm.js';
+import { WorkLogForm } from '../components/WorkLogForm.js';
 import { NoteForm } from '../components/NoteForm.js';
 
 let currentModalInstance = null;
 
-// --- AI Daily Briefing ---
-function renderDailyBriefing(currentUser, teamMembers, projects, attendanceRecords) {
-    const briefingContainer = document.createElement('div');
-    briefingContainer.id = 'daily-briefing-container';
-    briefingContainer.className = 'dashboard-widget daily-briefing';
-
-    const briefingHeader = document.createElement('div');
-    briefingHeader.className = 'briefing-header';
-
-    const title = document.createElement('h3');
-    title.innerHTML = `<i class="fas fa-wand-magic-sparkles widget-icon"></i> Daily Briefing`;
-    
-    const spinner = document.createElement('div');
-    spinner.className = 'spinner';
-
-    briefingHeader.append(title, spinner);
-
-    const briefingTextElement = document.createElement('p');
-    briefingTextElement.id = 'daily-briefing-text';
-    briefingTextElement.className = 'briefing-text';
-    briefingTextElement.textContent = "Click 'Generate' to get a personalized AI summary for your day.";
-    
-    const actionsContainer = document.createElement('div');
-    actionsContainer.className = 'briefing-actions';
-
-    const generateButton = Button({
-        children: 'Generate Briefing',
-        variant: 'primary',
-        size: 'sm',
-        leftIcon: '<i class="fas fa-wand-magic-sparkles"></i>',
-    });
-
-    async function handleGenerate() {
-        briefingContainer.classList.add('loading');
-        briefingContainer.classList.remove('error');
-        briefingTextElement.textContent = 'Generating your personalized summary...';
-        generateButton.disabled = true;
-
-        try {
-            if (!process.env.API_KEY || process.env.API_KEY.includes("YOUR_")) {
-                throw new Error("API_KEY environment variable not set or is a placeholder.");
-            }
-            const ai = new GoogleGenAI({apiKey: process.env.API_KEY});
-
-            const systemInstruction = "You are 'Sync', a friendly and insightful AI assistant for the TeamSync application. Your goal is to provide a concise, encouraging, and actionable daily briefing for the user. Summarize the most important information. Use a positive and professional tone. Do not use markdown formatting. Keep the summary to a maximum of 3-4 short sentences.";
-
-            const isManager = currentUser.role === TeamMemberRole.Manager;
-            let prompt;
-            const today = new Date();
-            const oneWeekFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
-
-            if (isManager) {
-                const todaysRecords = attendanceRecords.filter(r => r.date === today.toISOString().split('T')[0]);
-                const presentCount = todaysRecords.filter(r => r.status === AttendanceStatus.Present || r.status === AttendanceStatus.WorkFromHome).length;
-                const leaveCount = todaysRecords.filter(r => r.status === AttendanceStatus.Leave).length;
-                const activeProjects = projects.filter(p => p.status !== ProjectStatus.Done);
-                const overdueProjects = activeProjects.filter(p => new Date(p.dueDate) < today);
-                
-                prompt = `Generate a daily briefing for the manager, ${currentUser.name}.
-                Today's date is ${today.toDateString()}.
-                Team Summary:
-                - Total Team Members: ${teamMembers.length}
-                - Members Present Today: ${presentCount}
-                - Members on Leave Today: ${leaveCount}
-                Project Summary:
-                - Total Active Projects: ${activeProjects.length}
-                - Overdue Projects: ${overdueProjects.length} (${overdueProjects.map(p => p.name).join(', ')})
-                Based on this data, provide a helpful and encouraging summary for the manager.`;
-            } else {
-                const myProjects = projects.filter(p => (p.assignees || []).includes(currentUser.id));
-                const myActiveProjects = myProjects.filter(p => p.status !== ProjectStatus.Done);
-                const myOverdue = myActiveProjects.filter(p => new Date(p.dueDate) < today);
-                const myDueThisWeek = myActiveProjects.filter(p => {
-                    const dueDate = new Date(p.dueDate);
-                    return dueDate >= today && dueDate <= oneWeekFromNow;
-                });
-                const myAttendance = attendanceRecords.find(r => r.memberId === currentUser.id && r.date === today.toISOString().split('T')[0]);
-                
-                prompt = `Generate a daily briefing for the team member, ${currentUser.name}.
-                Today's date is ${today.toDateString()}.
-                Personal Task Summary:
-                - Active Projects Assigned: ${myActiveProjects.length}
-                - Overdue Tasks: ${myOverdue.length} (${myOverdue.map(p => p.name).join(', ')})
-                - Tasks Due This Week: ${myDueThisWeek.length}
-                - Your Attendance Today: ${myAttendance?.status || 'Not Marked'}
-                Based on this data, provide a helpful and encouraging summary for the team member.`;
-            }
-
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt,
-                config: {
-                    systemInstruction: systemInstruction,
-                },
-            });
-            
-            briefingTextElement.textContent = response.text;
-            generateButton.innerHTML = `<span class="button-left-icon"><i class="fas fa-sync-alt"></i></span>Regenerate`;
-
-        } catch (error) {
-            console.error("Gemini API Error:", error);
-            briefingContainer.classList.add('error');
-            briefingTextElement.textContent = "Could not generate summary. Please check your API key and try again.";
-        } finally {
-            briefingContainer.classList.remove('loading');
-            generateButton.disabled = false;
-        }
-    }
-    
-    generateButton.onclick = handleGenerate;
-    actionsContainer.appendChild(generateButton);
-    briefingContainer.append(briefingHeader, briefingTextElement, actionsContainer);
-
-    return briefingContainer;
+// --- Helper Functions ---
+function formatMinutes(minutes) {
+    if (minutes < 60) return `${minutes}m`;
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
-// --- Quick Actions ---
+function createBarChart(data) {
+    const chart = document.createElement('div');
+    chart.className = 'bar-chart';
+    
+    const maxValue = Math.max(...data.map(d => d.value), 1); // Avoid division by zero
+    
+    if (data.every(d => d.value === 0)) {
+        chart.innerHTML = `<p class="widget-empty-state">No data to display.</p>`;
+        return chart;
+    }
+
+    data.forEach(item => {
+        const barWrapper = document.createElement('div');
+        barWrapper.className = 'bar-chart-item';
+        
+        barWrapper.innerHTML = `
+            <span class="bar-chart-label" title="${item.label}">${item.label}</span>
+            <div class="bar-chart-bar-wrapper">
+                <div class="bar-chart-bar" style="width: ${(item.value / maxValue) * 100}%; background-color: ${item.color};"></div>
+            </div>
+            <span class="bar-chart-value">${item.value}</span>
+        `;
+        chart.appendChild(barWrapper);
+    });
+
+    return chart;
+}
+
+function createDonutChart(value, total, color = '#4f46e5') {
+    const container = document.createElement('div');
+    container.className = 'donut-chart-container';
+    container.style.width = '120px';
+    container.style.height = '120px';
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 100 100');
+    svg.setAttribute('class', 'donut-chart-svg');
+    
+    const radius = 40;
+    const circumference = 2 * Math.PI * radius;
+    const percentage = total > 0 ? (value / total) * 100 : 0;
+    const offset = circumference - (percentage / 100) * circumference;
+
+    svg.innerHTML = `
+        <circle class="donut-background" cx="50" cy="50" r="${radius}" stroke-width="15" />
+        <circle class="donut-foreground" cx="50" cy="50" r="${radius}" stroke-width="15" stroke="${color}"
+            stroke-dasharray="${circumference}"
+            stroke-dashoffset="${offset}"
+            transform="rotate(-90 50 50)" />
+        <text x="50" y="52" class="donut-center-value" text-anchor="middle">${formatMinutes(value)}</text>
+        <text x="50" y="65" class="donut-center-label" text-anchor="middle">of 8h</text>
+    `;
+    
+    container.appendChild(svg);
+    return container;
+}
+
+
+// --- Widgets ---
+
 function renderQuickActions(currentUser, props) {
-    const { onAddProject, onAddNote, teamMembers, projectStatuses } = props;
+    const { onAddNote, onAddWorkLog, onNavChange, projects, teamMembers } = props;
     const container = document.createElement('div');
     container.className = 'dashboard-widget';
     container.innerHTML = '<h3><i class="fas fa-bolt widget-icon"></i>Quick Actions</h3>';
@@ -148,100 +98,91 @@ function renderQuickActions(currentUser, props) {
         currentModalInstance = Modal({ isOpen: true, onClose: closeModal, title: 'Add New Note', children: form, size: 'lg' });
     };
 
-    const openAddProjectModal = () => {
-        const form = ProjectForm({
-            project: null, teamMembers, projectStatuses,
-            onSave: (projectData) => { onAddProject(projectData); closeModal(); },
+    const openAddWorkLogModal = () => {
+        const form = WorkLogForm({
+            log: null, currentUser, teamMembers, projects,
+            onSave: (logData) => { onAddWorkLog(logData); closeModal(); },
             onCancel: closeModal,
         });
-        currentModalInstance = Modal({ isOpen: true, onClose: closeModal, title: 'Add New Project', children: form, size: 'xl' });
+        currentModalInstance = Modal({ isOpen: true, onClose: closeModal, title: 'Add New Work Log', children: form, size: 'lg' });
     };
 
     // Actions for everyone
+    actionsContainer.appendChild(Button({
+        children: 'Log My Work',
+        variant: 'secondary',
+        leftIcon: '<i class="fas fa-clock"></i>',
+        onClick: openAddWorkLogModal,
+    }));
     actionsContainer.appendChild(Button({
         children: 'Add Note',
         variant: 'secondary',
         leftIcon: '<i class="fas fa-sticky-note"></i>',
         onClick: openAddNoteModal,
     }));
-
-    // Actions for Managers
-    if (currentUser.role === TeamMemberRole.Manager) {
-        actionsContainer.appendChild(Button({
-            children: 'Add Project',
-            variant: 'secondary',
-            leftIcon: '<i class="fas fa-tasks"></i>',
-            onClick: openAddProjectModal,
-        }));
-    }
+    actionsContainer.appendChild(Button({
+        children: 'View All Projects',
+        variant: 'secondary',
+        leftIcon: '<i class="fas fa-tasks"></i>',
+        onClick: () => onNavChange('projects'),
+    }));
 
     container.appendChild(actionsContainer);
     return container;
 }
 
-
 // --- Member View Components ---
 
-function renderMemberWelcome(currentUser) {
-    const welcomeHeader = document.createElement('div');
-    welcomeHeader.className = 'dashboard-widget welcome-header';
-    const name = currentUser ? currentUser.name.split(' ')[0] : 'User';
-    welcomeHeader.innerHTML = `
-        <h2>Welcome back, ${name}!</h2>
-        <p>Here’s your briefing for the day. Let's make it productive!</p>
-    `;
-    return welcomeHeader;
-}
-
-function renderMyTasks(currentUser, projects) {
+function renderMyDailySummary(currentUser, workLogs) {
     const container = document.createElement('div');
-    container.className = 'dashboard-widget';
-    container.innerHTML = '<h3><i class="fas fa-tasks widget-icon"></i>My Active Projects</h3>';
+    container.className = 'dashboard-widget daily-summary-widget';
+    
+    const today = new Date().toISOString().split('T')[0];
+    const myTodaysLogs = workLogs.filter(wl => wl.memberId === currentUser.id && wl.date === today);
+    const totalMinutesToday = myTodaysLogs.reduce((sum, log) => sum + log.timeSpentMinutes, 0);
 
-    const myProjects = projects.filter(p => p.status !== 'Done' && (p.assignees || []).includes(currentUser.id))
-                               .sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate));
+    const header = document.createElement('div');
+    header.className = 'daily-summary-header';
+    const name = currentUser ? currentUser.name.split(' ')[0] : 'User';
+    header.innerHTML = `<h2>Welcome back, ${name}!</h2><p>Here’s your summary for today.</p>`;
+    
+    const body = document.createElement('div');
+    body.className = 'daily-summary-body';
+    
+    // Donut Chart
+    body.appendChild(createDonutChart(totalMinutesToday, 480)); // 8 hours = 480 minutes
 
-    if (myProjects.length === 0) {
-        container.innerHTML += `<p class="widget-empty-state">You have no active projects assigned. Enjoy the peace!</p>`;
-        return container;
+    // Log List
+    const logListContainer = document.createElement('div');
+    logListContainer.className = 'daily-summary-log-list';
+    if (myTodaysLogs.length > 0) {
+        myTodaysLogs.forEach(log => {
+            logListContainer.innerHTML += `<div class="log-item"><span>${log.taskName}</span><span>${formatMinutes(log.timeSpentMinutes)}</span></div>`;
+        });
+    } else {
+        logListContainer.innerHTML = `<p class="widget-empty-state">No work logged yet for today.</p>`;
     }
 
-    const list = document.createElement('ul');
-    list.className = 'widget-list my-tasks-list';
-    myProjects.forEach(p => {
-        const li = document.createElement('li');
-        li.className = 'widget-list-item';
-        
-        const isOverdue = new Date(p.dueDate) < new Date();
-        const dateClass = isOverdue ? 'date-overdue' : '';
-
-        li.innerHTML = `
-            <span class="my-tasks-item-name">${p.name}</span>
-            <span class="my-tasks-item-due ${dateClass}">
-                <i class="fas fa-calendar-day"></i> Due: ${new Date(p.dueDate + 'T00:00:00').toLocaleDateString()}
-            </span>
-        `;
-        list.appendChild(li);
-    });
-    container.appendChild(list);
+    body.appendChild(logListContainer);
+    container.append(header, body);
     return container;
 }
+
 
 // --- Manager View Components ---
 
 function renderTeamWorkload(teamMembers, projects) {
     const container = document.createElement('div');
     container.className = 'dashboard-widget';
-    container.innerHTML = '<h3><i class="fas fa-chart-bar widget-icon"></i>Team Workload</h3>';
+    container.innerHTML = '<h3><i class="fas fa-chart-bar widget-icon"></i>Team Workload (Active Projects)</h3>';
     
     const workloadData = teamMembers
-        .filter(m => m.role === TeamMemberRole.Member) // Only show members
         .map(member => ({
             label: member.name.split(' ')[0], // Show first name
             value: projects.filter(p => p.status !== 'Done' && (p.assignees || []).includes(member.id)).length,
             color: '#4f46e5'
         }))
-        .sort((a,b) => b.value - a.value); // Sort by highest workload first
+        .sort((a,b) => b.value - a.value);
 
     if (workloadData.length === 0) {
         container.innerHTML += `<p class="widget-empty-state">No team members to display workload for.</p>`;
@@ -262,10 +203,9 @@ function renderAtRiskProjects(projects) {
     const oneWeekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
     const atRiskProjects = projects.filter(p => {
+        if (p.status === 'Done') return false;
         const dueDate = new Date(p.dueDate);
-        const isOverdue = p.status !== 'Done' && dueDate < now;
-        const isDueSoon = p.status !== 'Done' && dueDate >= now && dueDate <= oneWeekFromNow;
-        return isOverdue || isDueSoon;
+        return dueDate < oneWeekFromNow;
     }).sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
 
     if (atRiskProjects.length === 0) {
@@ -348,40 +288,10 @@ function renderDailyAttendance(teamMembers, attendanceRecords) {
 }
 
 
-// --- Helper Functions ---
-function createBarChart(data) {
-    const chart = document.createElement('div');
-    chart.className = 'bar-chart';
-    
-    const maxValue = Math.max(...data.map(d => d.value), 1); // Avoid division by zero
-    
-    if (data.every(d => d.value === 0)) {
-        chart.innerHTML = `<p class="widget-empty-state">No data to display.</p>`;
-        return chart;
-    }
-
-    data.forEach(item => {
-        const barWrapper = document.createElement('div');
-        barWrapper.className = 'bar-chart-item';
-        
-        barWrapper.innerHTML = `
-            <span class="bar-chart-label" title="${item.label}">${item.label}</span>
-            <div class="bar-chart-bar-wrapper">
-                <div class="bar-chart-bar" style="width: ${(item.value / maxValue) * 100}%; background-color: ${item.color};"></div>
-            </div>
-            <span class="bar-chart-value">${item.value}</span>
-        `;
-        chart.appendChild(barWrapper);
-    });
-
-    return chart;
-}
-
-
 // --- Main Page Render ---
 
 export function renderDashboardPage(container, props) {
-    const { currentUser, teamMembers, projects, attendanceRecords } = props;
+    const { currentUser, teamMembers, projects, attendanceRecords, workLogs } = props;
 
     container.innerHTML = '';
     const pageWrapper = document.createElement('div');
@@ -400,24 +310,24 @@ export function renderDashboardPage(container, props) {
     
     const isManager = currentUser.role === TeamMemberRole.Manager;
 
-    // Add briefing container first
-    pageWrapper.appendChild(renderDailyBriefing(currentUser, teamMembers, projects, attendanceRecords));
-
-    const dashboardGrid = document.createElement('div');
-    dashboardGrid.className = 'dashboard-grid';
-
     if (isManager) {
+        const dashboardGrid = document.createElement('div');
+        dashboardGrid.className = 'dashboard-grid';
         dashboardGrid.appendChild(renderTeamWorkload(teamMembers, projects));
         dashboardGrid.appendChild(renderAtRiskProjects(projects));
         dashboardGrid.appendChild(renderDailyAttendance(teamMembers, attendanceRecords));
         dashboardGrid.appendChild(renderQuickActions(currentUser, props));
+        pageWrapper.appendChild(dashboardGrid);
     } else {
-        dashboardGrid.appendChild(renderMyTasks(currentUser, projects));
-        dashboardGrid.appendChild(renderAtRiskProjects(projects.filter(p => (p.assignees || []).includes(currentUser.id))));
+        pageWrapper.appendChild(renderMyDailySummary(currentUser, workLogs));
+        const dashboardGrid = document.createElement('div');
+        dashboardGrid.className = 'dashboard-grid';
+        dashboardGrid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(300px, 1fr))';
+        const assignedProjects = projects.filter(p => (p.assignees || []).includes(currentUser.id));
+        dashboardGrid.appendChild(renderAtRiskProjects(assignedProjects));
         dashboardGrid.appendChild(renderQuickActions(currentUser, props));
+        pageWrapper.appendChild(dashboardGrid);
     }
     
-    pageWrapper.appendChild(dashboardGrid);
     container.appendChild(pageWrapper);
-
 }
