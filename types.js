@@ -20,6 +20,7 @@ export const LeaveType = {
   Vacation: 'Vacation',
   Other: 'Other',
 };
+
 export const NoteStatus = {
     Pending: 'Pending',
     Completed: 'Completed',
@@ -106,4 +107,16 @@ export const TeamMemberRole = {
 //   color: string; // hex code
 //   createdAt: string; // ISO date string
 //   updatedAt: string; // ISO date string
+// }
+
+// interface WorkLog {
+//   id: string;
+//   memberId: string;
+//   projectId: string;
+//   date: string; // YYYY-MM-DD
+//   taskName: string;
+//   requestedBy: string;
+//   timeMinutes: number;
+//   comments?: string;
+//   createdAt: string; // ISO timestamp
 // }
