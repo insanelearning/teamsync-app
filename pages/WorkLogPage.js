@@ -13,7 +13,7 @@ function formatMinutes(minutes) {
 }
 
 export function renderWorkLogPage(container, props) {
-    const { workLogs, teamMembers, projects, currentUser, onAddWorkLog, onUpdateWorkLog, onDeleteWorkLog, onExport, onImport } = props;
+    const { workLogs, teamMembers, projects, currentUser, onAddMultipleWorkLogs, onUpdateWorkLog, onDeleteWorkLog, onExport, onImport } = props;
 
     let filterState = {
         memberId: '',
@@ -195,8 +195,12 @@ export function renderWorkLogPage(container, props) {
     function openModal(log = null) {
         const form = WorkLogForm({
             log, currentUser, teamMembers, projects,
-            onSave: (logData) => {
-                log ? onUpdateWorkLog(logData) : onAddWorkLog(logData);
+            onSave: (logData) => { // For single edits
+                onUpdateWorkLog(logData);
+                closeModal();
+            },
+            onSaveAll: (logsData) => { // For multi-add
+                onAddMultipleWorkLogs(logsData);
                 closeModal();
             },
             onCancel: closeModal,
@@ -204,9 +208,9 @@ export function renderWorkLogPage(container, props) {
         currentModalInstance = Modal({
             isOpen: true,
             onClose: closeModal,
-            title: log ? 'Edit Work Log' : 'Add Work Log',
+            title: log ? 'Edit Work Log' : 'Add Work Log(s)',
             children: form,
-            size: 'lg'
+            size: 'xl'
         });
     }
 
