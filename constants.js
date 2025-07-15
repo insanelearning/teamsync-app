@@ -28,3 +28,16 @@ export const NOTE_COLORS = [
   '#ffcdd2', // Light Pink
   '#e1bee7', // Light Purple
 ];
+
+export const WORK_LOG_TASKS = [
+    'Development',
+    'Meeting',
+    'Code Review',
+    'Testing',
+    'Documentation',
+    'Design',
+    'Project Management',
+    'Support',
+    'Training',
+    'Other',
+];
