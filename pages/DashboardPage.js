@@ -76,7 +76,7 @@ function createDonutChart(value, total, color = '#4f46e5') {
 // --- Widgets ---
 
 function renderQuickActions(currentUser, props) {
-    const { onAddNote, onAddWorkLog, onNavChange, projects, teamMembers } = props;
+    const { onAddNote, onAddMultipleWorkLogs, onNavChange, projects, teamMembers } = props;
     const container = document.createElement('div');
     container.className = 'dashboard-widget';
     container.innerHTML = '<h3><i class="fas fa-bolt widget-icon"></i>Quick Actions</h3>';
@@ -101,10 +101,10 @@ function renderQuickActions(currentUser, props) {
     const openAddWorkLogModal = () => {
         const form = WorkLogForm({
             log: null, currentUser, teamMembers, projects,
-            onSave: (logData) => { onAddWorkLog(logData); closeModal(); },
+            onSaveAll: (logsData) => { onAddMultipleWorkLogs(logsData); closeModal(); },
             onCancel: closeModal,
         });
-        currentModalInstance = Modal({ isOpen: true, onClose: closeModal, title: 'Add New Work Log', children: form, size: 'lg' });
+        currentModalInstance = Modal({ isOpen: true, onClose: closeModal, title: 'Add New Work Log', children: form, size: 'xl' });
     };
 
     // Actions for everyone
