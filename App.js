@@ -3,7 +3,6 @@ import { renderDashboardPage } from './pages/DashboardPage.js';
 import { renderProjectsPage } from './pages/ProjectsPage.js';
 import { renderAttendancePage } from './pages/AttendancePage.js';
 import { renderNotesPage } from './pages/NotesPage.js';
-import { renderEvaluationPage } from './pages/EvaluationPage.js';
 import { renderWorkLogPage } from './pages/WorkLogPage.js';
 import { Navbar } from './components/Navbar.js';
 import { INITIAL_TEAM_MEMBERS } from './constants.js';
@@ -22,12 +21,22 @@ let notes = [];
 let teamMembers = [];
 let workLogs = [];
 let currentUser = null;
+let isSwitchingUser = false; // Added for loading state
 
 // --- Handler Functions ---
 
-const setCurrentUser = (userId) => {
+const setCurrentUser = async (userId) => {
+    const memberName = teamMembers.find(m => m.id === userId)?.name || 'user';
+    isSwitchingUser = true;
+    renderApp(memberName); // Pass name for loading message
+
+    // Small delay for UX, makes the change feel more tangible
+    await new Promise(resolve => setTimeout(resolve, 250));
+
     currentUser = teamMembers.find(m => m.id === userId) || teamMembers[0];
     localStorage.setItem('currentUserId', currentUser.id);
+
+    isSwitchingUser = false;
     renderApp();
 };
 
@@ -141,15 +150,26 @@ const deleteNote = async (noteId) => {
 };
 
 // Work Log Handlers
-const addWorkLog = async (workLog) => {
+const addMultipleWorkLogs = async (workLogsToAdd) => {
     try {
-        const { id, ...data } = workLog;
-        await setDocument('worklogs', id, data);
-        workLogs.push(workLog);
+        const now = new Date().toISOString();
+        // Prepare logs for batch write, ensuring each has a unique ID and timestamps.
+        const processedLogs = workLogsToAdd.map(log => {
+            const { id, ...data } = log;
+            return {
+                ...data,
+                id: crypto.randomUUID(),
+                createdAt: now,
+                updatedAt: now,
+            };
+        });
+        
+        await batchWrite('worklogs', processedLogs);
+        workLogs.push(...processedLogs);
         renderApp();
     } catch (error) {
-        console.error("Failed to add work log:", error);
-        alert("Error: Could not save the new work log.");
+        console.error("Failed to add work logs:", error);
+        alert("Error: Could not save the new work logs.");
     }
 };
 
@@ -435,11 +455,31 @@ function handleThemeToggle() {
     renderApp(); // Re-render to update navbar icon if needed
 }
 
-function renderApp() {
+function renderApp(loadingForUser) {
   if (!rootElement || !mainContentElement) {
     console.error("Root or main content element not initialized for rendering.");
     return;
   }
+  
+  // Handle user switching loading state
+  if (isSwitchingUser) {
+      mainContentElement.innerHTML = `<div class="loading-container"><div class="spinner"></div><p>Loading ${loadingForUser}'s Data...</p></div>`;
+      const navbarElement = rootElement.querySelector('nav.navbar');
+      if (navbarElement) {
+          const newNavbar = Navbar({ 
+              currentView, 
+              onNavChange: handleNavChange, 
+              onThemeToggle: handleThemeToggle,
+              currentUser,
+              teamMembers,
+              onSetCurrentUser: setCurrentUser,
+              isSwitchingUser: true
+          });
+          navbarElement.replaceWith(newNavbar);
+      }
+      return;
+  }
+
 
   mainContentElement.innerHTML = '';
 
@@ -454,7 +494,7 @@ function renderApp() {
         projectStatuses: Object.values(ProjectStatus),
         onAddProject: addProject,
         onAddNote: addNote,
-        onAddWorkLog: addWorkLog,
+        onAddMultipleWorkLogs: addMultipleWorkLogs,
         onNavChange: handleNavChange,
     });
   } else if (currentView === 'projects') {
@@ -496,19 +536,13 @@ function renderApp() {
         onExport: () => handleExport('notes'),
         onImport: (file) => handleImport(file, 'notes'),
     });
-  } else if (currentView === 'evaluation') {
-    renderEvaluationPage(mainContentElement, {
-      teamMembers,
-      projects,
-      attendanceRecords: attendance,
-    });
   } else if (currentView === 'worklog') {
     renderWorkLogPage(mainContentElement, {
         workLogs,
         teamMembers,
         projects,
         currentUser,
-        onAddWorkLog: addWorkLog,
+        onAddMultipleWorkLogs: addMultipleWorkLogs,
         onUpdateWorkLog: updateWorkLog,
         onDeleteWorkLog: deleteWorkLog,
         onExport: () => handleExport('worklogs'),
@@ -524,7 +558,8 @@ function renderApp() {
           onThemeToggle: handleThemeToggle,
           currentUser,
           teamMembers,
-          onSetCurrentUser: setCurrentUser
+          onSetCurrentUser: setCurrentUser,
+          isSwitchingUser: false
       });
       navbarElement.replaceWith(newNavbar);
   }
