@@ -1,11 +1,10 @@
 
-export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, teamMembers, onSetCurrentUser }) {
+export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, teamMembers, onSetCurrentUser, isSwitchingUser = false }) {
   const navItems = [
     { view: 'dashboard', label: 'Dashboard', icon: 'fas fa-home' },
     { view: 'projects', label: 'Projects', icon: 'fas fa-tasks' },
     { view: 'attendance', label: 'Attendance', icon: 'fas fa-user-check' },
     { view: 'worklog', label: 'Work Log', icon: 'fas fa-clock' },
-    { view: 'evaluation', label: 'Evaluation', icon: 'fas fa-chart-line' },
     { view: 'notes', label: 'Notes', icon: 'fas fa-sticky-note' },
   ];
 
@@ -67,6 +66,10 @@ export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, t
 
       const viewAsSelect = document.createElement('select');
       viewAsSelect.className = 'view-as-select';
+      viewAsSelect.disabled = isSwitchingUser;
+      if (isSwitchingUser) {
+        viewAsSelect.classList.add('disabled-select');
+      }
       viewAsSelect.setAttribute('aria-label', 'Select user to view dashboard as');
       teamMembers.forEach(member => {
         const option = document.createElement('option');
