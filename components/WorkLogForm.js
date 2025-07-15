@@ -1,144 +1,223 @@
 
 import { Button } from './Button.js';
 import { TeamMemberRole } from '../types.js';
+import { WORK_LOG_TASKS } from '../constants.js';
 
-const getDefaultLog = (currentUser) => ({
-    memberId: currentUser.id,
-    projectId: '',
-    date: new Date().toISOString().split('T')[0],
-    taskName: '',
-    requestedFrom: '',
-    timeSpentMinutes: 0,
-    comments: '',
-});
+export function WorkLogForm({ log, currentUser, teamMembers, projects, onSave, onSaveAll, onCancel }) {
+    // Mode determination: 'edit' for a single log, 'add' for multiple new logs.
+    const isEditMode = !!log;
+    
+    let commonData = {
+        date: isEditMode ? log.date : new Date().toISOString().split('T')[0],
+        memberId: isEditMode ? log.memberId : currentUser.id,
+    };
 
-export function WorkLogForm({ log, currentUser, teamMembers, projects, onSave, onCancel }) {
-    let formData = log
-        ? { ...getDefaultLog(currentUser), ...log }
-        : { ...getDefaultLog(currentUser) };
+    let formEntries = isEditMode 
+        ? [{ ...log, _id: crypto.randomUUID() }] // Add a temporary client-side ID for editing
+        : [{ _id: crypto.randomUUID(), projectId: '', taskName: WORK_LOG_TASKS[0], timeSpentMinutes: 0, requestedFrom: '', comments: '' }];
 
     const form = document.createElement('form');
     form.className = 'project-form'; // Reuse styles
 
-    function createField(labelText, inputType, name, value, options = {}) {
-        const div = document.createElement('div');
-        const label = document.createElement('label');
-        label.className = 'form-label';
-        label.textContent = labelText;
-        div.appendChild(label);
+    // --- Rerender function ---
+    function rerender() {
+        form.innerHTML = '';
+        buildForm();
+    }
 
-        let input;
-        if (inputType === 'select') {
-            input = document.createElement('select');
-            input.className = 'form-select';
-            (options.options || []).forEach(opt => {
-                const optionEl = document.createElement('option');
-                optionEl.value = opt.value;
-                optionEl.textContent = opt.label;
-                if (value === opt.value) {
-                    optionEl.selected = true;
-                }
-                input.appendChild(optionEl);
-            });
-            input.disabled = !!options.disabled;
-        } else if (inputType === 'textarea') {
-            input = document.createElement('textarea');
-            input.className = 'form-input';
-            input.rows = options.rows || 3;
-            input.value = value || '';
-        } else {
-            input = document.createElement('input');
-            input.type = inputType;
-            input.className = 'form-input';
-            input.value = value || '';
+    // --- Handlers ---
+    const handleCommonDataChange = (e) => {
+        commonData[e.target.name] = e.target.value;
+    };
+    
+    const handleEntryChange = (entryId, field, value) => {
+        const entryIndex = formEntries.findIndex(e => e._id === entryId);
+        if (entryIndex > -1) {
+            formEntries[entryIndex][field] = (field === 'timeSpentMinutes') ? Number(value) : value;
         }
+    };
+    
+    const addEntryRow = () => {
+        formEntries.push({ _id: crypto.randomUUID(), projectId: '', taskName: WORK_LOG_TASKS[0], timeSpentMinutes: 0, requestedFrom: '', comments: '' });
+        rerender();
+    };
+
+    const removeEntryRow = (entryId) => {
+        formEntries = formEntries.filter(e => e._id !== entryId);
+        rerender();
+    };
+    
+    // --- UI Builder ---
+    function buildForm() {
+        // --- Top common fields for both modes ---
+        const topFieldsContainer = document.createElement('div');
+        topFieldsContainer.className = 'worklog-form-top-fields';
         
-        input.name = name;
-        if (options.required) input.required = true;
+        // Member Selector (visible for managers, or in edit mode)
+        if (currentUser.role === TeamMemberRole.Manager || isEditMode) {
+            const memberSelect = document.createElement('select');
+            memberSelect.className = 'form-select';
+            memberSelect.name = 'memberId';
+            memberSelect.innerHTML = teamMembers.map(m => `<option value="${m.id}" ${commonData.memberId === m.id ? 'selected': ''}>${m.name}</option>`).join('');
+            memberSelect.onchange = handleCommonDataChange;
+            memberSelect.disabled = !isEditMode && currentUser.role !== TeamMemberRole.Manager;
+
+            const memberDiv = document.createElement('div');
+            memberDiv.innerHTML = `<label class="form-label">Team Member</label>`;
+            memberDiv.appendChild(memberSelect);
+            topFieldsContainer.appendChild(memberDiv);
+        }
+
+        // Date Picker
+        const dateInput = document.createElement('input');
+        dateInput.type = 'date';
+        dateInput.className = 'form-input';
+        dateInput.name = 'date';
+        dateInput.value = commonData.date;
+        dateInput.onchange = handleCommonDataChange;
         
-        input.addEventListener('input', (e) => {
-            formData[name] = e.target.type === 'number' ? Number(e.target.value) : e.target.value;
+        const dateDiv = document.createElement('div');
+        dateDiv.innerHTML = `<label class="form-label">Date</label>`;
+        dateDiv.appendChild(dateInput);
+        topFieldsContainer.appendChild(dateDiv);
+        
+        form.appendChild(topFieldsContainer);
+
+        // --- Entry Table ---
+        const tableContainer = document.createElement('div');
+        tableContainer.className = 'data-table-container';
+        
+        const table = document.createElement('table');
+        table.className = 'worklog-form-entry-table';
+        table.innerHTML = `<thead>
+            <tr>
+                <th class="project-cell">Project</th>
+                <th class="task-cell">Task</th>
+                <th class="time-cell">Time (min)</th>
+                <th class="comments-cell">Comments</th>
+                <th class="action-cell"></th>
+            </tr>
+        </thead>`;
+        
+        const tbody = document.createElement('tbody');
+        const activeProjects = projects.filter(p => p.status !== 'Done');
+
+        formEntries.forEach(entry => {
+            const tr = document.createElement('tr');
+            
+            // Project
+            const projectCell = document.createElement('td');
+            const projectSelect = document.createElement('select');
+            projectSelect.className = 'form-select';
+            projectSelect.innerHTML = `<option value="">Select...</option>` + activeProjects.map(p => `<option value="${p.id}" ${entry.projectId === p.id ? 'selected' : ''}>${p.name}</option>`).join('');
+            projectSelect.onchange = (e) => handleEntryChange(entry._id, 'projectId', e.target.value);
+            projectCell.appendChild(projectSelect);
+            tr.appendChild(projectCell);
+
+            // Task
+            const taskCell = document.createElement('td');
+            const taskSelect = document.createElement('select');
+            taskSelect.className = 'form-select';
+            taskSelect.innerHTML = WORK_LOG_TASKS.map(t => `<option value="${t}" ${entry.taskName === t ? 'selected' : ''}>${t}</option>`).join('');
+            taskSelect.onchange = (e) => handleEntryChange(entry._id, 'taskName', e.target.value);
+            taskCell.appendChild(taskSelect);
+            tr.appendChild(taskCell);
+            
+            // Time
+            const timeCell = document.createElement('td');
+            const timeInput = document.createElement('input');
+            timeInput.type = 'number';
+            timeInput.className = 'form-input';
+            timeInput.value = entry.timeSpentMinutes;
+            timeInput.min = 0;
+            timeInput.oninput = (e) => handleEntryChange(entry._id, 'timeSpentMinutes', e.target.value);
+            timeCell.appendChild(timeInput);
+            tr.appendChild(timeCell);
+            
+            // Comments
+            const commentsCell = document.createElement('td');
+            const commentsInput = document.createElement('input');
+            commentsInput.type = 'text';
+            commentsInput.className = 'form-input';
+            commentsInput.value = entry.comments || '';
+            commentsInput.placeholder = 'Optional notes...';
+            commentsInput.oninput = (e) => handleEntryChange(entry._id, 'comments', e.target.value);
+            commentsCell.appendChild(commentsInput);
+            tr.appendChild(commentsCell);
+
+            // Actions
+            const actionCell = document.createElement('td');
+            actionCell.className = 'action-cell';
+            if (!isEditMode) {
+                 const removeBtn = Button({
+                    variant: 'danger', size: 'sm', className: 'team-member-action-btn-delete',
+                    children: '<i class="fas fa-trash-alt"></i>', ariaLabel: 'Remove Task',
+                    onClick: () => removeEntryRow(entry._id),
+                    disabled: formEntries.length <= 1
+                });
+                actionCell.appendChild(removeBtn);
+            }
+            tr.appendChild(actionCell);
+
+            tbody.appendChild(tr);
         });
-        div.appendChild(input);
-        return div;
+        table.appendChild(tbody);
+        tableContainer.appendChild(table);
+        form.appendChild(tableContainer);
+        
+        // --- Add Row Button & Actions ---
+        const footerActions = document.createElement('div');
+        footerActions.className = 'project-form-actions';
+
+        if (!isEditMode) {
+            const addRowButton = Button({
+                children: 'Add Another Task',
+                variant: 'secondary',
+                leftIcon: '<i class="fas fa-plus"></i>',
+                onClick: addEntryRow
+            });
+            footerActions.appendChild(addRowButton);
+        }
+
+        const actionButtonsContainer = document.createElement('div');
+        actionButtonsContainer.style.marginLeft = 'auto';
+        actionButtonsContainer.style.display = 'flex';
+        actionButtonsContainer.style.gap = '0.75rem';
+        
+        const cancelButton = Button({ children: 'Cancel', variant: 'secondary', onClick: onCancel });
+        const saveButton = Button({ children: isEditMode ? 'Save Changes' : 'Add Logs', variant: 'primary', type: 'submit' });
+        
+        actionButtonsContainer.append(cancelButton, saveButton);
+        footerActions.appendChild(actionButtonsContainer);
+        form.appendChild(footerActions);
     }
     
-    const isManager = currentUser.role === TeamMemberRole.Manager;
-
-    const topGrid = document.createElement('div');
-    topGrid.className = 'form-grid-cols-3';
-    
-    // Member selector (only for managers)
-    if (isManager) {
-        topGrid.appendChild(createField('Team Member', 'select', 'memberId', formData.memberId, {
-            options: teamMembers.map(m => ({ value: m.id, label: m.name })),
-            required: true,
-        }));
-    }
-    
-    // Project Selector
-    const activeProjects = projects.filter(p => p.status !== 'Done');
-    topGrid.appendChild(createField('Project', 'select', 'projectId', formData.projectId, {
-        options: [{ value: '', label: 'Select a project...' }, ...activeProjects.map(p => ({ value: p.id, label: p.name }))],
-        required: true
-    }));
-    
-    // Date picker
-    topGrid.appendChild(createField('Date', 'date', 'date', formData.date, { required: true }));
-    form.appendChild(topGrid);
-    
-    const middleGrid = document.createElement('div');
-    middleGrid.className = 'form-grid-cols-3';
-    
-    // Task name
-    middleGrid.appendChild(createField('Task Name', 'text', 'taskName', formData.taskName, { required: true }));
-    
-    // Requested From
-    middleGrid.appendChild(createField('Requested From', 'text', 'requestedFrom', formData.requestedFrom));
-    
-    // Time Spent
-    middleGrid.appendChild(createField('Time Spent (minutes)', 'number', 'timeSpentMinutes', formData.timeSpentMinutes, { required: true }));
-    
-    form.appendChild(middleGrid);
-
-    // Comments
-    form.appendChild(createField('Comments', 'textarea', 'comments', formData.comments));
-
-
-    // --- Actions ---
-    const actionsDiv = document.createElement('div');
-    actionsDiv.className = 'project-form-actions';
-    const cancelButton = Button({ children: 'Cancel', variant: 'secondary', onClick: onCancel });
-    const saveButton = Button({ children: log ? 'Save Changes' : 'Add Log', variant: 'primary', type: 'submit' });
-    actionsDiv.append(cancelButton, saveButton);
-    form.appendChild(actionsDiv);
-
     form.addEventListener('submit', (e) => {
         e.preventDefault();
         
-        if (!formData.projectId) {
-            alert('Please select a project.');
-            return;
-        }
-        if (!formData.taskName.trim()) {
-            alert('Please enter a task name.');
-            return;
-        }
-        if (formData.timeSpentMinutes <= 0) {
-            alert('Time spent must be greater than zero.');
+        const logsToSave = formEntries.map(entry => {
+            const { _id, ...rest } = entry;
+            return {
+                ...rest,
+                ...commonData,
+            };
+        }).filter(l => {
+            // Basic validation for each entry
+            return l.projectId && l.taskName && l.timeSpentMinutes > 0;
+        });
+
+        if (logsToSave.length === 0) {
+            alert('Please fill out at least one valid task row with time spent greater than zero.');
             return;
         }
 
-        const now = new Date().toISOString();
-        const logToSave = {
-            ...formData,
-            id: log?.id || crypto.randomUUID(),
-            createdAt: log?.createdAt || now,
-            updatedAt: now,
-            timeSpentMinutes: Number(formData.timeSpentMinutes),
-        };
-        onSave(logToSave);
+        if (isEditMode) {
+            onSave(logsToSave[0]);
+        } else {
+            onSaveAll(logsToSave);
+        }
     });
 
+    buildForm();
     return form;
 }
