@@ -257,19 +257,21 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
         filterList();
       });
 
-      inputWrapper.addEventListener('click', () => {
+      const handleOutsideClick = (e) => {
+        if (isOpen && !container.contains(e.target)) {
+            isOpen = false;
+            dropdown.style.display = 'none';
+            document.removeEventListener('click', handleOutsideClick);
+        }
+      };
+
+      inputWrapper.addEventListener('click', (e) => {
+          e.stopPropagation();
           if (!isOpen) {
               isOpen = true;
               dropdown.style.display = 'block';
-              inputWrapper.focus();
               renderList();
-          }
-      });
-
-      document.addEventListener('click', (e) => {
-          if (!container.contains(e.target)) {
-              isOpen = false;
-              dropdown.style.display = 'none';
+              document.addEventListener('click', handleOutsideClick);
           }
       });
       
