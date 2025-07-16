@@ -1,4 +1,3 @@
-
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { WorkLogForm } from '../components/WorkLogForm.js';
@@ -69,37 +68,58 @@ export function renderWorkLogPage(container, props) {
     const filtersDiv = document.createElement('div');
     filtersDiv.className = "filters-container";
     const filterGrid = document.createElement('div');
-    filterGrid.className = "form-grid-cols-3"; // 3 column grid for filters
+    filterGrid.className = "worklog-filters-grid";
     
     // Member Filter
+    const memberFilterContainer = document.createElement('div');
+    memberFilterContainer.innerHTML = `<label for="memberFilter" class="form-label">Member</label>`;
     const memberFilter = document.createElement('select');
+    memberFilter.id = 'memberFilter';
     memberFilter.className = "form-select";
     memberFilter.innerHTML = `<option value="">All Members</option>` + teamMembers.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
     memberFilter.value = filterState.memberId;
     memberFilter.onchange = (e) => { filterState.memberId = e.target.value; rerenderPage(); };
-    filterGrid.appendChild(memberFilter);
+    memberFilterContainer.appendChild(memberFilter);
+    filterGrid.appendChild(memberFilterContainer);
 
     // Project Filter
+    const projectFilterContainer = document.createElement('div');
+    projectFilterContainer.innerHTML = `<label for="projectFilter" class="form-label">Project</label>`;
     const projectFilter = document.createElement('select');
+    projectFilter.id = 'projectFilter';
     projectFilter.className = "form-select";
     projectFilter.innerHTML = `<option value="">All Projects</option>` + projects.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
     projectFilter.value = filterState.projectId;
     projectFilter.onchange = (e) => { filterState.projectId = e.target.value; rerenderPage(); };
-    filterGrid.appendChild(projectFilter);
+    projectFilterContainer.appendChild(projectFilter);
+    filterGrid.appendChild(projectFilterContainer);
 
     // Date Range Filter
-    const dateRangeContainer = document.createElement('div');
-    dateRangeContainer.className = "flex items-center gap-2";
+    const dateRangeOuterContainer = document.createElement('div');
+    dateRangeOuterContainer.className = "filter-date-range-container";
+    dateRangeOuterContainer.innerHTML = `<label class="form-label">Date Range</label>`;
+
+    const dateRangeInnerContainer = document.createElement('div');
+    dateRangeInnerContainer.className = "filter-date-range-inner";
+    
     const startDateInput = document.createElement('input');
     startDateInput.type = 'date'; startDateInput.className = 'form-input';
     startDateInput.value = filterState.startDate;
+    startDateInput.setAttribute('aria-label', 'Start Date');
     startDateInput.onchange = e => { filterState.startDate = e.target.value; rerenderPage(); };
+    
+    const toLabel = document.createElement('span');
+    toLabel.className = 'date-range-separator';
+    toLabel.textContent = 'to';
+
     const endDateInput = document.createElement('input');
     endDateInput.type = 'date'; endDateInput.className = 'form-input';
     endDateInput.value = filterState.endDate;
+    endDateInput.setAttribute('aria-label', 'End Date');
     endDateInput.onchange = e => { filterState.endDate = e.target.value; rerenderPage(); };
-    dateRangeContainer.append(startDateInput, document.createTextNode('to'), endDateInput);
-    filterGrid.appendChild(dateRangeContainer);
+    dateRangeInnerContainer.append(startDateInput, toLabel, endDateInput);
+    dateRangeOuterContainer.appendChild(dateRangeInnerContainer);
+    filterGrid.appendChild(dateRangeOuterContainer);
     
     filtersDiv.appendChild(filterGrid);
     contentSection.appendChild(filtersDiv);
@@ -111,10 +131,12 @@ export function renderWorkLogPage(container, props) {
     pageWrapper.appendChild(contentSection);
 
     function getFilteredLogs() {
+        // Create dates without timezone issues for comparison
+        const startDate = new Date(filterState.startDate + 'T00:00:00');
+        const endDate = new Date(filterState.endDate + 'T23:59:59');
+
         return workLogs.filter(log => {
-            const logDate = new Date(log.date);
-            const startDate = new Date(filterState.startDate);
-            const endDate = new Date(filterState.endDate);
+            const logDate = new Date(log.date + 'T00:00:00');
             
             const isMemberMatch = !filterState.memberId || log.memberId === filterState.memberId;
             const isProjectMatch = !filterState.projectId || log.projectId === filterState.projectId;
@@ -126,8 +148,10 @@ export function renderWorkLogPage(container, props) {
     
     function updateSummaries() {
         const now = new Date();
-        const today = now.toISOString().split('T')[0];
-        const weekStart = new Date(now.setDate(now.getDate() - now.getDay())).toISOString().split('T')[0];
+        const today = new Date().toISOString().split('T')[0];
+        const weekStartObj = new Date();
+        weekStartObj.setDate(weekStartObj.getDate() - weekStartObj.getDay());
+        const weekStart = weekStartObj.toISOString().split('T')[0];
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
 
         const todayLogs = workLogs.filter(l => l.date === today);
