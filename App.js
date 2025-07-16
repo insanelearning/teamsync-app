@@ -117,9 +117,11 @@ const deleteAttendanceRecord = async (recordId) => {
 // Note handlers
 const addNote = async (note) => {
   try {
-    const { id, ...data } = note;
+    // Add the current user's ID to the note for ownership
+    const noteWithOwner = { ...note, userId: currentUser.id };
+    const { id, ...data } = noteWithOwner;
     await setDocument('notes', id, data);
-    notes.push(note);
+    notes.push(noteWithOwner);
     renderApp();
   } catch (error) {
     console.error("Failed to add note:", error);
@@ -546,6 +548,20 @@ function renderApp(loadingForUser) {
       return;
   }
 
+  // --- RBAC Data Filtering ---
+  let pageProjects = projects;
+  let pageWorkLogs = workLogs;
+  let pageAttendance = attendance;
+  let pageNotes = notes;
+  
+  if (currentUser && currentUser.role === TeamMemberRole.Member) {
+      pageProjects = projects.filter(p => (p.assignees || []).includes(currentUser.id) || p.teamLeadId === currentUser.id);
+      pageWorkLogs = workLogs.filter(w => w.memberId === currentUser.id);
+      pageAttendance = attendance.filter(a => a.memberId === currentUser.id);
+      // A member can see notes they created. Old notes without a userId will not be visible to them.
+      pageNotes = notes.filter(n => n.userId === currentUser.id);
+  }
+
 
   mainContentElement.innerHTML = '';
 
@@ -553,10 +569,10 @@ function renderApp(loadingForUser) {
     renderDashboardPage(mainContentElement, {
         currentUser,
         teamMembers,
-        projects,
-        notes,
-        workLogs,
-        attendanceRecords: attendance,
+        projects: pageProjects, // Pass filtered data
+        notes: pageNotes,
+        workLogs: pageWorkLogs,
+        attendanceRecords: pageAttendance,
         projectStatuses: Object.values(ProjectStatus),
         onAddProject: addProject,
         onAddNote: addNote,
@@ -565,8 +581,9 @@ function renderApp(loadingForUser) {
     });
   } else if (currentView === 'projects') {
     renderProjectsPage(mainContentElement, {
-      projects,
+      projects: pageProjects, // Pass filtered data
       teamMembers,
+      currentUser,
       projectStatuses: Object.values(ProjectStatus),
       onAddProject: addProject,
       onUpdateProject: updateProject,
@@ -576,9 +593,10 @@ function renderApp(loadingForUser) {
     });
   } else if (currentView === 'attendance') {
     renderAttendancePage(mainContentElement, {
-      attendanceRecords: attendance,
-      teamMembers,
-      projects, // Pass projects to attendance page for workload calculation
+      attendanceRecords: pageAttendance, // Pass filtered data
+      teamMembers, // Full list for manager, member view will self-filter the grid
+      currentUser,
+      projects, // Pass full project list for workload calculations
       attendanceStatuses: Object.values(AttendanceStatus),
       leaveTypes: Object.values(LeaveType),
       onUpsertAttendanceRecord: upsertAttendanceRecord,
@@ -594,7 +612,8 @@ function renderApp(loadingForUser) {
     });
   } else if (currentView === 'notes') {
     renderNotesPage(mainContentElement, {
-        notes,
+        notes: pageNotes, // Pass filtered data
+        currentUser,
         noteStatuses: Object.values(NoteStatus),
         onAddNote: addNote,
         onUpdateNote: updateNote,
@@ -604,7 +623,7 @@ function renderApp(loadingForUser) {
     });
   } else if (currentView === 'worklog') {
     renderWorkLogPage(mainContentElement, {
-        workLogs,
+        workLogs: pageWorkLogs, // Pass filtered data
         teamMembers,
         projects,
         currentUser,
@@ -662,6 +681,24 @@ async function loadInitialData(seedIfEmpty = true) {
             m.role = TeamMemberRole.Member; // Default to 'Member' if role is missing
         }
     });
+
+    // One-time data migration for existing notes to add userId, to avoid orphaning them.
+    // This is not perfectly accurate but prevents data loss for the user.
+    // We'll assign them to the first manager found, or the first user.
+    const firstManager = teamMembers.find(m => m.role === TeamMemberRole.Manager);
+    const defaultOwnerId = (firstManager || teamMembers[0])?.id;
+
+    if (defaultOwnerId) {
+        const notesWithoutOwner = notes.filter(n => !n.userId);
+        if (notesWithoutOwner.length > 0) {
+            console.log(`Migrating ${notesWithoutOwner.length} notes to have an owner...`);
+            const notesToUpdate = notesWithoutOwner.map(n => ({...n, userId: defaultOwnerId }));
+            await batchWrite('notes', notesToUpdate);
+            // Re-fetch notes to get the updated data
+            notes = await getCollection('notes');
+        }
+    }
+
 
     // Initialize current user
     const savedUserId = localStorage.getItem('currentUserId');
