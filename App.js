@@ -1,4 +1,5 @@
 
+
 import { renderDashboardPage } from './pages/DashboardPage.js';
 import { renderProjectsPage } from './pages/ProjectsPage.js';
 import { renderAttendancePage } from './pages/AttendancePage.js';
@@ -404,16 +405,16 @@ const handleImport = async (file, dataType) => {
         }).filter(Boolean);
     } else if (dataType === 'worklogs') {
         collectionName = 'worklogs';
-        // Need to map memberName and projectName back to IDs
+        // Map memberName and projectName back to IDs. ID is now optional.
         processedData = data.map(item => {
-            if (!item.id || !item.date || !item.memberName || !item.projectName || !item.timeSpentMinutes) return null;
+            if (!item.date || !item.memberName || !item.projectName || !item.timeSpentMinutes) return null;
             const member = teamMembers.find(m => m.name === item.memberName);
             const project = projects.find(p => p.name === item.projectName);
             if (!member || !project) return null; // Skip if no match found
             
             const now = new Date().toISOString();
             return {
-                id: item.id,
+                id: item.id || crypto.randomUUID(), // Use existing ID or generate a new one
                 date: item.date,
                 memberId: member.id,
                 projectId: project.id,
