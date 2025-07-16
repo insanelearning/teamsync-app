@@ -1,8 +1,10 @@
 
+
 import { ProjectForm } from '../components/ProjectForm.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { Button } from '../components/Button.js';
 import { FileUploadButton } from '../components/FileUploadButton.js';
+import { TeamMemberRole } from '../types.js';
 
 let currentModalInstance = null; 
 
@@ -258,6 +260,7 @@ export function renderProjectsPage(container, props) {
   const {
     projects,
     teamMembers,
+    currentUser,
     projectStatuses,
     onAddProject,
     onUpdateProject,
@@ -266,6 +269,8 @@ export function renderProjectsPage(container, props) {
     onImport
   } = props;
   
+  const isManager = currentUser.role === TeamMemberRole.Manager;
+
   let searchTerm = '';
   let statusFilter = '';
   let assigneeFilter = '';
@@ -282,20 +287,22 @@ export function renderProjectsPage(container, props) {
   headerDiv.className = "page-header";
   const headerTitle = document.createElement('h1');
   headerTitle.className = 'page-header-title';
-  headerTitle.textContent = 'Projects Dashboard';
+  headerTitle.textContent = isManager ? 'Projects Dashboard' : 'My Assigned Projects';
   headerDiv.appendChild(headerTitle);
   
-  const actionsWrapper = document.createElement('div');
-  actionsWrapper.className = "page-header-actions";
-  actionsWrapper.append(
-    Button({ children: 'Export CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>', onClick: onExport }),
-    FileUploadButton({
-        children: 'Import CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-import"></i>', accept: '.csv',
-        onFileSelect: (file) => { if (file) onImport(file); }
-    }),
-    Button({ children: 'Add Project', size: 'sm', leftIcon: '<i class="fas fa-plus"></i>', onClick: openModalForNew })
-  );
-  headerDiv.appendChild(actionsWrapper);
+  if (isManager) {
+    const actionsWrapper = document.createElement('div');
+    actionsWrapper.className = "page-header-actions";
+    actionsWrapper.append(
+      Button({ children: 'Export CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>', onClick: onExport }),
+      FileUploadButton({
+          children: 'Import CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-import"></i>', accept: '.csv',
+          onFileSelect: (file) => { if (file) onImport(file); }
+      }),
+      Button({ children: 'Add Project', size: 'sm', leftIcon: '<i class="fas fa-plus"></i>', onClick: openModalForNew })
+    );
+    headerDiv.appendChild(actionsWrapper);
+  }
   pageWrapper.appendChild(headerDiv);
   
   // Render the new overview section, passing the function to open a project modal
@@ -663,10 +670,14 @@ export function renderProjectsPage(container, props) {
         } else {
             modalBody.appendChild(renderProjectDetailView(project));
 
-            const editButton = Button({ children: 'Edit', variant: 'primary', onClick: () => { isEditing = true; renderContent(); } });
-            const deleteButton = Button({ children: 'Delete', variant: 'danger', onClick: () => handleDeleteProject(project.id) });
-            const closeButton = Button({ children: 'Close', variant: 'secondary', onClick: closeModal });
-            modalFooter.append(deleteButton, editButton, closeButton);
+            const footerButtons = [];
+            if (isManager) {
+                footerButtons.push(Button({ children: 'Delete', variant: 'danger', onClick: () => handleDeleteProject(project.id) }));
+                footerButtons.push(Button({ children: 'Edit', variant: 'primary', onClick: () => { isEditing = true; renderContent(); } }));
+            }
+            footerButtons.push(Button({ children: 'Close', variant: 'secondary', onClick: closeModal }));
+            
+            modalFooter.append(...footerButtons);
         }
     };
     
