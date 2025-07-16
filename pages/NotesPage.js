@@ -1,9 +1,11 @@
 
+
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { NoteCard } from '../components/NoteCard.js';
 import { NoteForm } from '../components/NoteForm.js';
 import { FileUploadButton } from '../components/FileUploadButton.js';
+import { TeamMemberRole } from '../types.js';
 
 let currentModalInstance = null;
 
@@ -79,7 +81,8 @@ function renderNotesDeadlines(notes, onNoteClick) {
 
 
 export function renderNotesPage(container, props) {
-  const { notes, noteStatuses, onAddNote, onUpdateNote, onDeleteNote, onExport, onImport } = props;
+  const { notes, currentUser, noteStatuses, onAddNote, onUpdateNote, onDeleteNote, onExport, onImport } = props;
+  const isManager = currentUser.role === TeamMemberRole.Manager;
 
   let searchTerm = '';
   let statusFilter = '';
@@ -145,14 +148,18 @@ export function renderNotesPage(container, props) {
 
   const actionsWrapper = document.createElement('div');
   actionsWrapper.className = "page-header-actions";
-  actionsWrapper.append(
-    Button({ children: 'Export Notes', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>', onClick: onExport }),
-    FileUploadButton({
-        children: 'Import Notes', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-import"></i>', accept: '.csv',
-        onFileSelect: (file) => { if (file) onImport(file); }
-    }),
-    Button({ children: 'Add Note', size: 'sm', leftIcon: '<i class="fas fa-plus"></i>', onClick: openModalForNew })
-  );
+  
+  if (isManager) {
+    actionsWrapper.append(
+      Button({ children: 'Export Notes', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>', onClick: onExport }),
+      FileUploadButton({
+          children: 'Import Notes', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-import"></i>', accept: '.csv',
+          onFileSelect: (file) => { if (file) onImport(file); }
+      })
+    );
+  }
+  actionsWrapper.appendChild(Button({ children: 'Add Note', size: 'sm', leftIcon: '<i class="fas fa-plus"></i>', onClick: openModalForNew }));
+
   headerDiv.appendChild(actionsWrapper);
   pageWrapper.appendChild(headerDiv);
   
