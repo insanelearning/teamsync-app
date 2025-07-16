@@ -324,7 +324,18 @@ const handleExport = (dataType) => {
     }));
     exportToCSV(projectsToExport, 'projects.csv');
   } else if (dataType === 'attendance') {
-    exportToCSV(attendance, 'attendance.csv');
+    const attendanceToExport = attendance.map(rec => {
+        const member = teamMembers.find(m => m.id === rec.memberId);
+        return {
+            id: rec.id,
+            date: rec.date,
+            memberName: member?.name || 'Unknown',
+            status: rec.status,
+            leaveType: rec.leaveType || '',
+            notes: rec.notes || '',
+        };
+    });
+    exportToCSV(attendanceToExport, 'attendance.csv');
   } else if (dataType === 'team') {
     exportToCSV(teamMembers, 'team_members.csv');
   } else if (dataType === 'notes') {
@@ -355,8 +366,14 @@ const handleExport = (dataType) => {
 const handleImport = async (file, dataType) => {
   try {
     const data = await importFromCSV(file);
+    if (!data || data.length === 0) {
+      alert("The selected CSV file is empty or could not be read.");
+      return;
+    }
+    
     let collectionName = '';
     let processedData = [];
+    let importErrors = []; // For detailed error feedback
 
     if (dataType === 'projects') {
         collectionName = 'projects';
@@ -386,7 +403,27 @@ const handleImport = async (file, dataType) => {
         }).filter(Boolean);
     } else if (dataType === 'attendance') {
         collectionName = 'attendance';
-        processedData = data.filter(item => item.id && item.date && item.memberId && item.status);
+        processedData = data.map((item, index) => {
+            const rowNum = index + 2;
+            if (!item.date || !item.memberName || !item.status) {
+                importErrors.push(`Row ${rowNum}: Missing required data (date, memberName, status).`);
+                return null;
+            }
+            const member = teamMembers.find(m => m.name.trim().toLowerCase() === item.memberName.trim().toLowerCase());
+            if (!member) {
+                importErrors.push(`Row ${rowNum}: Could not find a team member named "${item.memberName}".`);
+                return null;
+            }
+
+            return {
+                id: item.id || `${member.id}-${item.date}`,
+                date: item.date,
+                memberId: member.id,
+                status: item.status,
+                leaveType: item.leaveType || null,
+                notes: item.notes || '',
+            };
+        }).filter(Boolean);
     } else if (dataType === 'team') {
         collectionName = 'teamMembers';
         processedData = data.filter(item => item.id && item.name);
@@ -405,16 +442,27 @@ const handleImport = async (file, dataType) => {
         }).filter(Boolean);
     } else if (dataType === 'worklogs') {
         collectionName = 'worklogs';
-        // Map memberName and projectName back to IDs. ID is now optional.
-        processedData = data.map(item => {
-            if (!item.date || !item.memberName || !item.projectName || !item.timeSpentMinutes) return null;
-            const member = teamMembers.find(m => m.name === item.memberName);
-            const project = projects.find(p => p.name === item.projectName);
-            if (!member || !project) return null; // Skip if no match found
+        processedData = data.map((item, index) => {
+            const rowNum = index + 2;
+            if (!item.date || !item.memberName || !item.projectName || item.timeSpentMinutes === undefined) {
+                importErrors.push(`Row ${rowNum}: Missing required columns (date, memberName, projectName, timeSpentMinutes).`);
+                return null;
+            }
+            const member = teamMembers.find(m => m.name.trim().toLowerCase() === item.memberName.trim().toLowerCase());
+            if (!member) {
+                importErrors.push(`Row ${rowNum}: Could not find a member named "${item.memberName}". Check for typos.`);
+                return null;
+            }
+            
+            const project = projects.find(p => p.name.trim().toLowerCase() === item.projectName.trim().toLowerCase());
+            if (!project) {
+                importErrors.push(`Row ${rowNum}: Could not find a project named "${item.projectName}". Check for typos.`);
+                return null;
+            }
             
             const now = new Date().toISOString();
             return {
-                id: item.id || crypto.randomUUID(), // Use existing ID or generate a new one
+                id: item.id || crypto.randomUUID(),
                 date: item.date,
                 memberId: member.id,
                 projectId: project.id,
@@ -428,13 +476,20 @@ const handleImport = async (file, dataType) => {
         }).filter(Boolean);
     }
     
+    if (importErrors.length > 0) {
+        const errorLimit = 10;
+        const fullErrorMessage = `Import failed. ${importErrors.length} rows had errors.\n\nPlease check your CSV file. Common issues are incorrect member/project names or missing data.\n\nFirst ${Math.min(importErrors.length, errorLimit)} errors:\n- ${importErrors.slice(0, errorLimit).join('\n- ')}`;
+        alert(fullErrorMessage);
+        return;
+    }
+
     if (collectionName && processedData.length > 0) {
         await batchWrite(collectionName, processedData);
-        await loadInitialData(false); // Refetch data
+        await loadInitialData(false);
         renderApp();
-        alert(`${dataType.charAt(0).toUpperCase() + dataType.slice(1)} data imported successfully!`);
+        alert(`${processedData.length} ${dataType} records imported successfully!`);
     } else {
-        alert(`No valid data to import for ${dataType}. Check CSV columns and ensure members/projects exist.`);
+        alert(`No valid data rows found in the CSV to import for ${dataType}.`);
     }
   } catch (error) {
     console.error("Import error:", error);
