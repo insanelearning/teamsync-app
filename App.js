@@ -448,6 +448,16 @@ const handleImport = async (file, dataType) => {
                 importErrors.push(`Row ${rowNum}: Missing required columns (date, memberName, projectName, timeSpentMinutes).`);
                 return null;
             }
+
+            // --- Date Normalization Fix ---
+            let normalizedDate = item.date;
+            const dateParts = String(item.date).split('-');
+            if (dateParts.length === 3 && dateParts[0].length === 2 && dateParts[2].length === 4) {
+                 // It's likely DD-MM-YYYY, convert to YYYY-MM-DD for consistent filtering
+                 normalizedDate = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`;
+            }
+            // --- End of Fix ---
+
             const member = teamMembers.find(m => m.name.trim().toLowerCase() === item.memberName.trim().toLowerCase());
             if (!member) {
                 importErrors.push(`Row ${rowNum}: Could not find a member named "${item.memberName}". Check for typos.`);
@@ -463,7 +473,7 @@ const handleImport = async (file, dataType) => {
             const now = new Date().toISOString();
             return {
                 id: item.id || crypto.randomUUID(),
-                date: item.date,
+                date: normalizedDate, // Use the normalized date
                 memberId: member.id,
                 projectId: project.id,
                 taskName: item.taskName || 'N/A',
