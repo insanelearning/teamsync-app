@@ -1,4 +1,5 @@
 
+
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { TeamMemberForm } from '../components/TeamMemberForm.js';
@@ -6,17 +7,20 @@ import { FileUploadButton } from '../components/FileUploadButton.js';
 import { AttendanceLogTable } from '../components/AttendanceLogTable.js';
 import { exportToCSV as exportDataToCSV } from '../services/csvService.js';
 import { AttendanceCard } from '../components/AttendanceCard.js';
+import { TeamMemberRole } from '../types.js';
 
 let currentTeamModalInstance = null;
 let currentLogModalInstance = null;
 
 export function renderAttendancePage(container, props) {
   const {
-    attendanceRecords, teamMembers, projects, attendanceStatuses, leaveTypes,
-    onUpsertAttendanceRecord, onDeleteAttendanceRecord, onExport, onImport, maxTeamMembers,
-    onAddTeamMember, onUpdateTeamMember, onDeleteTeamMember,
-    onExportTeam, onImportTeam
+    attendanceRecords, teamMembers, projects, currentUser,
+    attendanceStatuses, leaveTypes, onUpsertAttendanceRecord, onDeleteAttendanceRecord,
+    onExport, onImport, maxTeamMembers, onAddTeamMember, onUpdateTeamMember,
+    onDeleteTeamMember, onExportTeam, onImportTeam
   } = props;
+
+  const isManager = currentUser.role === TeamMemberRole.Manager;
 
   let selectedDate = new Date().toISOString().split('T')[0];
   let logMemberFilter = '', logStartDateFilter = new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0], logEndDateFilter = new Date().toISOString().split('T')[0];
@@ -52,71 +56,73 @@ export function renderAttendancePage(container, props) {
       selectedDate = e.target.value; 
       renderDailyLogGrid(); 
       updateDailyLogTitle(); 
-      renderTeamList();
+      if (isManager) renderTeamList();
   };
   datePickerDiv.appendChild(dateInput);
   headerDiv.appendChild(datePickerDiv);
   pageWrapper.appendChild(headerDiv);
 
-  const teamManagementDiv = document.createElement('div');
-  teamManagementDiv.className = "attendance-page-section";
-  const tmTitle = document.createElement('h2');
-  tmTitle.className = "attendance-section-title";
-  tmTitle.textContent = "Team Management";
-  teamManagementDiv.appendChild(tmTitle);
-  
-  const tmToolbar = document.createElement('div');
-  tmToolbar.className = 'team-management-toolbar';
+  if (isManager) {
+    const teamManagementDiv = document.createElement('div');
+    teamManagementDiv.className = "attendance-page-section";
+    const tmTitle = document.createElement('h2');
+    tmTitle.className = "attendance-section-title";
+    tmTitle.textContent = "Team Management";
+    teamManagementDiv.appendChild(tmTitle);
+    
+    const tmToolbar = document.createElement('div');
+    tmToolbar.className = 'team-management-toolbar';
 
-  const tmFiltersContainer = document.createElement('div');
-  tmFiltersContainer.className = 'team-management-filters';
+    const tmFiltersContainer = document.createElement('div');
+    tmFiltersContainer.className = 'team-management-filters';
 
-  const searchInput = document.createElement('input');
-  searchInput.type = 'text';
-  searchInput.placeholder = 'Filter by name...';
-  searchInput.className = 'form-input';
-  searchInput.oninput = (e) => { teamSearchTerm = e.target.value; renderTeamList(); };
-  tmFiltersContainer.appendChild(searchInput);
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.placeholder = 'Filter by name...';
+    searchInput.className = 'form-input';
+    searchInput.oninput = (e) => { teamSearchTerm = e.target.value; renderTeamList(); };
+    tmFiltersContainer.appendChild(searchInput);
 
-  const uniqueDepartments = Array.from(new Set(teamMembers.map(m => m.department).filter(Boolean)));
-  if (uniqueDepartments.length > 0) {
-    const departmentSelect = document.createElement('select');
-    departmentSelect.className = 'form-select';
-    departmentSelect.innerHTML = `<option value="">All Departments</option>` + uniqueDepartments.map(d => `<option value="${d}">${d}</option>`).join('');
-    departmentSelect.value = departmentFilter;
-    departmentSelect.onchange = (e) => { departmentFilter = e.target.value; renderTeamList(); };
-    tmFiltersContainer.appendChild(departmentSelect);
+    const uniqueDepartments = Array.from(new Set(teamMembers.map(m => m.department).filter(Boolean)));
+    if (uniqueDepartments.length > 0) {
+      const departmentSelect = document.createElement('select');
+      departmentSelect.className = 'form-select';
+      departmentSelect.innerHTML = `<option value="">All Departments</option>` + uniqueDepartments.map(d => `<option value="${d}">${d}</option>`).join('');
+      departmentSelect.value = departmentFilter;
+      departmentSelect.onchange = (e) => { departmentFilter = e.target.value; renderTeamList(); };
+      tmFiltersContainer.appendChild(departmentSelect);
+    }
+
+    const sortOptions = [
+      { value: 'nameAsc', label: 'Sort: Name (A-Z)' },
+      { value: 'nameDesc', label: 'Sort: Name (Z-A)' },
+      { value: 'designationAsc', label: 'Sort: Designation (A-Z)' },
+      { value: 'designationDesc', label: 'Sort: Designation (Z-A)' },
+    ];
+    const sortSelect = document.createElement('select');
+    sortSelect.className = 'form-select';
+    sortSelect.innerHTML = sortOptions.map(opt => `<option value="${opt.value}" ${opt.value === teamSortOrder ? 'selected' : ''}>${opt.label}</option>`).join('');
+    sortSelect.onchange = (e) => { teamSortOrder = e.target.value; renderTeamList(); };
+    tmFiltersContainer.appendChild(sortSelect);
+
+    const tmActionsDiv = document.createElement('div');
+    tmActionsDiv.className = "team-management-actions";
+    const addMemberBtn = Button({
+      children: `Add Member (${teamMembers.length}/${maxTeamMembers})`, size: 'sm', leftIcon: '<i class="fas fa-user-plus"></i>',
+      onClick: () => openTeamMemberDetailModal(null), disabled: teamMembers.length >= maxTeamMembers });
+    tmActionsDiv.append(addMemberBtn,
+      Button({ children: 'Export Team CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-users-cog"></i>', onClick: onExportTeam }),
+      FileUploadButton({ children: 'Import Team CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-import"></i>', accept: '.csv', onFileSelect: (f) => handleFileImport(f, 'team') })
+    );
+    
+    tmToolbar.append(tmFiltersContainer, tmActionsDiv);
+    teamManagementDiv.appendChild(tmToolbar);
+
+    const teamListContainer = document.createElement('div');
+    teamListContainer.className = "team-list-container";
+    teamManagementDiv.appendChild(teamListContainer);
+    pageWrapper.appendChild(teamManagementDiv);
   }
-
-  const sortOptions = [
-    { value: 'nameAsc', label: 'Sort: Name (A-Z)' },
-    { value: 'nameDesc', label: 'Sort: Name (Z-A)' },
-    { value: 'designationAsc', label: 'Sort: Designation (A-Z)' },
-    { value: 'designationDesc', label: 'Sort: Designation (Z-A)' },
-  ];
-  const sortSelect = document.createElement('select');
-  sortSelect.className = 'form-select';
-  sortSelect.innerHTML = sortOptions.map(opt => `<option value="${opt.value}" ${opt.value === teamSortOrder ? 'selected' : ''}>${opt.label}</option>`).join('');
-  sortSelect.onchange = (e) => { teamSortOrder = e.target.value; renderTeamList(); };
-  tmFiltersContainer.appendChild(sortSelect);
-
-  const tmActionsDiv = document.createElement('div');
-  tmActionsDiv.className = "team-management-actions";
-  const addMemberBtn = Button({
-    children: `Add Member (${teamMembers.length}/${maxTeamMembers})`, size: 'sm', leftIcon: '<i class="fas fa-user-plus"></i>',
-    onClick: () => openTeamMemberDetailModal(null), disabled: teamMembers.length >= maxTeamMembers });
-  tmActionsDiv.append(addMemberBtn,
-    Button({ children: 'Export Team CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-users-cog"></i>', onClick: onExportTeam }),
-    FileUploadButton({ children: 'Import Team CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-import"></i>', accept: '.csv', onFileSelect: (f) => handleFileImport(f, 'team') })
-  );
-  
-  tmToolbar.append(tmFiltersContainer, tmActionsDiv);
-  teamManagementDiv.appendChild(tmToolbar);
-
-  const teamListContainer = document.createElement('div');
-  teamListContainer.className = "team-list-container";
-  teamManagementDiv.appendChild(teamListContainer);
-  pageWrapper.appendChild(teamManagementDiv);
 
   const dailyLogSection = document.createElement('div');
   dailyLogSection.className = "daily-log-section";
@@ -127,14 +133,18 @@ export function renderAttendancePage(container, props) {
   function updateDailyLogTitle() { dailyLogTitle.textContent = `Daily Log for ${new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`; }
   updateDailyLogTitle();
   dailyLogHeader.appendChild(dailyLogTitle);
-  const logActionsDiv = document.createElement('div');
-  logActionsDiv.className = "daily-log-actions";
-  logActionsDiv.append(
-    Button({ children: 'Export All Logs', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>', onClick: onExport }),
-    FileUploadButton({ children: 'Import Logs', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-import"></i>', accept: '.csv', onFileSelect: (f) => handleFileImport(f, 'attendance') }),
-    Button({ children: 'View Attendance Logs', variant: 'primary', size: 'sm', leftIcon: '<i class="fas fa-history"></i>', onClick: openLogViewerModal })
-  );
-  dailyLogHeader.appendChild(logActionsDiv);
+
+  if (isManager) {
+    const logActionsDiv = document.createElement('div');
+    logActionsDiv.className = "daily-log-actions";
+    logActionsDiv.append(
+      Button({ children: 'Export All Logs', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>', onClick: onExport }),
+      FileUploadButton({ children: 'Import Logs', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-import"></i>', accept: '.csv', onFileSelect: (f) => handleFileImport(f, 'attendance') }),
+      Button({ children: 'View Attendance Logs', variant: 'primary', size: 'sm', leftIcon: '<i class="fas fa-history"></i>', onClick: openLogViewerModal })
+    );
+    dailyLogHeader.appendChild(logActionsDiv);
+  }
+
   dailyLogSection.appendChild(dailyLogHeader);
   const dailyLogGridContainer = document.createElement('div');
   dailyLogGridContainer.className = 'daily-log-grid-container';
@@ -142,6 +152,8 @@ export function renderAttendancePage(container, props) {
   pageWrapper.appendChild(dailyLogSection);
 
   function renderTeamList() {
+    const teamListContainer = pageWrapper.querySelector('.team-list-container');
+    if (!teamListContainer) return;
     teamListContainer.innerHTML = '';
 
     const getAttendanceStatusBadge = (status) => {
@@ -240,11 +252,13 @@ export function renderAttendancePage(container, props) {
 
   function renderDailyLogGrid() {
     dailyLogGridContainer.innerHTML = '';
-    if (teamMembers.length > 0) {
+    const membersToDisplay = isManager ? teamMembers : [currentUser];
+
+    if (membersToDisplay.length > 0) {
       const grid = document.createElement('div');
       grid.className = "daily-log-grid";
       const recordsForDate = attendanceRecords.filter(r => r.date === selectedDate);
-      teamMembers.forEach(member => {
+      membersToDisplay.forEach(member => {
         const record = recordsForDate.find(r => r.memberId === member.id);
         grid.appendChild(AttendanceCard({ 
             member, 
@@ -468,7 +482,7 @@ export function renderAttendancePage(container, props) {
     currentLogModalInstance = Modal({ isOpen: true, onClose: closeLogViewerModal, title: "View Logs", children: modalContent, footer: footerButtons, size: 'xl' });
   }
 
-  renderTeamList();
+  if(isManager) renderTeamList();
   renderDailyLogGrid();
   container.appendChild(pageWrapper);
 }
