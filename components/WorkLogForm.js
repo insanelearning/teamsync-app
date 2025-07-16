@@ -1,4 +1,3 @@
-
 import { Button } from './Button.js';
 import { TeamMemberRole } from '../types.js';
 import { WORK_LOG_TASKS } from '../constants.js';
@@ -60,7 +59,7 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, onSave, o
             memberSelect.name = 'memberId';
             memberSelect.innerHTML = teamMembers.map(m => `<option value="${m.id}" ${commonData.memberId === m.id ? 'selected': ''}>${m.name}</option>`).join('');
             memberSelect.onchange = handleCommonDataChange;
-            memberSelect.disabled = !isEditMode && currentUser.role !== TeamMemberRole.Manager;
+            memberSelect.disabled = isEditMode; // Disable if editing a specific log
 
             const memberDiv = document.createElement('div');
             memberDiv.innerHTML = `<label class="form-label">Team Member</label>`;
@@ -84,6 +83,11 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, onSave, o
         form.appendChild(topFieldsContainer);
 
         // --- Entry Table ---
+        const sectionHeader = document.createElement('h4');
+        sectionHeader.className = 'worklog-form-section-header';
+        sectionHeader.textContent = 'Log Entries';
+        form.appendChild(sectionHeader);
+        
         const tableContainer = document.createElement('div');
         tableContainer.className = 'data-table-container';
         
@@ -109,6 +113,7 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, onSave, o
             const projectCell = document.createElement('td');
             const projectSelect = document.createElement('select');
             projectSelect.className = 'form-select';
+            projectSelect.required = true;
             projectSelect.innerHTML = `<option value="">Select...</option>` + activeProjects.map(p => `<option value="${p.id}" ${entry.projectId === p.id ? 'selected' : ''}>${p.name}</option>`).join('');
             projectSelect.onchange = (e) => handleEntryChange(entry._id, 'projectId', e.target.value);
             projectCell.appendChild(projectSelect);
@@ -130,6 +135,7 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, onSave, o
             timeInput.className = 'form-input';
             timeInput.value = entry.timeSpentMinutes;
             timeInput.min = 0;
+            timeInput.required = true;
             timeInput.oninput = (e) => handleEntryChange(entry._id, 'timeSpentMinutes', e.target.value);
             timeCell.appendChild(timeInput);
             tr.appendChild(timeCell);
@@ -165,30 +171,33 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, onSave, o
         tableContainer.appendChild(table);
         form.appendChild(tableContainer);
         
-        // --- Add Row Button & Actions ---
+        // --- Actions ---
         const footerActions = document.createElement('div');
         footerActions.className = 'project-form-actions';
+        footerActions.style.justifyContent = 'space-between';
 
         if (!isEditMode) {
             const addRowButton = Button({
                 children: 'Add Another Task',
                 variant: 'secondary',
+                size: 'sm',
                 leftIcon: '<i class="fas fa-plus"></i>',
                 onClick: addEntryRow
             });
             footerActions.appendChild(addRowButton);
+        } else {
+            footerActions.appendChild(document.createElement('div')); // Placeholder to keep right side aligned
         }
 
-        const actionButtonsContainer = document.createElement('div');
-        actionButtonsContainer.style.marginLeft = 'auto';
-        actionButtonsContainer.style.display = 'flex';
-        actionButtonsContainer.style.gap = '0.75rem';
-        
+        const rightActionButtons = document.createElement('div');
+        rightActionButtons.style.display = 'flex';
+        rightActionButtons.style.gap = '0.75rem';
+
         const cancelButton = Button({ children: 'Cancel', variant: 'secondary', onClick: onCancel });
         const saveButton = Button({ children: isEditMode ? 'Save Changes' : 'Add Logs', variant: 'primary', type: 'submit' });
         
-        actionButtonsContainer.append(cancelButton, saveButton);
-        footerActions.appendChild(actionButtonsContainer);
+        rightActionButtons.append(cancelButton, saveButton);
+        footerActions.appendChild(rightActionButtons);
         form.appendChild(footerActions);
     }
     
@@ -207,7 +216,7 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, onSave, o
         });
 
         if (logsToSave.length === 0) {
-            alert('Please fill out at least one valid task row with time spent greater than zero.');
+            alert('Please fill out at least one valid task row with a project selected and time spent greater than zero.');
             return;
         }
 
