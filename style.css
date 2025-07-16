@@ -2693,7 +2693,7 @@ footer.app-footer {
 /* Work Log Page Specifics */
 .work-log-summary-container {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 1rem;
 }
 .work-log-summary-card {
@@ -2702,6 +2702,9 @@ footer.app-footer {
     padding: 1rem;
     box-shadow: 0 1px 2px rgba(0,0,0,0.05);
     border-left: 4px solid #4f46e5;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
 }
 .dark .work-log-summary-card {
     background-color: #1f2937;
@@ -2709,16 +2712,61 @@ footer.app-footer {
 }
 .work-log-summary-card .label {
     font-size: 0.875rem;
+    font-weight: 500;
     color: #6b7280;
-    margin-bottom: 0.25rem;
 }
 .dark .work-log-summary-card .label {
     color: #9ca3af;
 }
 .work-log-summary-card .value {
-    font-size: 2rem;
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+.work-log-summary-card .sub-label {
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin-top: auto; /* Push to bottom */
+}
+.dark .work-log-summary-card .sub-label {
+    color: #9ca3af;
+}
+
+.efficiency-dial {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    margin: 0.5rem auto;
+    background: conic-gradient(#4f46e5 var(--progress, 0%), #e5e7eb 0);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.5s ease-out;
+}
+.dark .efficiency-dial {
+    background: conic-gradient(#818cf8 var(--progress, 0%), #374151 0);
+}
+
+.dial-center {
+    width: 80px;
+    height: 80px;
+    background-color: #ffffff;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+.dark .dial-center {
+    background-color: #1f2937;
+}
+.dial-center .value {
+    font-size: 1.5rem;
     font-weight: 700;
 }
+
+
 .work-log-table th:nth-child(5), .work-log-table td:nth-child(5) {
     white-space: normal;
     word-break: break-word;
