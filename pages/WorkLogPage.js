@@ -1,22 +1,28 @@
 
+
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { WorkLogForm } from '../components/WorkLogForm.js';
 import { FileUploadButton } from '../components/FileUploadButton.js';
+import { TeamMemberRole } from '../types.js';
 
 let currentModalInstance = null;
 
 function formatMinutes(minutes) {
-    const h = Math.floor(minutes / 60);
-    const m = minutes % 60;
+    const totalMinutes = Math.round(minutes);
+    if (isNaN(totalMinutes) || totalMinutes < 0) return '0h 0m';
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
     return `${h}h ${m}m`;
 }
 
 export function renderWorkLogPage(container, props) {
     const { workLogs, teamMembers, projects, currentUser, onAddMultipleWorkLogs, onUpdateWorkLog, onDeleteWorkLog, onExport, onImport } = props;
 
+    const isManager = currentUser.role === TeamMemberRole.Manager;
+
     let filterState = {
-        memberId: '',
+        memberId: isManager ? '' : currentUser.id,
         projectId: '',
         startDate: new Date(new Date().setDate(new Date().getDate() - 29)).toISOString().split('T')[0],
         endDate: new Date().toISOString().split('T')[0],
@@ -36,14 +42,18 @@ export function renderWorkLogPage(container, props) {
 
     const actionsWrapper = document.createElement('div');
     actionsWrapper.className = "page-header-actions";
-    actionsWrapper.append(
-        Button({ children: 'Export CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>', onClick: onExport }),
-        FileUploadButton({
-            children: 'Import CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-import"></i>', accept: '.csv',
-            onFileSelect: (file) => { if (file) onImport(file); }
-        }),
-        Button({ children: 'Add Work Log', size: 'sm', leftIcon: '<i class="fas fa-plus"></i>', onClick: () => openModal() })
-    );
+
+    if (isManager) {
+        actionsWrapper.append(
+            Button({ children: 'Export CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>', onClick: onExport }),
+            FileUploadButton({
+                children: 'Import CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-import"></i>', accept: '.csv',
+                onFileSelect: (file) => { if (file) onImport(file); }
+            })
+        );
+    }
+    actionsWrapper.appendChild(Button({ children: 'Add Work Log', size: 'sm', leftIcon: '<i class="fas fa-plus"></i>', onClick: () => openModal() }));
+    
     headerDiv.appendChild(actionsWrapper);
     pageWrapper.appendChild(headerDiv);
 
@@ -51,14 +61,14 @@ export function renderWorkLogPage(container, props) {
     const summaryContainer = document.createElement('div');
     summaryContainer.className = 'work-log-summary-container';
     
-    const summaryTodayCard = document.createElement('div');
-    summaryTodayCard.className = 'work-log-summary-card';
-    const summaryWeekCard = document.createElement('div');
-    summaryWeekCard.className = 'work-log-summary-card';
-    const summaryMonthCard = document.createElement('div');
-    summaryMonthCard.className = 'work-log-summary-card';
+    const rangeTotalCard = document.createElement('div');
+    rangeTotalCard.className = 'work-log-summary-card';
+    const avgHoursCard = document.createElement('div');
+    avgHoursCard.className = 'work-log-summary-card';
+    const efficiencyCard = document.createElement('div');
+    efficiencyCard.className = 'work-log-summary-card';
     
-    summaryContainer.append(summaryTodayCard, summaryWeekCard, summaryMonthCard);
+    summaryContainer.append(rangeTotalCard, avgHoursCard, efficiencyCard);
     pageWrapper.appendChild(summaryContainer);
 
     // --- Filters & Table Section ---
@@ -71,17 +81,19 @@ export function renderWorkLogPage(container, props) {
     const filterGrid = document.createElement('div');
     filterGrid.className = "worklog-filters-grid";
     
-    // Member Filter
-    const memberFilterContainer = document.createElement('div');
-    memberFilterContainer.innerHTML = `<label for="memberFilter" class="form-label">Member</label>`;
-    const memberFilter = document.createElement('select');
-    memberFilter.id = 'memberFilter';
-    memberFilter.className = "form-select";
-    memberFilter.innerHTML = `<option value="">All Members</option>` + teamMembers.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
-    memberFilter.value = filterState.memberId;
-    memberFilter.onchange = (e) => { filterState.memberId = e.target.value; rerenderPage(); };
-    memberFilterContainer.appendChild(memberFilter);
-    filterGrid.appendChild(memberFilterContainer);
+    // Member Filter (Only for Managers)
+    if (isManager) {
+        const memberFilterContainer = document.createElement('div');
+        memberFilterContainer.innerHTML = `<label for="memberFilter" class="form-label">Member</label>`;
+        const memberFilter = document.createElement('select');
+        memberFilter.id = 'memberFilter';
+        memberFilter.className = "form-select";
+        memberFilter.innerHTML = `<option value="">All Members</option>` + teamMembers.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+        memberFilter.value = filterState.memberId;
+        memberFilter.onchange = (e) => { filterState.memberId = e.target.value; rerenderPage(); };
+        memberFilterContainer.appendChild(memberFilter);
+        filterGrid.appendChild(memberFilterContainer);
+    }
 
     // Project Filter
     const projectFilterContainer = document.createElement('div');
@@ -143,23 +155,40 @@ export function renderWorkLogPage(container, props) {
     }
     
     function updateSummaries(logsToSummarize) {
-        const now = new Date();
-        const today = new Date().toISOString().split('T')[0];
-        const weekStartObj = new Date();
-        // Set to Monday of the current week
-        weekStartObj.setDate(weekStartObj.getDate() - (weekStartObj.getDay() || 7) + 1);
-        const weekStart = weekStartObj.toISOString().split('T')[0];
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        const totalMinutes = logsToSummarize.reduce((acc, log) => acc + (log.timeSpentMinutes || 0), 0);
+        
+        // --- Card 1: Selected Range Total ---
+        const start = new Date(filterState.startDate + 'T00:00:00').toLocaleDateString();
+        const end = new Date(filterState.endDate + 'T00:00:00').toLocaleDateString();
+        rangeTotalCard.innerHTML = `
+            <div class="label">Selected Range Total</div>
+            <div class="value">${formatMinutes(totalMinutes)}</div>
+            <div class="sub-label">${start} - ${end}</div>`;
+        
+        // --- Card 2: Average Hours / Day ---
+        const uniqueMembersWithLogs = [...new Set(logsToSummarize.map(log => log.memberId))];
+        const uniqueDaysWithLogs = [...new Set(logsToSummarize.map(log => log.date))];
+        const totalMembers = uniqueMembersWithLogs.length || 1;
+        const totalDays = uniqueDaysWithLogs.length || 1;
+        const avgMinutesPerDay = totalMinutes / totalDays;
+        
+        avgHoursCard.innerHTML = `
+            <div class="label">Average Hours / Day</div>
+            <div class="value">${formatMinutes(avgMinutesPerDay)}</div>
+            <div class="sub-label">Across ${totalDays} work day(s)</div>`;
 
-        const todayLogs = logsToSummarize.filter(l => l.date === today);
-        const weekLogs = logsToSummarize.filter(l => l.date >= weekStart);
-        const monthLogs = logsToSummarize.filter(l => l.date >= monthStart);
-
-        const sumMins = (logs) => logs.reduce((acc, log) => acc + (log.timeSpentMinutes || 0), 0);
-
-        summaryTodayCard.innerHTML = `<div class="label">Today</div><div class="value">${formatMinutes(sumMins(todayLogs))}</div>`;
-        summaryWeekCard.innerHTML = `<div class="label">This Week</div><div class="value">${formatMinutes(sumMins(weekLogs))}</div>`;
-        summaryMonthCard.innerHTML = `<div class="label">This Month</div><div class="value">${formatMinutes(sumMins(monthLogs))}</div>`;
+        // --- Card 3: Efficiency ---
+        const expectedMinutes = totalMembers * totalDays * 8 * 60; // 8 hours per day
+        const efficiency = expectedMinutes > 0 ? Math.round((totalMinutes / expectedMinutes) * 100) : 0;
+        
+        efficiencyCard.innerHTML = `
+            <div class="label">Efficiency</div>
+            <div class="efficiency-dial" style="--progress: ${efficiency}%;">
+                <div class="dial-center">
+                    <span class="value">${efficiency}%</span>
+                </div>
+            </div>
+            <div class="sub-label">Against 8h/day goal</div>`;
     }
 
     function rerenderTable(filteredLogs) {
@@ -204,12 +233,15 @@ export function renderWorkLogPage(container, props) {
 
             const actionCell = document.createElement('td');
             actionCell.className = 'action-cell';
-            actionCell.append(
-                Button({ variant: 'ghost', size: 'sm', onClick: () => openModal(log), children: '<i class="fas fa-edit"></i>' }),
-                Button({ variant: 'danger', size: 'sm', onClick: () => {
-                    if (confirm('Delete this log entry?')) onDeleteWorkLog(log.id);
-                }, children: '<i class="fas fa-trash"></i>' })
-            );
+            // Only managers or the user who created the log can edit/delete
+            if (isManager || currentUser.id === log.memberId) {
+                actionCell.append(
+                    Button({ variant: 'ghost', size: 'sm', onClick: () => openModal(log), children: '<i class="fas fa-edit"></i>' }),
+                    Button({ variant: 'danger', size: 'sm', onClick: () => {
+                        if (confirm('Delete this log entry?')) onDeleteWorkLog(log.id);
+                    }, children: '<i class="fas fa-trash"></i>' })
+                );
+            }
             tr.appendChild(actionCell);
             tbody.appendChild(tr);
         });
