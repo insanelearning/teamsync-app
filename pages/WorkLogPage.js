@@ -156,29 +156,33 @@ export function renderWorkLogPage(container, props) {
     
     function updateSummaries(logsToSummarize) {
         const totalMinutes = logsToSummarize.reduce((acc, log) => acc + (log.timeSpentMinutes || 0), 0);
-        
+
+        // --- Calculation for person-days (unique member+date combinations) ---
+        const personDays = new Set(logsToSummarize.map(log => `${log.memberId}|${log.date}`)).size;
+
         // --- Card 1: Selected Range Total ---
-        const start = new Date(filterState.startDate + 'T00:00:00').toLocaleDateString();
-        const end = new Date(filterState.endDate + 'T00:00:00').toLocaleDateString();
+        const start = new Date(filterState.startDate + 'T00:00:00');
+        const end = new Date(filterState.endDate + 'T00:00:00');
+        // Calculate number of days in the selected range
+        const timeDiff = end.getTime() - start.getTime();
+        const dayDiff = timeDiff >= 0 ? Math.round(timeDiff / (1000 * 3600 * 24)) + 1 : 0;
+        const dayDiffText = dayDiff > 0 ? `(${dayDiff} day${dayDiff !== 1 ? 's' : ''})` : '';
+        
         rangeTotalCard.innerHTML = `
             <div class="label">Selected Range Total</div>
             <div class="value">${formatMinutes(totalMinutes)}</div>
-            <div class="sub-label">${start} - ${end}</div>`;
+            <div class="sub-label">${start.toLocaleDateString()} - ${end.toLocaleDateString()} ${dayDiffText}</div>`;
         
         // --- Card 2: Average Hours / Day ---
-        const uniqueMembersWithLogs = [...new Set(logsToSummarize.map(log => log.memberId))];
-        const uniqueDaysWithLogs = [...new Set(logsToSummarize.map(log => log.date))];
-        const totalMembers = uniqueMembersWithLogs.length || 1;
-        const totalDays = uniqueDaysWithLogs.length || 1;
-        const avgMinutesPerDay = totalMinutes / totalDays;
+        const avgMinutesPerPersonDay = personDays > 0 ? (totalMinutes / personDays) : 0;
         
         avgHoursCard.innerHTML = `
             <div class="label">Average Hours / Day</div>
-            <div class="value">${formatMinutes(avgMinutesPerDay)}</div>
-            <div class="sub-label">Across ${totalDays} work day(s)</div>`;
+            <div class="value">${formatMinutes(avgMinutesPerPersonDay)}</div>
+            <div class="sub-label">Avg. per person per workday</div>`;
 
         // --- Card 3: Efficiency ---
-        const expectedMinutes = totalMembers * totalDays * 8 * 60; // 8 hours per day
+        const expectedMinutes = personDays * 8 * 60; // 8 hours goal for each person-day
         const efficiency = expectedMinutes > 0 ? Math.round((totalMinutes / expectedMinutes) * 100) : 0;
         
         efficiencyCard.innerHTML = `
