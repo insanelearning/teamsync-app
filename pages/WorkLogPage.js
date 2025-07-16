@@ -1,3 +1,4 @@
+
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { WorkLogForm } from '../components/WorkLogForm.js';
@@ -131,32 +132,28 @@ export function renderWorkLogPage(container, props) {
     pageWrapper.appendChild(contentSection);
 
     function getFilteredLogs() {
-        // Create dates without timezone issues for comparison
-        const startDate = new Date(filterState.startDate + 'T00:00:00');
-        const endDate = new Date(filterState.endDate + 'T23:59:59');
-
+        // Use simple string comparison for YYYY-MM-DD format, which is robust against timezone issues.
         return workLogs.filter(log => {
-            const logDate = new Date(log.date + 'T00:00:00');
-            
             const isMemberMatch = !filterState.memberId || log.memberId === filterState.memberId;
             const isProjectMatch = !filterState.projectId || log.projectId === filterState.projectId;
-            const isDateMatch = logDate >= startDate && logDate <= endDate;
+            const isDateMatch = log.date >= filterState.startDate && log.date <= filterState.endDate;
 
             return isMemberMatch && isProjectMatch && isDateMatch;
         }).sort((a,b) => new Date(b.date) - new Date(a.date));
     }
     
-    function updateSummaries() {
+    function updateSummaries(logsToSummarize) {
         const now = new Date();
         const today = new Date().toISOString().split('T')[0];
         const weekStartObj = new Date();
-        weekStartObj.setDate(weekStartObj.getDate() - weekStartObj.getDay());
+        // Set to Monday of the current week
+        weekStartObj.setDate(weekStartObj.getDate() - (weekStartObj.getDay() || 7) + 1);
         const weekStart = weekStartObj.toISOString().split('T')[0];
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
 
-        const todayLogs = workLogs.filter(l => l.date === today);
-        const weekLogs = workLogs.filter(l => l.date >= weekStart);
-        const monthLogs = workLogs.filter(l => l.date >= monthStart);
+        const todayLogs = logsToSummarize.filter(l => l.date === today);
+        const weekLogs = logsToSummarize.filter(l => l.date >= weekStart);
+        const monthLogs = logsToSummarize.filter(l => l.date >= monthStart);
 
         const sumMins = (logs) => logs.reduce((acc, log) => acc + (log.timeSpentMinutes || 0), 0);
 
@@ -165,12 +162,16 @@ export function renderWorkLogPage(container, props) {
         summaryMonthCard.innerHTML = `<div class="label">This Month</div><div class="value">${formatMinutes(sumMins(monthLogs))}</div>`;
     }
 
-    function rerenderTable() {
+    function rerenderTable(filteredLogs) {
         tableContainer.innerHTML = '';
-        const filteredLogs = getFilteredLogs();
 
         if (filteredLogs.length === 0) {
-            tableContainer.innerHTML = `<div class="no-data-placeholder"><i class="fas fa-folder-open icon"></i><p>No work logs found for the selected filters.</p></div>`;
+            tableContainer.innerHTML = `
+                <div class="no-data-placeholder">
+                    <i class="fas fa-folder-open icon"></i>
+                    <p class="primary-text">No work logs found.</p>
+                    <p class="secondary-text">Try adjusting the filters or add a new log.</p>
+                </div>`;
             return;
         }
 
@@ -244,8 +245,9 @@ export function renderWorkLogPage(container, props) {
     }
 
     function rerenderPage() {
-        updateSummaries();
-        rerenderTable();
+        const filteredLogs = getFilteredLogs();
+        updateSummaries(filteredLogs);
+        rerenderTable(filteredLogs);
     }
 
     rerenderPage();
