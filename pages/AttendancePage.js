@@ -56,73 +56,81 @@ export function renderAttendancePage(container, props) {
       selectedDate = e.target.value; 
       renderDailyLogGrid(); 
       updateDailyLogTitle(); 
-      if (isManager) renderTeamList();
+      renderTeamList();
   };
   datePickerDiv.appendChild(dateInput);
   headerDiv.appendChild(datePickerDiv);
   pageWrapper.appendChild(headerDiv);
 
-  if (isManager) {
-    const teamManagementDiv = document.createElement('div');
-    teamManagementDiv.className = "attendance-page-section";
-    const tmTitle = document.createElement('h2');
-    tmTitle.className = "attendance-section-title";
-    tmTitle.textContent = "Team Management";
-    teamManagementDiv.appendChild(tmTitle);
-    
-    const tmToolbar = document.createElement('div');
-    tmToolbar.className = 'team-management-toolbar';
+  // Team Management Section - Visible to all, actions are conditional
+  const teamManagementDiv = document.createElement('div');
+  teamManagementDiv.className = "attendance-page-section";
+  const tmTitle = document.createElement('h2');
+  tmTitle.className = "attendance-section-title";
+  tmTitle.textContent = "Team Management";
+  teamManagementDiv.appendChild(tmTitle);
+  
+  const tmToolbar = document.createElement('div');
+  tmToolbar.className = 'team-management-toolbar';
 
-    const tmFiltersContainer = document.createElement('div');
-    tmFiltersContainer.className = 'team-management-filters';
+  const tmFiltersContainer = document.createElement('div');
+  tmFiltersContainer.className = 'team-management-filters';
 
-    const searchInput = document.createElement('input');
-    searchInput.type = 'text';
-    searchInput.placeholder = 'Filter by name...';
-    searchInput.className = 'form-input';
-    searchInput.oninput = (e) => { teamSearchTerm = e.target.value; renderTeamList(); };
-    tmFiltersContainer.appendChild(searchInput);
+  const searchInput = document.createElement('input');
+  searchInput.type = 'text';
+  searchInput.placeholder = 'Filter by name...';
+  searchInput.className = 'form-input';
+  searchInput.oninput = (e) => { teamSearchTerm = e.target.value; renderTeamList(); };
+  tmFiltersContainer.appendChild(searchInput);
 
-    const uniqueDepartments = Array.from(new Set(teamMembers.map(m => m.department).filter(Boolean)));
-    if (uniqueDepartments.length > 0) {
-      const departmentSelect = document.createElement('select');
-      departmentSelect.className = 'form-select';
-      departmentSelect.innerHTML = `<option value="">All Departments</option>` + uniqueDepartments.map(d => `<option value="${d}">${d}</option>`).join('');
-      departmentSelect.value = departmentFilter;
-      departmentSelect.onchange = (e) => { departmentFilter = e.target.value; renderTeamList(); };
-      tmFiltersContainer.appendChild(departmentSelect);
-    }
-
-    const sortOptions = [
-      { value: 'nameAsc', label: 'Sort: Name (A-Z)' },
-      { value: 'nameDesc', label: 'Sort: Name (Z-A)' },
-      { value: 'designationAsc', label: 'Sort: Designation (A-Z)' },
-      { value: 'designationDesc', label: 'Sort: Designation (Z-A)' },
-    ];
-    const sortSelect = document.createElement('select');
-    sortSelect.className = 'form-select';
-    sortSelect.innerHTML = sortOptions.map(opt => `<option value="${opt.value}" ${opt.value === teamSortOrder ? 'selected' : ''}>${opt.label}</option>`).join('');
-    sortSelect.onchange = (e) => { teamSortOrder = e.target.value; renderTeamList(); };
-    tmFiltersContainer.appendChild(sortSelect);
-
-    const tmActionsDiv = document.createElement('div');
-    tmActionsDiv.className = "team-management-actions";
-    const addMemberBtn = Button({
-      children: `Add Member (${teamMembers.length}/${maxTeamMembers})`, size: 'sm', leftIcon: '<i class="fas fa-user-plus"></i>',
-      onClick: () => openTeamMemberDetailModal(null), disabled: teamMembers.length >= maxTeamMembers });
-    tmActionsDiv.append(addMemberBtn,
-      Button({ children: 'Export Team CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-users-cog"></i>', onClick: onExportTeam }),
-      FileUploadButton({ children: 'Import Team CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-import"></i>', accept: '.csv', onFileSelect: (f) => handleFileImport(f, 'team') })
-    );
-    
-    tmToolbar.append(tmFiltersContainer, tmActionsDiv);
-    teamManagementDiv.appendChild(tmToolbar);
-
-    const teamListContainer = document.createElement('div');
-    teamListContainer.className = "team-list-container";
-    teamManagementDiv.appendChild(teamListContainer);
-    pageWrapper.appendChild(teamManagementDiv);
+  const uniqueDepartments = Array.from(new Set(teamMembers.map(m => m.department).filter(Boolean)));
+  if (uniqueDepartments.length > 0) {
+    const departmentSelect = document.createElement('select');
+    departmentSelect.className = 'form-select';
+    departmentSelect.innerHTML = `<option value="">All Departments</option>` + uniqueDepartments.map(d => `<option value="${d}">${d}</option>`).join('');
+    departmentSelect.value = departmentFilter;
+    departmentSelect.onchange = (e) => { departmentFilter = e.target.value; renderTeamList(); };
+    tmFiltersContainer.appendChild(departmentSelect);
   }
+
+  const sortOptions = [
+    { value: 'nameAsc', label: 'Sort: Name (A-Z)' },
+    { value: 'nameDesc', label: 'Sort: Name (Z-A)' },
+    { value: 'designationAsc', label: 'Sort: Designation (A-Z)' },
+    { value: 'designationDesc', label: 'Sort: Designation (Z-A)' },
+  ];
+  const sortSelect = document.createElement('select');
+  sortSelect.className = 'form-select';
+  sortSelect.innerHTML = sortOptions.map(opt => `<option value="${opt.value}" ${opt.value === teamSortOrder ? 'selected' : ''}>${opt.label}</option>`).join('');
+  sortSelect.onchange = (e) => { teamSortOrder = e.target.value; renderTeamList(); };
+  tmFiltersContainer.appendChild(sortSelect);
+
+  const tmActionsDiv = document.createElement('div');
+  tmActionsDiv.className = "team-management-actions";
+  
+  if (isManager) {
+      tmActionsDiv.append(
+        Button({
+            children: `Add Member (${teamMembers.length}/${maxTeamMembers})`, size: 'sm', leftIcon: '<i class="fas fa-user-plus"></i>',
+            onClick: () => openTeamMemberDetailModal(null), disabled: teamMembers.length >= maxTeamMembers
+        }),
+        Button({ 
+            children: 'Export Team CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-users-cog"></i>', onClick: onExportTeam 
+        }),
+        FileUploadButton({ 
+            children: 'Import Team CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-import"></i>', accept: '.csv', onFileSelect: (f) => handleFileImport(f, 'team') 
+        })
+      );
+  }
+  
+  tmToolbar.append(tmFiltersContainer, tmActionsDiv);
+  teamManagementDiv.appendChild(tmToolbar);
+
+  const teamListContainer = document.createElement('div');
+  teamListContainer.className = "team-list-container";
+  teamManagementDiv.appendChild(teamListContainer);
+  pageWrapper.appendChild(teamManagementDiv);
+
 
   const dailyLogSection = document.createElement('div');
   dailyLogSection.className = "daily-log-section";
@@ -232,6 +240,7 @@ export function renderAttendancePage(container, props) {
             tbody.appendChild(tr);
           });
 
+          // All users can click to view details, but only managers can edit from the modal.
           tbody.addEventListener('click', (e) => {
             const row = e.target.closest('tr');
             if (row && row.dataset.memberId) {
@@ -343,13 +352,17 @@ export function renderAttendancePage(container, props) {
   }
 
   function openTeamMemberDetailModal(member, isViewing = false) {
-    if (!member && isViewing) return; // Can't view a null member
+    if (!member && isViewing) return; 
+    
+    // Non-managers can never be in edit mode.
+    let isEditing = isManager ? !isViewing : false;
+
+    // A manager cannot add a new member if the team is full.
     if (!member && teamMembers.length >= maxTeamMembers) {
       alert(`Team size cannot exceed the maximum of ${maxTeamMembers} members.`);
       return;
     }
     
-    let isEditing = !isViewing;
     let modalEl, modalBody, modalFooter;
     
     const handleSaveTeamMember = (memberData) => {
@@ -362,6 +375,7 @@ export function renderAttendancePage(container, props) {
       modalFooter.innerHTML = '';
 
       if (isEditing) {
+        // This block will only be reachable by managers
         const formElement = TeamMemberForm({
           member,
           onSave: handleSaveTeamMember,
@@ -372,10 +386,15 @@ export function renderAttendancePage(container, props) {
       } else {
         modalBody.appendChild(renderTeamMemberDetailView(member));
         
-        const editButton = Button({ children: 'Edit', variant: 'primary', onClick: () => { isEditing = true; renderContent(); }});
-        const deleteButton = Button({ children: 'Delete', variant: 'danger', onClick: () => handleDeleteMember(member.id)});
-        const closeButton = Button({ children: 'Close', variant: 'secondary', onClick: closeTeamModal });
-        modalFooter.append(deleteButton, editButton, closeButton);
+        const footerButtons = [];
+        // Edit/Delete buttons are only for managers
+        if (isManager) {
+            footerButtons.push(Button({ children: 'Delete', variant: 'danger', onClick: () => handleDeleteMember(member.id) }));
+            footerButtons.push(Button({ children: 'Edit', variant: 'primary', onClick: () => { isEditing = true; renderContent(); }}));
+        }
+        footerButtons.push(Button({ children: 'Close', variant: 'secondary', onClick: closeTeamModal }));
+        
+        modalFooter.append(...footerButtons);
       }
     };
 
@@ -482,7 +501,7 @@ export function renderAttendancePage(container, props) {
     currentLogModalInstance = Modal({ isOpen: true, onClose: closeLogViewerModal, title: "View Logs", children: modalContent, footer: footerButtons, size: 'xl' });
   }
 
-  if(isManager) renderTeamList();
+  renderTeamList();
   renderDailyLogGrid();
   container.appendChild(pageWrapper);
 }
