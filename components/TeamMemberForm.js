@@ -1,5 +1,4 @@
 
-
 import { Button } from './Button.js';
 import { TeamMemberRole } from '../types.js';
 
@@ -119,6 +118,10 @@ export function TeamMemberForm({ member, onSave, onCancel }) {
       return;
     }
     
+    // Get password directly from the input field to ensure we only save if it's newly entered.
+    const passwordInput = form.querySelector('#memberPassword');
+    const newPassword = passwordInput ? passwordInput.value : '';
+
     const memberToSave = {
       id: member?.id || crypto.randomUUID(),
       name: formData.name.trim(),
@@ -134,17 +137,17 @@ export function TeamMemberForm({ member, onSave, onCancel }) {
     if (formData.department?.trim()) memberToSave.department = formData.department.trim();
     if (formData.company?.trim()) memberToSave.company = formData.company.trim();
 
-    // Handle password logic
-    if (!member) { // This is a new member
-        if (!formData.password?.trim()) {
+    // Handle password logic using the value directly from the input field.
+    if (!member) { // This is a new member, password is required.
+        if (!newPassword.trim()) {
             alert("Password is required for new members.");
             return;
         }
-        memberToSave.password = formData.password.trim();
-    } else { // This is an existing member
-        if (formData.password?.trim()) {
-            // Only include password if the user entered a new one
-            memberToSave.password = formData.password.trim();
+        memberToSave.password = newPassword.trim();
+    } else { // This is an existing member, password is optional.
+        if (newPassword.trim()) {
+            // Only include the password field in the update if the user entered a new one.
+            memberToSave.password = newPassword.trim();
         }
     }
 
