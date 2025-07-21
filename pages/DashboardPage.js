@@ -50,8 +50,10 @@ function renderManagerKPIs(props) {
     kpis.forEach(kpi => {
         container.innerHTML += `
             <div class="kpi-card">
-                <i class="fas ${kpi.icon} kpi-icon"></i>
-                <div class="kpi-text">
+                <div class="kpi-icon">
+                    <i class="fas ${kpi.icon}"></i>
+                </div>
+                <div>
                     <div class="kpi-value">${kpi.value}</div>
                     <div class="kpi-label">${kpi.label}</div>
                 </div>
@@ -95,7 +97,7 @@ function renderTeamPulse(props) {
         <div class="snapshot-deadlines">
             <h4>Due Today</h4>
             <ul class="snapshot-list">
-                ${projects.filter(p => p.date === today && p.status !== ProjectStatus.Done).map(p => `<li>${p.name}</li>`).join('') || '<li>No deadlines today.</li>'}
+                ${projects.filter(p => p.dueDate === today && p.status !== ProjectStatus.Done).map(p => `<li>${p.name}</li>`).join('') || '<li>No deadlines today.</li>'}
             </ul>
         </div>
     `;
@@ -201,15 +203,21 @@ function renderMemberHero(props) {
                     </div>
                 </div>
             </div>
-            <div class="hero-stat-card small">
-                <i class="fas fa-tasks hero-stat-icon"></i>
-                <span class="hero-stat-value">${myActiveProjects}</span>
-                <span class="hero-stat-label">Active Projects</span>
-            </div>
-            <div class="hero-stat-card small ${myOverdueProjects > 0 ? 'warning' : ''}">
-                <i class="fas fa-exclamation-triangle hero-stat-icon"></i>
-                <span class="hero-stat-value">${myOverdueProjects}</span>
-                <span class="hero-stat-label">Overdue</span>
+            <div class="hero-side-stats">
+                <div class="hero-stat-card small">
+                    <i class="fas fa-tasks hero-stat-icon"></i>
+                    <div>
+                        <span class="hero-stat-value">${myActiveProjects}</span>
+                        <span class="hero-stat-label">Active Projects</span>
+                    </div>
+                </div>
+                <div class="hero-stat-card small ${myOverdueProjects > 0 ? 'warning' : ''}">
+                    <i class="fas fa-exclamation-triangle hero-stat-icon"></i>
+                    <div>
+                        <span class="hero-stat-value">${myOverdueProjects}</span>
+                        <span class="hero-stat-label">Overdue</span>
+                    </div>
+                </div>
             </div>
         </div>
     `;
@@ -241,7 +249,7 @@ function renderMyFocus(props) {
             list.innerHTML += `
                 <li class="list-item">
                     <span class="item-title">${p.name}</span>
-                    <span class="item-meta ${isOverdue ? 'meta-overdue' : ''}">Due: ${new Date(p.dueDate).toLocaleDateString()}</span>
+                    <span class="item-meta ${isOverdue ? 'meta-overdue' : ''}">Due: ${new Date(p.dueDate + 'T00:00:00').toLocaleDateString()}</span>
                 </li>
             `;
         });
