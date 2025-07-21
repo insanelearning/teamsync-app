@@ -1,5 +1,7 @@
 
 
+import { Button } from './Button.js';
+
 export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, onLogout }) {
   const navItems = [
     { view: 'dashboard', label: 'Dashboard', icon: 'fas fa-home' },
@@ -36,7 +38,7 @@ export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, o
   leftSection.appendChild(logoDiv);
   flexDiv.appendChild(leftSection);
   
-  // --- Right Section (Menu, User Profile, Theme Toggle, Mobile Button) ---
+  // --- Right Section (Menu, Logout, Theme Toggle, Mobile Button) ---
   const rightSection = document.createElement('div');
   rightSection.className = 'navbar-right-section';
 
@@ -55,48 +57,20 @@ export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, o
   desktopMenuDiv.appendChild(desktopMenuItemsDiv);
   rightSection.appendChild(desktopMenuDiv);
   
-  // User Profile Menu
+  // Logout Button (replaces user profile menu)
   if (currentUser) {
-    const userProfileDiv = document.createElement('div');
-    userProfileDiv.className = 'navbar-user-profile';
-    
-    const userButton = document.createElement('button');
-    userButton.className = 'navbar-user-button';
-    userButton.innerHTML = `
-        <span class="navbar-user-name">${currentUser.name}</span>
-        <i class="fas fa-chevron-down navbar-chevron"></i>
-    `;
-    
-    const userMenu = document.createElement('div');
-    userMenu.className = 'navbar-user-menu';
-    
-    const logoutButton = document.createElement('button');
-    logoutButton.className = 'navbar-user-menu-item';
-    logoutButton.innerHTML = '<i class="fas fa-sign-out-alt"></i> Logout';
-    logoutButton.onclick = onLogout;
-    userMenu.appendChild(logoutButton);
-    
-    userProfileDiv.append(userButton, userMenu);
+    const logoutContainer = document.createElement('div');
+    logoutContainer.className = 'navbar-logout-container';
 
-    let isMenuOpen = false;
-    const toggleMenu = (e) => {
-        e.stopPropagation();
-        isMenuOpen = !isMenuOpen;
-        userMenu.style.display = isMenuOpen ? 'block' : 'none';
-        userButton.classList.toggle('active', isMenuOpen);
-    };
-
-    userButton.addEventListener('click', toggleMenu);
-
-    document.addEventListener('click', (e) => {
-        if (isMenuOpen && !userProfileDiv.contains(e.target)) {
-            isMenuOpen = false;
-            userMenu.style.display = 'none';
-            userButton.classList.remove('active');
-        }
-    }, true); // Use capture phase to handle clicks outside reliably
-    
-    rightSection.appendChild(userProfileDiv);
+    const logoutButton = Button({
+      variant: 'secondary',
+      size: 'sm',
+      onClick: onLogout,
+      leftIcon: '<i class="fas fa-sign-out-alt"></i>',
+      children: 'Logout'
+    });
+    logoutContainer.appendChild(logoutButton);
+    rightSection.appendChild(logoutContainer);
   }
 
   // Theme Toggle Button
@@ -146,6 +120,24 @@ export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, o
     button.innerHTML = `<i class="${item.icon} nav-item-icon"></i>${item.label}`;
     mobileMenuItemsDiv.appendChild(button);
   });
+  
+  // Add mobile logout button if logged in
+  if (currentUser) {
+      const separator = document.createElement('hr');
+      separator.className = 'navbar-mobile-menu-separator';
+      mobileMenuItemsDiv.appendChild(separator);
+
+      const logoutButtonMobile = document.createElement('button');
+      logoutButtonMobile.onclick = () => {
+          onLogout();
+          mobileMenuOpen = false; // Close menu
+          mobileMenuContainer.style.display = 'none';
+      }
+      logoutButtonMobile.className = 'nav-item-mobile';
+      logoutButtonMobile.innerHTML = `<i class="fas fa-sign-out-alt nav-item-icon"></i>Logout`;
+      mobileMenuItemsDiv.appendChild(logoutButtonMobile);
+  }
+
   mobileMenuContainer.appendChild(mobileMenuItemsDiv);
   navElement.appendChild(mobileMenuContainer);
 
