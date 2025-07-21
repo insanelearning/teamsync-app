@@ -1012,37 +1012,87 @@ footer.app-footer {
 }
 .nav-item-icon { margin-right: 0.375rem; /* mr-1.5 */ width: 1.125rem; /* w-4.5 */ text-align: center; }
 
-/* "View As" Selector in Navbar */
-.view-as-selector-container {
-    display: none; /* Hidden on mobile */
+/* User Profile Menu in Navbar */
+.navbar-user-profile {
+    position: relative;
+    display: none;
 }
 @media (min-width: 768px) {
-    .view-as-selector-container {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
+    .navbar-user-profile {
+        display: block;
     }
 }
-.view-as-label {
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: #6b7280;
-}
-.dark .view-as-label {
-    color: #9ca3af;
-}
-.view-as-select {
+.navbar-user-button {
     background-color: #f3f4f6;
     border: 1px solid #d1d5db;
-    border-radius: 0.375rem;
-    padding: 0.25rem 0.5rem;
+    border-radius: 9999px;
+    padding: 0.25rem 0.75rem 0.25rem 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+.dark .navbar-user-button {
+    background-color: #374151;
+    border-color: #4b5563;
+}
+.navbar-user-button:hover, .navbar-user-button.active {
+    background-color: #e5e7eb;
+}
+.dark .navbar-user-button:hover, .dark .navbar-user-button.active {
+    background-color: #4b5563;
+}
+.navbar-user-name {
     font-size: 0.875rem;
     font-weight: 500;
 }
-.dark .view-as-select {
+.navbar-chevron {
+    transition: transform 0.2s ease;
+}
+.navbar-user-button.active .navbar-chevron {
+    transform: rotate(180deg);
+}
+
+.navbar-user-menu {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: calc(100% + 0.5rem);
+    background-color: #ffffff;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
+    width: 160px;
+    z-index: 50;
+    padding: 0.25rem;
+    border: 1px solid #e5e7eb;
+}
+.dark .navbar-user-menu {
+    background-color: #1f2937;
+    border-color: #374151;
+}
+.navbar-user-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+    cursor: pointer;
+    background: none;
+    border: none;
+    text-align: left;
+    color: #374151;
+}
+.dark .navbar-user-menu-item {
+    color: #d1d5db;
+}
+.navbar-user-menu-item:hover {
+    background-color: #f3f4f6;
+}
+.dark .navbar-user-menu-item:hover {
     background-color: #374151;
-    border-color: #4b5563;
-    color: #f3f4f6;
 }
 
 .navbar-mobile-button-area { display: flex; align-items: center; }
@@ -2868,4 +2918,77 @@ footer.app-footer {
 
 .project-form-actions {
     justify-content: space-between;
+}
+
+/* Login Page */
+.login-page-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    width: 100%;
+    background-color: #f3f4f6; /* bg-gray-100 */
+}
+#root.login-page-container {
+    flex-direction: row;
+}
+.dark .login-page-container {
+    background-color: #111827; /* dark:bg-gray-900 */
+}
+.login-box {
+    width: 100%;
+    max-width: 400px;
+    padding: 2rem 2.5rem;
+    background-color: #ffffff;
+    border-radius: 0.75rem;
+    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1);
+}
+.dark .login-box {
+    background-color: #1f2937;
+}
+.login-logo {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 2rem;
+    font-weight: 700;
+    color: #4f46e5;
+    margin-bottom: 1.5rem;
+}
+.dark .login-logo {
+    color: #818cf8;
+}
+.login-title {
+    text-align: center;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #1f2937;
+    margin: 0 0 0.5rem 0;
+}
+.dark .login-title {
+    color: #ffffff;
+}
+.login-subtitle {
+    text-align: center;
+    color: #6b7280;
+    margin: 0 0 1.5rem 0;
+}
+.dark .login-subtitle {
+    color: #9ca3af;
+}
+.login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+.login-error-message {
+    color: #991b1b;
+    background-color: #fee2e2;
+    border: 1px solid #fca5a5;
+    padding: 0.75rem;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    text-align: center;
+    margin: 0;
 }
