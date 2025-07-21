@@ -1,5 +1,6 @@
 
-export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, teamMembers, onSetCurrentUser, isSwitchingUser = false }) {
+
+export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, onLogout }) {
   const navItems = [
     { view: 'dashboard', label: 'Dashboard', icon: 'fas fa-home' },
     { view: 'projects', label: 'Projects', icon: 'fas fa-tasks' },
@@ -35,7 +36,7 @@ export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, t
   leftSection.appendChild(logoDiv);
   flexDiv.appendChild(leftSection);
   
-  // --- Right Section (Menu, View As, Theme Toggle, Mobile Button) ---
+  // --- Right Section (Menu, User Profile, Theme Toggle, Mobile Button) ---
   const rightSection = document.createElement('div');
   rightSection.className = 'navbar-right-section';
 
@@ -52,39 +53,51 @@ export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, t
     desktopMenuItemsDiv.appendChild(button);
   });
   desktopMenuDiv.appendChild(desktopMenuItemsDiv);
-  rightSection.appendChild(desktopMenuDiv); // Add desktop menu to the right section
+  rightSection.appendChild(desktopMenuDiv);
   
-  // "View As" User Selector
-  if (teamMembers && teamMembers.length > 0) {
-      const viewAsContainer = document.createElement('div');
-      viewAsContainer.className = 'view-as-selector-container';
-      
-      const viewAsLabel = document.createElement('span');
-      viewAsLabel.className = 'view-as-label';
-      viewAsLabel.textContent = 'View As:';
-      viewAsContainer.appendChild(viewAsLabel);
+  // User Profile Menu
+  if (currentUser) {
+    const userProfileDiv = document.createElement('div');
+    userProfileDiv.className = 'navbar-user-profile';
+    
+    const userButton = document.createElement('button');
+    userButton.className = 'navbar-user-button';
+    userButton.innerHTML = `
+        <span class="navbar-user-name">${currentUser.name}</span>
+        <i class="fas fa-chevron-down navbar-chevron"></i>
+    `;
+    
+    const userMenu = document.createElement('div');
+    userMenu.className = 'navbar-user-menu';
+    
+    const logoutButton = document.createElement('button');
+    logoutButton.className = 'navbar-user-menu-item';
+    logoutButton.innerHTML = '<i class="fas fa-sign-out-alt"></i> Logout';
+    logoutButton.onclick = onLogout;
+    userMenu.appendChild(logoutButton);
+    
+    userProfileDiv.append(userButton, userMenu);
 
-      const viewAsSelect = document.createElement('select');
-      viewAsSelect.className = 'view-as-select';
-      viewAsSelect.disabled = isSwitchingUser;
-      if (isSwitchingUser) {
-        viewAsSelect.classList.add('disabled-select');
-      }
-      viewAsSelect.setAttribute('aria-label', 'Select user to view dashboard as');
-      teamMembers.forEach(member => {
-        const option = document.createElement('option');
-        option.value = member.id;
-        option.textContent = member.name;
-        if (currentUser && currentUser.id === member.id) {
-            option.selected = true;
+    let isMenuOpen = false;
+    const toggleMenu = (e) => {
+        e.stopPropagation();
+        isMenuOpen = !isMenuOpen;
+        userMenu.style.display = isMenuOpen ? 'block' : 'none';
+        userButton.classList.toggle('active', isMenuOpen);
+    };
+
+    userButton.addEventListener('click', toggleMenu);
+
+    document.addEventListener('click', (e) => {
+        if (isMenuOpen && !userProfileDiv.contains(e.target)) {
+            isMenuOpen = false;
+            userMenu.style.display = 'none';
+            userButton.classList.remove('active');
         }
-        viewAsSelect.appendChild(option);
-      });
-      viewAsSelect.onchange = (e) => onSetCurrentUser(e.target.value);
-      viewAsContainer.appendChild(viewAsSelect);
-      rightSection.appendChild(viewAsContainer);
+    }, true); // Use capture phase to handle clicks outside reliably
+    
+    rightSection.appendChild(userProfileDiv);
   }
-
 
   // Theme Toggle Button
   const themeToggleButton = document.createElement('button');
