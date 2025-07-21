@@ -1,11 +1,11 @@
 
+
 import { Button } from './Button.js';
 import { TeamMemberRole } from '../types.js';
 
 const getDefaultTeamMember = () => ({
   name: '',
   email: '',
-  password: '',
   employeeId: '',
   joinDate: new Date().toISOString().split('T')[0],
   birthDate: '',
@@ -92,18 +92,6 @@ export function TeamMemberForm({ member, onSave, onCancel }) {
   const companyField = createField('Company', 'text', 'company', formData.company);
   form.appendChild(companyField);
 
-  // Password field
-  const passwordField = createField(
-    'Password',
-    'password',
-    'password',
-    '', // Never pre-fill password value
-    !member, // Required only when creating a new member
-    { placeholder: member ? 'Leave blank to keep current password' : 'Enter password' }
-  );
-  form.appendChild(passwordField);
-
-
   const actionsDiv = document.createElement('div');
   actionsDiv.className = 'project-form-actions'; // Re-use class for consistent spacing/alignment
   const cancelButton = Button({ children: 'Cancel', variant: 'secondary', onClick: onCancel });
@@ -118,10 +106,6 @@ export function TeamMemberForm({ member, onSave, onCancel }) {
       return;
     }
     
-    // Get password directly from the input field to ensure we only save if it's newly entered.
-    const passwordInput = form.querySelector('#memberPassword');
-    const newPassword = passwordInput ? passwordInput.value : '';
-
     const memberToSave = {
       id: member?.id || crypto.randomUUID(),
       name: formData.name.trim(),
@@ -136,20 +120,6 @@ export function TeamMemberForm({ member, onSave, onCancel }) {
     if (formData.designation?.trim()) memberToSave.designation = formData.designation.trim();
     if (formData.department?.trim()) memberToSave.department = formData.department.trim();
     if (formData.company?.trim()) memberToSave.company = formData.company.trim();
-
-    // Handle password logic using the value directly from the input field.
-    if (!member) { // This is a new member, password is required.
-        if (!newPassword.trim()) {
-            alert("Password is required for new members.");
-            return;
-        }
-        memberToSave.password = newPassword.trim();
-    } else { // This is an existing member, password is optional.
-        if (newPassword.trim()) {
-            // Only include the password field in the update if the user entered a new one.
-            memberToSave.password = newPassword.trim();
-        }
-    }
 
     onSave(memberToSave);
   });
