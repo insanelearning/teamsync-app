@@ -1,10 +1,12 @@
 
+
 import { ProjectStatus, AttendanceStatus, LeaveType, NoteStatus, TeamMemberRole } from './types.js';
 
 export const INITIAL_TEAM_MEMBERS = Array.from({ length: 5 }, (_, i) => ({
   id: crypto.randomUUID(),
   name: `Team Member ${i + 1}`,
   email: `member${i+1}@example.com`,
+  password: 'password123',
   employeeId: `EMP00${i + 1}`,
   joinDate: new Date(new Date().setFullYear(new Date().getFullYear() - i)).toISOString().split('T')[0],
   birthDate: new Date(1990 + i, i % 12, (i*5 % 28) + 1).toISOString().split('T')[0],
