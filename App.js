@@ -225,10 +225,17 @@ const updateTeamMember = async (updatedMember) => {
   try {
     const { id, ...data } = updatedMember;
     await updateDocument('teamMembers', id, data);
-    teamMembers = teamMembers.map(m => m.id === id ? updatedMember : m);
+    
+    // To update local state, we need to merge the changes with the existing member object
+    // to preserve fields that weren't changed (like the password if left blank).
+    const oldMember = teamMembers.find(m => m.id === id);
+    const locallyUpdatedMember = { ...oldMember, ...updatedMember };
+    
+    teamMembers = teamMembers.map(m => m.id === id ? locallyUpdatedMember : m);
+    
     // If the currently logged in user was updated, update the currentUser object
     if (currentUser && currentUser.id === id) {
-        currentUser = updatedMember;
+        currentUser = locallyUpdatedMember;
     }
     renderApp();
   } catch (error) {
@@ -432,7 +439,13 @@ const handleImport = async (file, dataType) => {
         }).filter(Boolean);
     } else if (dataType === 'team') {
         collectionName = 'teamMembers';
-        processedData = data.filter(item => item.id && item.name);
+        processedData = data.map(item => {
+            if (!item.id || !item.name) return null;
+            return {
+                ...item,
+                password: item.password || 'password123' // Assign default password if missing
+            };
+        }).filter(Boolean);
         if ((teamMembers.length + processedData.length) > 20) {
            alert("Import would exceed the 20 team member limit. Please adjust your CSV file.");
            return;
