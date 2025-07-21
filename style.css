@@ -537,180 +537,134 @@ footer.app-footer {
 }
 
 /* --- Member Dashboard Styles --- */
-.member-hero {
-    background: #ffffff;
-    border-radius: 0.75rem;
-    padding: 1.5rem;
-    border: 1px solid #e5e7eb;
-    display: grid;
-    grid-template-columns: 1fr;
+.member-welcome-header {
+    display: flex;
+    justify-content: space-between;
     align-items: center;
-    gap: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
 }
-.dark .member-hero {
-    background: #1f2937;
-    border-color: #374151;
-}
-@media (min-width: 768px) {
-    .member-hero {
-        grid-template-columns: 1fr auto;
-        padding: 2rem;
-    }
-}
-.member-hero-welcome h2 {
+.member-welcome-header h2 {
     font-size: 1.75rem;
-    font-weight: 400;
-    margin: 0 0 0.5rem 0;
-}
-.dark .member-hero-welcome h2 {
-    color: #f3f4f6;
-}
-.member-hero-welcome p {
-    font-size: 1rem;
-    color: #6b7280;
-    margin: 0 0 1.5rem 0;
-    max-width: 400px;
-}
-.dark .member-hero-welcome p {
-    color: #9ca3af;
+    font-weight: 600;
+    margin: 0;
 }
 .member-hero-actions {
     display: flex;
     gap: 0.75rem;
 }
-.member-hero-stats {
-    display: flex;
-    gap: 2rem;
-    align-items: center;
-    justify-content: center;
-}
-@media (min-width: 768px) {
-    .member-hero-stats {
-        justify-content: flex-end;
-    }
-}
-.hero-side-stats {
-    display: flex;
-    flex-direction: column;
+
+.member-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: 1.5rem;
+    margin-bottom: 1.5rem; /* Replaces gap in dashboard-page */
 }
-.hero-stat-card {
-    background: #f9fafb;
-    border-radius: 0.5rem;
-    padding: 1rem;
+
+.member-stat-card {
+    background-color: #ffffff;
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    gap: 0.25rem;
-    border: 1px solid #f3f4f6;
+    gap: 0.5rem;
+    transition: all 0.2s ease-in-out;
 }
-.dark .hero-stat-card {
-    background: #374151;
-    border-color: #4b5563;
+.dark .member-stat-card {
+    background-color: #1f2937;
+    border-color: #374151;
 }
-.hero-stat-card.small {
-    background: transparent;
-    border: none;
-    box-shadow: none;
-    padding: 0;
-    width: auto;
-    height: auto;
-    flex-direction: row;
+.member-stat-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.08);
+}
+.member-stat-card.warning {
+    border-left: 4px solid #f97316;
+}
+.dark .member-stat-card.warning {
+    border-left-color: #fb923c;
+}
+
+.member-stat-card .stat-card-header {
+    display: flex;
     align-items: center;
     gap: 0.75rem;
-    text-align: left;
 }
-.dark .hero-stat-card.small {
-    background: transparent;
-    border-color: transparent;
-}
-.hero-stat-card.warning {
-    background-color: #fffbeb;
-}
-.dark .hero-stat-card.warning {
-    background-color: #78350f;
-}
-.hero-stat-card.small.warning {
-    background: transparent;
-}
-.dark .hero-stat-card.small.warning {
-    background: transparent;
-}
-
-.hero-stat-icon {
-    font-size: 1.25rem;
+.member-stat-card .stat-card-icon {
+    font-size: 1rem;
     color: #4f46e5;
-    margin-bottom: 0.25rem;
-}
-.dark .hero-stat-icon { color: #a5b4fc; }
-
-.hero-stat-card.small .hero-stat-icon {
-    font-size: 1.5rem;
-    margin-bottom: 0;
-}
-.hero-stat-card.warning .hero-stat-icon { color: #d97706; }
-.dark .hero-stat-card.warning .hero-stat-icon { color: #fcd34d; }
-
-.hero-stat-value {
-    font-size: 1.5rem;
-    font-weight: 700;
-}
-.hero-stat-card.small .hero-stat-value {
-    font-size: 1.25rem;
-    line-height: 1.1;
-}
-.hero-stat-label {
-    font-size: 0.75rem;
-    color: #6b7280;
-    text-transform: uppercase;
-}
-.dark .hero-stat-label {
-    color: #9ca3af;
-}
-.hero-stat-card.small .hero-stat-label {
-    text-transform: none;
-    font-size: 0.8rem;
-}
-
-
-/* Donut Chart in Member Hero */
-.donut-chart-container {
-    position: relative;
-    width: 130px;
-    height: 130px;
-}
-.donut-chart-svg .donut-background {
-    stroke: #e5e7eb;
-}
-.dark .donut-chart-svg .donut-background {
-    stroke: #374151;
-}
-.donut-chart-svg .donut-foreground {
-    stroke: #4f46e5;
-    transition: stroke-dasharray 0.5s ease-out;
-}
-.donut-text {
-    position: absolute;
-    inset: 0;
+    background-color: #eef2ff;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
 }
-.donut-value {
-    font-size: 1.5rem;
-    font-weight: 700;
+.dark .member-stat-card .stat-card-icon {
+    color: #a5b4fc;
+    background-color: #3730a3;
 }
-.donut-label {
-    font-size: 0.75rem;
+.member-stat-card.warning .stat-card-icon {
+    color: #f97316;
+    background-color: #ffedd5;
+}
+.dark .member-stat-card.warning .stat-card-icon {
+    color: #fdba74;
+    background-color: #9a3412;
+}
+
+.member-stat-card .stat-card-label {
+    font-size: 0.875rem;
+    font-weight: 500;
     color: #6b7280;
-    margin-top: -4px;
 }
-.dark .donut-label {
+.dark .member-stat-card .stat-card-label {
     color: #9ca3af;
 }
+
+.member-stat-card .stat-card-body {
+    flex-grow: 1;
+}
+.member-stat-card .stat-card-value {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #111827;
+}
+.dark .member-stat-card .stat-card-value {
+    color: #ffffff;
+}
+
+.member-stat-card .stat-card-detail {
+    font-size: 0.8rem;
+    color: #6b7280;
+    margin: 0.25rem 0 0 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.dark .member-stat-card .stat-card-detail {
+    color: #9ca3af;
+}
+.member-stat-card.warning .stat-card-detail {
+    font-weight: 500;
+}
+
+.sparkline-container {
+    width: 100%;
+    height: 40px;
+    margin-top: auto; /* Pushes to the bottom */
+}
+.sparkline-svg {
+    width: 100%;
+    height: 100%;
+}
+
 
 /* My Focus / My Notes Widget */
 .widget-list-condensed {
