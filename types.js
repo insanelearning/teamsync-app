@@ -1,4 +1,5 @@
 
+
 export const ProjectStatus = {
   ToDo: 'To Do',
   InProgress: 'In Progress',
@@ -35,6 +36,7 @@ export const TeamMemberRole = {
 //   id: string;
 //   name: string;
 //   email?: string;
+//   password?: string;
 //   employeeId?: string;
 //   joinDate?: string; // ISO date string YYYY-MM-DD
 //   birthDate?: string; // ISO date string YYYY-MM-DD
