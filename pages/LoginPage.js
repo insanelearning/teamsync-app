@@ -13,7 +13,7 @@ export function renderLoginPage(container, { onLogin, teamMembers }) {
             <span>TeamSync</span>
         </div>
         <h2 class="login-title">Sign in to your account</h2>
-        <p class="login-subtitle">Enter an email of a team member to continue.</p>
+        <p class="login-subtitle">Enter your email and password to continue.</p>
     `;
 
     const form = document.createElement('form');
@@ -33,6 +33,17 @@ export function renderLoginPage(container, { onLogin, teamMembers }) {
     emailInput.placeholder = 'you@example.com';
     emailInput.required = true;
     emailGroup.appendChild(emailInput);
+
+    const passwordGroup = document.createElement('div');
+    passwordGroup.innerHTML = `<label for="password" class="form-label">Password</label>`;
+    const passwordInput = document.createElement('input');
+    passwordInput.type = 'password';
+    passwordInput.id = 'password';
+    passwordInput.name = 'password';
+    passwordInput.className = 'form-input';
+    passwordInput.placeholder = '••••••••';
+    passwordInput.required = true;
+    passwordGroup.appendChild(passwordInput);
     
     const submitButton = document.createElement('button');
     submitButton.type = 'submit';
@@ -40,19 +51,20 @@ export function renderLoginPage(container, { onLogin, teamMembers }) {
     submitButton.style.width = '100%';
     submitButton.textContent = 'Login';
 
-    form.append(errorMsg, emailGroup, submitButton);
+    form.append(errorMsg, emailGroup, passwordGroup, submitButton);
 
     form.onsubmit = (e) => {
         e.preventDefault();
         const email = emailInput.value.trim().toLowerCase();
-        if (!email) return;
+        const password = passwordInput.value;
+        if (!email || !password) return;
 
         const member = teamMembers.find(m => m.email && m.email.toLowerCase() === email);
         
-        if (member) {
+        if (member && member.password === password) {
             onLogin(member);
         } else {
-            errorMsg.textContent = 'No team member found with that email.';
+            errorMsg.textContent = 'Invalid email or password.';
             errorMsg.style.display = 'block';
             emailInput.focus();
         }
