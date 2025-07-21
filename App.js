@@ -5,6 +5,7 @@ import { renderProjectsPage } from './pages/ProjectsPage.js';
 import { renderAttendancePage } from './pages/AttendancePage.js';
 import { renderNotesPage } from './pages/NotesPage.js';
 import { renderWorkLogPage } from './pages/WorkLogPage.js';
+import { renderLoginPage } from './pages/LoginPage.js';
 import { Navbar } from './components/Navbar.js';
 import { INITIAL_TEAM_MEMBERS } from './constants.js';
 import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery } from './services/firebaseService.js';
@@ -14,32 +15,35 @@ import { ProjectStatus, AttendanceStatus, LeaveType, NoteStatus, TeamMemberRole 
 let rootElement;
 let mainContentElement;
 
-// State - these are now local caches of the Firestore data.
-let currentView = localStorage.getItem('currentView') || 'dashboard';
+// State
+let currentView = sessionStorage.getItem('currentView') || 'dashboard';
 let projects = [];
 let attendance = [];
 let notes = [];
 let teamMembers = [];
 let workLogs = [];
-let currentUser = null;
-let isSwitchingUser = false; // Added for loading state
+let currentUser = null; // Start as null, will be set on login
 
-// --- Handler Functions ---
+// --- Login/Logout Handlers ---
 
-const setCurrentUser = async (userId) => {
-    const memberName = teamMembers.find(m => m.id === userId)?.name || 'user';
-    isSwitchingUser = true;
-    renderApp(memberName); // Pass name for loading message
-
-    // Small delay for UX, makes the change feel more tangible
-    await new Promise(resolve => setTimeout(resolve, 250));
-
-    currentUser = teamMembers.find(m => m.id === userId) || teamMembers[0];
-    localStorage.setItem('currentUserId', currentUser.id);
-
-    isSwitchingUser = false;
+const handleLogin = (member) => {
+    currentUser = member;
+    sessionStorage.setItem('currentUserId', member.id);
+    // After login, always go to dashboard
+    currentView = 'dashboard';
+    sessionStorage.setItem('currentView', 'dashboard');
     renderApp();
 };
+
+const handleLogout = () => {
+    currentUser = null;
+    sessionStorage.removeItem('currentUserId');
+    sessionStorage.removeItem('currentView'); // Also clear view preference
+    renderApp();
+};
+
+
+// --- Handler Functions ---
 
 // Project handlers
 const addProject = async (project) => {
@@ -222,7 +226,7 @@ const updateTeamMember = async (updatedMember) => {
     const { id, ...data } = updatedMember;
     await updateDocument('teamMembers', id, data);
     teamMembers = teamMembers.map(m => m.id === id ? updatedMember : m);
-    // If the currently viewed user was updated, update the currentUser object
+    // If the currently logged in user was updated, update the currentUser object
     if (currentUser && currentUser.id === id) {
         currentUser = updatedMember;
     }
@@ -280,12 +284,12 @@ const deleteTeamMember = async (memberId) => {
     workLogs = workLogs.filter(wl => wl.memberId !== memberId);
     teamMembers = teamMembers.filter(m => m.id !== memberId);
 
-    // 6. Reset current user if they were deleted
+    // 6. Logout if the current user was deleted
     if (currentUser && currentUser.id === memberId) {
-        setCurrentUser(teamMembers[0]?.id || null);
+        handleLogout();
+    } else {
+        renderApp();
     }
-    
-    renderApp();
 
   } catch (error) {
     console.error("Error deleting team member:", error);
@@ -512,7 +516,7 @@ const handleImport = async (file, dataType) => {
 
 function handleNavChange(view) {
   currentView = view;
-  localStorage.setItem('currentView', view);
+  sessionStorage.setItem('currentView', view);
   renderApp();
 }
 
@@ -520,32 +524,50 @@ function handleThemeToggle() {
     const isDark = document.documentElement.classList.toggle('dark');
     document.body.classList.toggle('dark');
     localStorage.theme = isDark ? 'dark' : 'light';
-    renderApp(); // Re-render to update navbar icon if needed
+    renderApp();
 }
 
-function renderApp(loadingForUser) {
-  if (!rootElement || !mainContentElement) {
+function buildMainLayout() {
+    rootElement.innerHTML = ''; // Clear login page or loading indicator
+    rootElement.className = ''; // Reset class from login page
+
+    const navbar = Navbar({ 
+        currentView, 
+        onNavChange: handleNavChange, 
+        onThemeToggle: handleThemeToggle,
+        currentUser,
+        onLogout: handleLogout
+    });
+    rootElement.appendChild(navbar);
+
+    mainContentElement = document.createElement('main');
+    mainContentElement.className = 'main-content';
+    rootElement.appendChild(mainContentElement);
+
+    const footer = document.createElement('footer');
+    footer.className = 'app-footer';
+    footer.innerHTML = `TeamSync &copy; ${new Date().getFullYear()}`;
+    rootElement.appendChild(footer);
+}
+
+
+function renderApp() {
+  if (!rootElement) {
     console.error("Root or main content element not initialized for rendering.");
     return;
   }
   
-  // Handle user switching loading state
-  if (isSwitchingUser) {
-      mainContentElement.innerHTML = `<div class="loading-container"><div class="spinner"></div><p>Loading ${loadingForUser}'s Data...</p></div>`;
-      const navbarElement = rootElement.querySelector('nav.navbar');
-      if (navbarElement) {
-          const newNavbar = Navbar({ 
-              currentView, 
-              onNavChange: handleNavChange, 
-              onThemeToggle: handleThemeToggle,
-              currentUser,
-              teamMembers,
-              onSetCurrentUser: setCurrentUser,
-              isSwitchingUser: true
-          });
-          navbarElement.replaceWith(newNavbar);
-      }
+  if (!currentUser) {
+      // Not logged in, render login page
+      rootElement.innerHTML = ''; // Clear whatever was there
+      renderLoginPage(rootElement, { onLogin: handleLogin, teamMembers });
       return;
+  }
+  
+  // If we are here, user is logged in. Build the main layout if it doesn't exist.
+  const isLayoutBuilt = rootElement.querySelector('nav.navbar');
+  if (!isLayoutBuilt) {
+      buildMainLayout();
   }
 
   // --- RBAC Data Filtering ---
@@ -642,9 +664,7 @@ function renderApp(loadingForUser) {
           onNavChange: handleNavChange, 
           onThemeToggle: handleThemeToggle,
           currentUser,
-          teamMembers,
-          onSetCurrentUser: setCurrentUser,
-          isSwitchingUser: false
+          onLogout: handleLogout
       });
       navbarElement.replaceWith(newNavbar);
   }
@@ -699,15 +719,6 @@ async function loadInitialData(seedIfEmpty = true) {
         }
     }
 
-
-    // Initialize current user
-    const savedUserId = localStorage.getItem('currentUserId');
-    currentUser = teamMembers.find(m => m.id === savedUserId) || teamMembers[0];
-    if (currentUser) {
-        localStorage.setItem('currentUserId', currentUser.id);
-    }
-
-
   } catch (error) {
     console.error("Failed to load initial data from Firestore:", error);
     rootElement.innerHTML = `<div class="firebase-config-error-container">
@@ -727,27 +738,6 @@ export async function initializeApp(appRootElement) {
 
   await loadInitialData();
   
-  rootElement.innerHTML = ''; // Clear loading indicator
-
-  const navbar = Navbar({ 
-      currentView, 
-      onNavChange: handleNavChange, 
-      onThemeToggle: handleThemeToggle,
-      currentUser,
-      teamMembers,
-      onSetCurrentUser: setCurrentUser,
-  });
-  rootElement.appendChild(navbar);
-
-  mainContentElement = document.createElement('main');
-  mainContentElement.className = 'main-content';
-  rootElement.appendChild(mainContentElement);
-
-  const footer = document.createElement('footer');
-  footer.className = 'app-footer';
-  footer.innerHTML = `TeamSync &copy; ${new Date().getFullYear()}`;
-  rootElement.appendChild(footer);
-
   // Set theme based on preference
   if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
     document.documentElement.classList.add('dark');
@@ -755,6 +745,12 @@ export async function initializeApp(appRootElement) {
   } else {
     document.documentElement.classList.remove('dark');
     document.body.classList.remove('dark');
+  }
+
+  // Attempt to resume session
+  const savedUserId = sessionStorage.getItem('currentUserId');
+  if (savedUserId) {
+    currentUser = teamMembers.find(m => m.id === savedUserId) || null;
   }
 
   renderApp();
