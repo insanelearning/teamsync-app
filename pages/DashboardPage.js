@@ -156,73 +156,119 @@ function renderActivityFeed(props) {
 
 // --- Member Dashboard Widgets ---
 
-function renderMemberHero(props) {
+function createStatCard({ icon, label, value, detail, sparklineData }) {
+    const card = document.createElement('div');
+    card.className = 'member-stat-card';
+    
+    let detailHTML = detail ? `<p class="stat-card-detail">${detail}</p>` : '';
+    let sparklineHTML = '';
+
+    if (sparklineData) {
+        // Simple SVG sparkline generation
+        const points = sparklineData.points.map((p, i) => `${i * (100 / (sparklineData.points.length - 1))},${100 - p * (100 / sparklineData.max)}`).join(' ');
+        sparklineHTML = `
+            <div class="sparkline-container">
+                <svg viewBox="0 0 100 100" class="sparkline-svg" preserveAspectRatio="none">
+                    <polyline fill="none" stroke="${sparklineData.color || '#4f46e5'}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" points="${points}" />
+                </svg>
+            </div>
+        `;
+    }
+
+    card.innerHTML = `
+        <div class="stat-card-header">
+            <div class="stat-card-icon"><i class="fas ${icon}"></i></div>
+            <span class="stat-card-label">${label}</span>
+        </div>
+        <div class="stat-card-body">
+            <p class="stat-card-value">${value}</p>
+            ${detailHTML}
+        </div>
+        ${sparklineHTML}
+    `;
+    return card;
+}
+
+function renderMemberStats(props) {
     const { currentUser, workLogs, projects } = props;
     const container = document.createElement('div');
-    container.className = 'member-hero';
+    container.className = 'member-stats-grid';
 
-    const today = new Date().toISOString().split('T')[0];
-    const myTodaysMinutes = workLogs
-        .filter(wl => wl.memberId === currentUser.id && wl.date === today)
-        .reduce((sum, log) => sum + (log.timeSpentMinutes || 0), 0);
+    // --- Stat Calculations ---
+    const today = new Date();
+    const startOfWeek = getStartOfWeek();
+
+    // 1. Hours logged this week & sparkline data
+    const weeklyLogs = workLogs.filter(log => log.memberId === currentUser.id && new Date(log.date) >= new Date(startOfWeek));
+    const hoursThisWeek = weeklyLogs.reduce((sum, log) => sum + (log.timeSpentMinutes || 0), 0);
     
-    const myActiveProjects = projects.filter(p => (p.assignees || []).includes(currentUser.id) && p.status !== ProjectStatus.Done).length;
-    const myOverdueProjects = projects.filter(p => (p.assignees || []).includes(currentUser.id) && p.status !== ProjectStatus.Done && new Date(p.dueDate) < new Date()).length;
+    const dailyHours = Array(7).fill(0);
+    for (let i = 0; i < 7; i++) {
+        const d = new Date();
+        d.setDate(new Date(startOfWeek).getDate() + i);
+        const dateStr = d.toISOString().split('T')[0];
+        dailyHours[i] = weeklyLogs.filter(l => l.date === dateStr).reduce((sum, l) => sum + (l.timeSpentMinutes || 0), 0) / 60; // in hours
+    }
+    const maxDailyHours = Math.max(...dailyHours, 1); // Avoid division by zero
 
-    container.innerHTML = `
-        <div class="member-hero-welcome">
-            <h2>Welcome back, <strong>${currentUser.name.split(' ')[0]}</strong>!</h2>
-            <p>Here's your personal dashboard. Let's make today productive.</p>
-            <div class="member-hero-actions">
-                ${Button({
-                    children: 'Log My Work',
-                    leftIcon: '<i class="fas fa-plus"></i>',
-                    onClick: () => openModal('worklog', props)
-                }).outerHTML}
-                ${Button({
-                    children: 'Add a Note',
-                    variant: 'secondary',
-                    leftIcon: '<i class="fas fa-sticky-note"></i>',
-                    onClick: () => openModal('note', props)
-                }).outerHTML}
-            </div>
-        </div>
-        <div class="member-hero-stats">
-            <div class="hero-stat-card">
-                <div class="donut-chart-container">
-                    <svg viewBox="0 0 36 36" class="donut-chart-svg">
-                        <path class="donut-background" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke-width="3"></path>
-                        <path class="donut-foreground" stroke-width="3.2" stroke-linecap="round" fill="none"
-                            stroke-dasharray="${(myTodaysMinutes / 480 * 100)}, 100"
-                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831">
-                        </path>
-                    </svg>
-                    <div class="donut-text">
-                        <span class="donut-value">${formatMinutes(myTodaysMinutes)}</span>
-                        <span class="donut-label">Logged Today</span>
-                    </div>
-                </div>
-            </div>
-            <div class="hero-side-stats">
-                <div class="hero-stat-card small">
-                    <i class="fas fa-tasks hero-stat-icon"></i>
-                    <div>
-                        <span class="hero-stat-value">${myActiveProjects}</span>
-                        <span class="hero-stat-label">Active Projects</span>
-                    </div>
-                </div>
-                <div class="hero-stat-card small ${myOverdueProjects > 0 ? 'warning' : ''}">
-                    <i class="fas fa-exclamation-triangle hero-stat-icon"></i>
-                    <div>
-                        <span class="hero-stat-value">${myOverdueProjects}</span>
-                        <span class="hero-stat-label">Overdue</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
+    // 2. Projects completed this week
+    const projectsCompletedThisWeek = projects.filter(p => 
+        (p.assignees || []).includes(currentUser.id) &&
+        p.status === ProjectStatus.Done &&
+        p.completionDate &&
+        new Date(p.completionDate) >= new Date(startOfWeek)
+    ).length;
+
+    // 3. Overdue projects
+    const overdueProjectsCount = projects.filter(p => 
+        (p.assignees || []).includes(currentUser.id) && 
+        p.status !== ProjectStatus.Done && 
+        new Date(p.dueDate) < today
+    ).length;
+
+    // 4. Next deadline
+    const nextDueProject = projects
+        .filter(p => (p.assignees || []).includes(currentUser.id) && p.status !== ProjectStatus.Done && new Date(p.dueDate) >= today)
+        .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))[0];
+
+    // --- Create Cards ---
+    container.appendChild(createStatCard({
+        icon: 'fa-clock',
+        label: 'Time Logged This Week',
+        value: formatMinutes(hoursThisWeek),
+        sparklineData: {
+            points: dailyHours,
+            max: maxDailyHours,
+            color: '#4f46e5'
+        }
+    }));
+    
+    container.appendChild(createStatCard({
+        icon: 'fa-check-circle',
+        label: 'Projects Completed',
+        value: projectsCompletedThisWeek,
+        detail: 'Since start of week'
+    }));
+
+    const overdueCard = createStatCard({
+        icon: 'fa-exclamation-triangle',
+        label: 'Overdue Projects',
+        value: overdueProjectsCount,
+        detail: overdueProjectsCount > 0 ? 'Action required' : 'All caught up!'
+    });
+    if (overdueProjectsCount > 0) overdueCard.classList.add('warning');
+    container.appendChild(overdueCard);
+
+    container.appendChild(createStatCard({
+        icon: 'fa-calendar-check',
+        label: 'Next Deadline',
+        value: nextDueProject ? new Date(nextDueProject.dueDate + 'T00:00:00').toLocaleDateString() : 'N/A',
+        detail: nextDueProject ? nextDueProject.name : 'No upcoming deadlines'
+    }));
+
     return container;
 }
+
 
 function renderMyFocus(props) {
     const { currentUser, projects } = props;
@@ -365,7 +411,33 @@ function renderManagerDashboard(container, props) {
 }
 
 function renderMemberDashboard(container, props) {
-    container.appendChild(renderMemberHero(props));
+    const { currentUser } = props;
+    
+    const welcomeHeader = document.createElement('div');
+    welcomeHeader.className = 'member-welcome-header';
+
+    const welcomeText = document.createElement('h2');
+    welcomeText.innerHTML = `Welcome back, <strong>${currentUser.name.split(' ')[0]}</strong>!`;
+    
+    const welcomeActions = document.createElement('div');
+    welcomeActions.className = 'member-hero-actions'; // reuse class
+    welcomeActions.append(
+        Button({
+            children: 'Log My Work',
+            leftIcon: '<i class="fas fa-plus"></i>',
+            onClick: () => openModal('worklog', props)
+        }),
+        Button({
+            children: 'Add a Note',
+            variant: 'secondary',
+            leftIcon: '<i class="fas fa-sticky-note"></i>',
+            onClick: () => openModal('note', props)
+        })
+    );
+    welcomeHeader.append(welcomeText, welcomeActions);
+    container.appendChild(welcomeHeader);
+
+    container.appendChild(renderMemberStats(props));
     
     const layout = document.createElement('div');
     layout.className = 'dashboard-layout-member';
