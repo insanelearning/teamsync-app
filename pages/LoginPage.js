@@ -56,7 +56,7 @@ export function renderLoginPage(container, { onLogin, teamMembers }) {
     form.onsubmit = (e) => {
         e.preventDefault();
         const email = emailInput.value.trim().toLowerCase();
-        const password = passwordInput.value;
+        const password = passwordInput.value.trim(); // Trim password input
         if (!email || !password) return;
 
         const member = teamMembers.find(m => m.email && m.email.toLowerCase() === email);
