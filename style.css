@@ -580,13 +580,19 @@ footer.app-footer {
 }
 .member-hero-stats {
     display: flex;
-    gap: 1rem;
+    gap: 2rem;
+    align-items: center;
     justify-content: center;
 }
 @media (min-width: 768px) {
     .member-hero-stats {
         justify-content: flex-end;
     }
+}
+.hero-side-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
 }
 .hero-stat-card {
     background: #f9fafb;
@@ -605,8 +611,20 @@ footer.app-footer {
     border-color: #4b5563;
 }
 .hero-stat-card.small {
-    width: 100px;
-    height: 100px;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    width: auto;
+    height: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.75rem;
+    text-align: left;
+}
+.dark .hero-stat-card.small {
+    background: transparent;
+    border-color: transparent;
 }
 .hero-stat-card.warning {
     background-color: #fffbeb;
@@ -614,18 +632,34 @@ footer.app-footer {
 .dark .hero-stat-card.warning {
     background-color: #78350f;
 }
+.hero-stat-card.small.warning {
+    background: transparent;
+}
+.dark .hero-stat-card.small.warning {
+    background: transparent;
+}
+
 .hero-stat-icon {
     font-size: 1.25rem;
     color: #4f46e5;
     margin-bottom: 0.25rem;
 }
 .dark .hero-stat-icon { color: #a5b4fc; }
+
+.hero-stat-card.small .hero-stat-icon {
+    font-size: 1.5rem;
+    margin-bottom: 0;
+}
 .hero-stat-card.warning .hero-stat-icon { color: #d97706; }
 .dark .hero-stat-card.warning .hero-stat-icon { color: #fcd34d; }
 
 .hero-stat-value {
     font-size: 1.5rem;
     font-weight: 700;
+}
+.hero-stat-card.small .hero-stat-value {
+    font-size: 1.25rem;
+    line-height: 1.1;
 }
 .hero-stat-label {
     font-size: 0.75rem;
@@ -635,6 +669,11 @@ footer.app-footer {
 .dark .hero-stat-label {
     color: #9ca3af;
 }
+.hero-stat-card.small .hero-stat-label {
+    text-transform: none;
+    font-size: 0.8rem;
+}
+
 
 /* Donut Chart in Member Hero */
 .donut-chart-container {
