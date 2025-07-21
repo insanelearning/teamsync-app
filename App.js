@@ -441,10 +441,9 @@ const handleImport = async (file, dataType) => {
         collectionName = 'teamMembers';
         processedData = data.map(item => {
             if (!item.id || !item.name) return null;
-            return {
-                ...item,
-                password: item.password || 'password123' // Assign default password if missing
-            };
+            // Remove password property if it exists from imported data
+            const { password, ...memberData } = item;
+            return memberData;
         }).filter(Boolean);
         if ((teamMembers.length + processedData.length) > 20) {
            alert("Import would exceed the 20 team member limit. Please adjust your CSV file.");
