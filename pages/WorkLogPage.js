@@ -20,6 +20,8 @@ export function renderWorkLogPage(container, props) {
     const { workLogs, teamMembers, projects, currentUser, onAddMultipleWorkLogs, onUpdateWorkLog, onDeleteWorkLog, onExport, onImport } = props;
 
     const isManager = currentUser.role === TeamMemberRole.Manager;
+    let currentPage = 1;
+    let rowsPerPage = 10;
 
     let filterState = {
         memberId: isManager ? '' : currentUser.id,
@@ -141,6 +143,12 @@ export function renderWorkLogPage(container, props) {
     const tableContainer = document.createElement('div');
     tableContainer.className = 'data-table-container';
     contentSection.appendChild(tableContainer);
+
+    // Pagination
+    const paginationContainer = document.createElement('div');
+    paginationContainer.className = 'pagination-controls';
+    contentSection.appendChild(paginationContainer);
+
     pageWrapper.appendChild(contentSection);
 
     function getFilteredLogs() {
@@ -195,62 +203,109 @@ export function renderWorkLogPage(container, props) {
             <div class="sub-label">Against 8h/day goal</div>`;
     }
 
-    function rerenderTable(filteredLogs) {
-        tableContainer.innerHTML = '';
+    function rerenderTableAndPagination(allFilteredLogs) {
+        // Pagination logic
+        const totalRows = allFilteredLogs.length;
+        const totalPages = Math.ceil(totalRows / rowsPerPage) || 1;
+        if (currentPage > totalPages) {
+            currentPage = totalPages;
+        }
+        
+        const startIndex = (currentPage - 1) * rowsPerPage;
+        const endIndex = startIndex + rowsPerPage;
+        const logsForPage = allFilteredLogs.slice(startIndex, endIndex);
 
-        if (filteredLogs.length === 0) {
+        // Render Table
+        tableContainer.innerHTML = '';
+        if (logsForPage.length === 0) {
             tableContainer.innerHTML = `
                 <div class="no-data-placeholder">
                     <i class="fas fa-folder-open icon"></i>
                     <p class="primary-text">No work logs found.</p>
                     <p class="secondary-text">Try adjusting the filters or add a new log.</p>
                 </div>`;
-            return;
+        } else {
+            const table = document.createElement('table');
+            table.className = 'data-table work-log-table';
+            table.innerHTML = `<thead><tr>
+                <th>Date</th>
+                <th>Member</th>
+                <th>Project</th>
+                <th>Task</th>
+                <th>Comments</th>
+                <th>Time Spent</th>
+                <th class="action-cell">Actions</th>
+            </tr></thead>`;
+            const tbody = document.createElement('tbody');
+            
+            const getMemberName = (id) => teamMembers.find(m => m.id === id)?.name || 'N/A';
+            const getProjectName = (id) => projects.find(p => p.id === id)?.name || 'N/A';
+
+            logsForPage.forEach(log => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${new Date(log.date + 'T00:00:00').toLocaleDateString()}</td>
+                    <td>${getMemberName(log.memberId)}</td>
+                    <td>${getProjectName(log.projectId)}</td>
+                    <td class="truncate" title="${log.taskName}">${log.taskName}</td>
+                    <td class="truncate" title="${log.comments || ''}">${log.comments || '-'}</td>
+                    <td>${formatMinutes(log.timeSpentMinutes)}</td>
+                `;
+
+                const actionCell = document.createElement('td');
+                actionCell.className = 'action-cell';
+                if (isManager || currentUser.id === log.memberId) {
+                    actionCell.append(
+                        Button({ variant: 'ghost', size: 'sm', onClick: () => openModal(log), children: '<i class="fas fa-edit"></i>' }),
+                        Button({ variant: 'danger', size: 'sm', onClick: () => {
+                            if (confirm('Delete this log entry?')) onDeleteWorkLog(log.id);
+                        }, children: '<i class="fas fa-trash"></i>' })
+                    );
+                }
+                tr.appendChild(actionCell);
+                tbody.appendChild(tr);
+            });
+            table.appendChild(tbody);
+            tableContainer.appendChild(table);
         }
 
-        const table = document.createElement('table');
-        table.className = 'data-table work-log-table';
-        table.innerHTML = `<thead><tr>
-            <th>Date</th>
-            <th>Member</th>
-            <th>Project</th>
-            <th>Task</th>
-            <th>Comments</th>
-            <th>Time Spent</th>
-            <th class="action-cell">Actions</th>
-        </tr></thead>`;
-        const tbody = document.createElement('tbody');
-        
-        const getMemberName = (id) => teamMembers.find(m => m.id === id)?.name || 'N/A';
-        const getProjectName = (id) => projects.find(p => p.id === id)?.name || 'N/A';
+        // Render Pagination Controls
+        paginationContainer.innerHTML = '';
+        if (totalRows > 0) {
+            const rowsSelectorContainer = document.createElement('div');
+            rowsSelectorContainer.className = 'pagination-rows-selector';
+            rowsSelectorContainer.innerHTML = `<label for="rowsPerPageSelect" class="form-label mb-0">Rows:</label>`;
+            const rowsSelect = document.createElement('select');
+            rowsSelect.id = 'rowsPerPageSelect';
+            rowsSelect.className = 'form-select';
+            rowsSelect.innerHTML = `
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="20">20</option>
+                <option value="30">30</option>`;
+            rowsSelect.value = rowsPerPage;
+            rowsSelect.onchange = (e) => {
+                rowsPerPage = Number(e.target.value);
+                currentPage = 1;
+                rerenderPage();
+            };
+            rowsSelectorContainer.appendChild(rowsSelect);
 
-        filteredLogs.forEach(log => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${new Date(log.date + 'T00:00:00').toLocaleDateString()}</td>
-                <td>${getMemberName(log.memberId)}</td>
-                <td>${getProjectName(log.projectId)}</td>
-                <td class="truncate" title="${log.taskName}">${log.taskName}</td>
-                <td class="truncate" title="${log.comments || ''}">${log.comments || '-'}</td>
-                <td>${formatMinutes(log.timeSpentMinutes)}</td>
-            `;
+            const navContainer = document.createElement('div');
+            navContainer.className = 'pagination-nav';
+            const pageInfo = document.createElement('span');
+            pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
 
-            const actionCell = document.createElement('td');
-            actionCell.className = 'action-cell';
-            // Only managers or the user who created the log can edit/delete
-            if (isManager || currentUser.id === log.memberId) {
-                actionCell.append(
-                    Button({ variant: 'ghost', size: 'sm', onClick: () => openModal(log), children: '<i class="fas fa-edit"></i>' }),
-                    Button({ variant: 'danger', size: 'sm', onClick: () => {
-                        if (confirm('Delete this log entry?')) onDeleteWorkLog(log.id);
-                    }, children: '<i class="fas fa-trash"></i>' })
-                );
-            }
-            tr.appendChild(actionCell);
-            tbody.appendChild(tr);
-        });
-        table.appendChild(tbody);
-        tableContainer.appendChild(table);
+            const prevButton = Button({ children: 'Prev', variant: 'secondary', size: 'sm', disabled: currentPage === 1, onClick: () => {
+                if(currentPage > 1) { currentPage--; rerenderPage(); }
+            }});
+            const nextButton = Button({ children: 'Next', variant: 'secondary', size: 'sm', disabled: currentPage >= totalPages, onClick: () => {
+                if(currentPage < totalPages) { currentPage++; rerenderPage(); }
+            }});
+
+            navContainer.append(prevButton, pageInfo, nextButton);
+            paginationContainer.append(rowsSelectorContainer, navContainer);
+        }
     }
     
     function openModal(log = null) {
@@ -283,7 +338,7 @@ export function renderWorkLogPage(container, props) {
     function rerenderPage() {
         const filteredLogs = getFilteredLogs();
         updateSummaries(filteredLogs);
-        rerenderTable(filteredLogs);
+        rerenderTableAndPagination(filteredLogs);
     }
 
     rerenderPage();
