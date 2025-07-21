@@ -1,10 +1,12 @@
 
+
 import { Button } from './Button.js';
 import { TeamMemberRole } from '../types.js';
 
 const getDefaultTeamMember = () => ({
   name: '',
   email: '',
+  password: '',
   employeeId: '',
   joinDate: new Date().toISOString().split('T')[0],
   birthDate: '',
@@ -48,6 +50,7 @@ export function TeamMemberForm({ member, onSave, onCancel }) {
         input.type = inputType;
         input.className = 'form-input';
         input.value = value || '';
+        if (options.placeholder) input.placeholder = options.placeholder;
     }
 
     input.id = `member${name.charAt(0).toUpperCase() + name.slice(1)}`;
@@ -64,7 +67,7 @@ export function TeamMemberForm({ member, onSave, onCancel }) {
   const nameEmailGrid = document.createElement('div');
   nameEmailGrid.className = "form-grid-cols-2";
   nameEmailGrid.appendChild(createField('Member Name', 'text', 'name', formData.name, true));
-  nameEmailGrid.appendChild(createField('Email', 'email', 'email', formData.email));
+  nameEmailGrid.appendChild(createField('Email', 'email', 'email', formData.email, true));
   form.appendChild(nameEmailGrid);
 
   const idDesignationGrid = document.createElement('div');
@@ -90,6 +93,17 @@ export function TeamMemberForm({ member, onSave, onCancel }) {
   const companyField = createField('Company', 'text', 'company', formData.company);
   form.appendChild(companyField);
 
+  // Password field
+  const passwordField = createField(
+    'Password',
+    'password',
+    'password',
+    '', // Never pre-fill password value
+    !member, // Required only when creating a new member
+    { placeholder: member ? 'Leave blank to keep current password' : 'Enter password' }
+  );
+  form.appendChild(passwordField);
+
 
   const actionsDiv = document.createElement('div');
   actionsDiv.className = 'project-form-actions'; // Re-use class for consistent spacing/alignment
@@ -100,25 +114,39 @@ export function TeamMemberForm({ member, onSave, onCancel }) {
 
   form.addEventListener('submit', (e) => {
     e.preventDefault();
-    if (!formData.name.trim()) {
-      alert("Member name cannot be empty.");
+    if (!formData.name.trim() || !formData.email.trim()) {
+      alert("Member name and email are required.");
       return;
     }
-    // This object is constructed to avoid sending `undefined` for empty fields,
-    // which is not allowed by Firestore and was causing the save error.
+    
     const memberToSave = {
       id: member?.id || crypto.randomUUID(),
       name: formData.name.trim(),
       role: formData.role,
     };
     
-    if (formData.email?.trim()) memberToSave.email = formData.email.trim();
+    // Add optional fields only if they have a value
+    if (formData.email?.trim()) memberToSave.email = formData.email.trim().toLowerCase();
     if (formData.employeeId?.trim()) memberToSave.employeeId = formData.employeeId.trim();
     if (formData.joinDate) memberToSave.joinDate = formData.joinDate;
     if (formData.birthDate) memberToSave.birthDate = formData.birthDate;
     if (formData.designation?.trim()) memberToSave.designation = formData.designation.trim();
     if (formData.department?.trim()) memberToSave.department = formData.department.trim();
     if (formData.company?.trim()) memberToSave.company = formData.company.trim();
+
+    // Handle password logic
+    if (!member) { // This is a new member
+        if (!formData.password?.trim()) {
+            alert("Password is required for new members.");
+            return;
+        }
+        memberToSave.password = formData.password.trim();
+    } else { // This is an existing member
+        if (formData.password?.trim()) {
+            // Only include password if the user entered a new one
+            memberToSave.password = formData.password.trim();
+        }
+    }
 
     onSave(memberToSave);
   });
