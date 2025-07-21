@@ -1012,88 +1012,30 @@ footer.app-footer {
 }
 .nav-item-icon { margin-right: 0.375rem; /* mr-1.5 */ width: 1.125rem; /* w-4.5 */ text-align: center; }
 
-/* User Profile Menu in Navbar */
-.navbar-user-profile {
-    position: relative;
+/* Logout Button */
+.navbar-logout-container {
     display: none;
 }
-@media (min-width: 768px) {
-    .navbar-user-profile {
-        display: block;
+@media (min-width: 768px) { /* md */
+    .navbar-logout-container {
+        display: flex;
+        align-items: center;
     }
 }
-.navbar-user-button {
-    background-color: #f3f4f6;
-    border: 1px solid #d1d5db;
-    border-radius: 9999px;
-    padding: 0.25rem 0.75rem 0.25rem 0.5rem;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    cursor: pointer;
-    transition: background-color 0.2s ease;
+.navbar-mobile-menu-separator {
+    border: none;
+    border-top: 1px solid #e5e7eb;
+    margin: 0.5rem 1rem;
 }
-.dark .navbar-user-button {
-    background-color: #374151;
-    border-color: #4b5563;
-}
-.navbar-user-button:hover, .navbar-user-button.active {
-    background-color: #e5e7eb;
-}
-.dark .navbar-user-button:hover, .dark .navbar-user-button.active {
-    background-color: #4b5563;
-}
-.navbar-user-name {
-    font-size: 0.875rem;
-    font-weight: 500;
-}
-.navbar-chevron {
-    transition: transform 0.2s ease;
-}
-.navbar-user-button.active .navbar-chevron {
-    transform: rotate(180deg);
+.dark .navbar-mobile-menu-separator {
+    border-top-color: #374151;
 }
 
-.navbar-user-menu {
-    display: none;
-    position: absolute;
-    right: 0;
-    top: calc(100% + 0.5rem);
-    background-color: #ffffff;
-    border-radius: 0.5rem;
-    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
-    width: 160px;
-    z-index: 50;
-    padding: 0.25rem;
-    border: 1px solid #e5e7eb;
+/* User Profile Menu (Old styles, can be removed) */
+.navbar-user-profile, .navbar-user-button, .navbar-user-menu {
+    display: none !important;
 }
-.dark .navbar-user-menu {
-    background-color: #1f2937;
-    border-color: #374151;
-}
-.navbar-user-menu-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    width: 100%;
-    padding: 0.5rem;
-    border-radius: 0.25rem;
-    font-size: 0.875rem;
-    cursor: pointer;
-    background: none;
-    border: none;
-    text-align: left;
-    color: #374151;
-}
-.dark .navbar-user-menu-item {
-    color: #d1d5db;
-}
-.navbar-user-menu-item:hover {
-    background-color: #f3f4f6;
-}
-.dark .navbar-user-menu-item:hover {
-    background-color: #374151;
-}
+
 
 .navbar-mobile-button-area { display: flex; align-items: center; }
 @media (min-width: 768px) { /* md */
@@ -2852,6 +2794,35 @@ footer.app-footer {
 }
 .dark .date-range-separator {
     color: #9ca3af;
+}
+
+.pagination-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 0;
+    margin-top: 1rem;
+}
+.dark .pagination-controls {
+    border-top-color: #374151;
+}
+.pagination-rows-selector, .pagination-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+.pagination-rows-selector .form-label {
+    margin-bottom: 0;
+}
+.dark .pagination-rows-selector .form-label {
+    color: #9ca3af;
+}
+.pagination-rows-selector .form-select {
+    width: auto;
+}
+.pagination-nav span {
+    font-size: 0.875rem;
+    font-weight: 500;
 }
 
 /* Work Log Form (Multi-add) */
