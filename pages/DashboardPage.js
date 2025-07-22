@@ -22,6 +22,17 @@ function getStartOfWeek() {
     return new Date(now.setDate(diff)).toISOString().split('T')[0];
 }
 
+// Simple hash to get a consistent color for a member ID
+function getColorForId(id) {
+    const colors = ['#4f46e5', '#db2777', '#16a34a', '#f97316', '#0891b2', '#6d28d9', '#ca8a04'];
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) {
+        hash = id.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+}
+
+
 // --- Manager Dashboard Widgets ---
 
 function renderManagerKPIs(props) {
@@ -153,6 +164,74 @@ function renderActivityFeed(props) {
     return container;
 }
 
+function renderProjectInsights(props) {
+    const { projects, workLogs, teamMembers } = props;
+    const container = document.createElement('div');
+    container.className = 'dashboard-widget';
+    container.innerHTML = '<h3><i class="fas fa-chart-pie widget-icon"></i>Project Insights</h3>';
+
+    const activeProjects = projects.filter(p => p.status !== ProjectStatus.Done);
+    
+    const content = document.createElement('div');
+    content.className = 'widget-content project-insights-list';
+
+    if (activeProjects.length === 0) {
+        content.innerHTML = `<div class="activity-empty">No active projects.</div>`;
+    } else {
+        activeProjects.forEach(project => {
+            const projectLogs = workLogs.filter(log => log.projectId === project.id);
+            const totalMinutes = projectLogs.reduce((sum, log) => sum + log.timeSpentMinutes, 0);
+
+            const contributionData = (project.assignees || [])
+                .map(assigneeId => {
+                    const memberMinutes = projectLogs
+                        .filter(log => log.memberId === assigneeId)
+                        .reduce((sum, log) => sum + log.timeSpentMinutes, 0);
+                    return {
+                        memberId: assigneeId,
+                        memberName: teamMembers.find(tm => tm.id === assigneeId)?.name || 'Unknown',
+                        percentage: totalMinutes > 0 ? (memberMinutes / totalMinutes) * 100 : 0
+                    };
+                })
+                .filter(d => d.percentage > 0)
+                .sort((a,b) => b.percentage - a.percentage);
+            
+            const insightItem = document.createElement('div');
+            insightItem.className = 'insight-item';
+            
+            let contributionBarHTML = '<div class="insight-empty-bar">No hours logged yet.</div>';
+            if (totalMinutes > 0) {
+                contributionBarHTML = contributionData.map(d => 
+                    `<div class="contribution-segment" style="width: ${d.percentage}%; background-color: ${getColorForId(d.memberId)};" title="${d.memberName}: ${d.percentage.toFixed(1)}%"></div>`
+                ).join('');
+            }
+            
+            let legendHTML = contributionData.length > 0
+                ? contributionData.map(d => 
+                    `<div class="insight-legend-item">
+                        <span class="legend-color-box" style="background-color: ${getColorForId(d.memberId)};"></span>
+                        ${d.memberName} (${d.percentage.toFixed(1)}%)
+                    </div>`
+                  ).join('')
+                : '<span>No contributors yet.</span>';
+
+
+            insightItem.innerHTML = `
+                <div class="insight-header">
+                    <span class="insight-project-name">${project.name}</span>
+                    <span class="insight-total-hours">${formatMinutes(totalMinutes)} logged</span>
+                </div>
+                <div class="contribution-bar">${contributionBarHTML}</div>
+                <div class="insight-legend">${legendHTML}</div>
+            `;
+            content.appendChild(insightItem);
+        });
+    }
+
+    container.appendChild(content);
+    return container;
+}
+
 
 // --- Member Dashboard Widgets ---
 
@@ -270,36 +349,44 @@ function renderMemberStats(props) {
 }
 
 
-function renderMyFocus(props) {
-    const { currentUser, projects } = props;
+function renderMyContributions(props) {
+    const { currentUser, projects, workLogs } = props;
     const container = document.createElement('div');
     container.className = 'dashboard-widget';
-    container.innerHTML = '<h3><i class="fas fa-crosshairs widget-icon"></i>My Focus</h3>';
-
-    const now = new Date();
-    const threeDaysFromNow = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
-
-    const myProjects = projects.filter(p => (p.assignees || []).includes(currentUser.id) && p.status !== 'Done');
-
-    const focusProjects = myProjects
-        .filter(p => new Date(p.dueDate) < threeDaysFromNow)
-        .sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate));
+    container.innerHTML = '<h3><i class="fas fa-chart-line widget-icon"></i>My Contributions</h3>';
+    
+    const myActiveProjects = projects.filter(p => (p.assignees || []).includes(currentUser.id) && p.status !== 'Done');
 
     const list = document.createElement('ul');
-    list.className = 'widget-list-condensed';
-    if (focusProjects.length === 0) {
-        list.innerHTML = `<li class="activity-empty">No urgent deadlines.</li>`;
+    list.className = 'contributions-list';
+
+    if (myActiveProjects.length === 0) {
+        list.innerHTML = `<li class="activity-empty">You have no active projects.</li>`;
     } else {
-        focusProjects.forEach(p => {
-            const isOverdue = new Date(p.dueDate) < new Date();
+        myActiveProjects.forEach(project => {
+            const projectLogs = workLogs.filter(log => log.projectId === project.id);
+            const totalProjectMinutes = projectLogs.reduce((sum, log) => sum + log.timeSpentMinutes, 0);
+            const myMinutes = projectLogs.filter(log => log.memberId === currentUser.id).reduce((sum, log) => sum + log.timeSpentMinutes, 0);
+            const myImpact = totalProjectMinutes > 0 ? (myMinutes / totalProjectMinutes) * 100 : 0;
+
             list.innerHTML += `
-                <li class="list-item">
-                    <span class="item-title">${p.name}</span>
-                    <span class="item-meta ${isOverdue ? 'meta-overdue' : ''}">Due: ${new Date(p.dueDate + 'T00:00:00').toLocaleDateString()}</span>
+                <li class="contribution-item">
+                    <span class="contribution-project-name">${project.name}</span>
+                    <div class="contribution-stats">
+                        <div class="contribution-stat-item">
+                            <span class="label">My Hours</span>
+                            <span class="value">${formatMinutes(myMinutes)}</span>
+                        </div>
+                        <div class="contribution-stat-item">
+                            <span class="label">My Impact</span>
+                            <span class="value">${myImpact.toFixed(0)}%</span>
+                        </div>
+                    </div>
                 </li>
             `;
         });
     }
+
     container.appendChild(list);
     return container;
 }
@@ -364,8 +451,6 @@ function openModal(type, props) {
 
 
 function renderManagerDashboard(container, props) {
-    const { teamMembers, projects } = props;
-
     container.appendChild(renderManagerKPIs(props));
     
     const layout = document.createElement('div');
@@ -378,33 +463,7 @@ function renderManagerDashboard(container, props) {
 
     const sideCol = document.createElement('div');
     sideCol.className = 'dashboard-side-col';
-    
-    const workloadWidget = document.createElement('div');
-    workloadWidget.className = 'dashboard-widget';
-    workloadWidget.innerHTML = '<h3><i class="fas fa-chart-bar widget-icon"></i>Team Workload</h3>';
-    const workloadData = teamMembers
-        .map(member => ({
-            label: member.name.split(' ')[0],
-            value: projects.filter(p => p.status !== 'Done' && (p.assignees || []).includes(member.id)).length,
-            color: '#4f46e5'
-        }))
-        .sort((a,b) => b.value - a.value);
-
-    if (workloadData.length > 0) {
-        const barChart = document.createElement('div');
-        barChart.className = 'widget-content';
-        barChart.innerHTML = workloadData.map(item => `
-            <div class="bar-chart-item">
-                <span class="bar-chart-label" title="${item.label}">${item.label}</span>
-                <div class="bar-chart-bar-wrapper">
-                    <div class="bar-chart-bar" style="width: ${item.value > 0 ? (item.value / Math.max(...workloadData.map(d=>d.value))) * 100 : 0}%; background-color: ${item.color};"></div>
-                </div>
-                <span class="bar-chart-value">${item.value}</span>
-            </div>
-        `).join('');
-        workloadWidget.appendChild(barChart);
-    }
-    sideCol.appendChild(workloadWidget);
+    sideCol.appendChild(renderProjectInsights(props));
 
     layout.append(mainCol, sideCol);
     container.appendChild(layout);
@@ -442,7 +501,7 @@ function renderMemberDashboard(container, props) {
     const layout = document.createElement('div');
     layout.className = 'dashboard-layout-member';
     
-    layout.appendChild(renderMyFocus(props));
+    layout.appendChild(renderMyContributions(props));
     layout.appendChild(renderMyNotes(props));
 
     container.appendChild(layout);
