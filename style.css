@@ -496,44 +496,76 @@ footer.app-footer {
     color: #9ca3af;
 }
 
-/* Bar Chart Styles */
-.bar-chart-item {
+/* Manager: Project Insights Widget */
+.project-insights-list {
     display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+.insight-item {
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #f3f4f6;
+}
+.dark .insight-item {
+    border-color: #374151;
+}
+.insight-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+.insight-header {
+    display: flex;
+    justify-content: space-between;
     align-items: center;
-    gap: 0.75rem;
+    margin-bottom: 0.5rem;
 }
-.bar-chart-label {
+.insight-project-name {
+    font-weight: 600;
+}
+.insight-total-hours {
     font-size: 0.8rem;
-    width: 80px;
-    text-align: right;
-    flex-shrink: 0;
     color: #6b7280;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
-.dark .bar-chart-label {
+.dark .insight-total-hours {
     color: #9ca3af;
 }
-.bar-chart-bar-wrapper {
-    flex-grow: 1;
+.contribution-bar {
+    width: 100%;
+    height: 12px;
     background-color: #e5e7eb;
-    border-radius: 4px;
-    height: 20px;
+    border-radius: 9999px;
+    display: flex;
+    overflow: hidden;
+    margin-bottom: 0.625rem;
 }
-.dark .bar-chart-bar-wrapper {
+.dark .contribution-bar {
     background-color: #374151;
 }
-.bar-chart-bar {
+.contribution-segment {
     height: 100%;
-    border-radius: 4px;
-    transition: width 0.5s ease-in-out;
+    transition: width 0.3s ease;
 }
-.bar-chart-value {
-    font-size: 0.8rem;
-    font-weight: 600;
-    width: 30px;
-    text-align: left;
+.insight-empty-bar {
+    width: 100%;
+    font-size: 0.75rem;
+    text-align: center;
+    color: #6b7280;
+    line-height: 12px;
+}
+.insight-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    font-size: 0.75rem;
+}
+.insight-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    color: #4b5563;
+}
+.dark .insight-legend-item {
+    color: #d1d5db;
 }
 
 /* --- Member Dashboard Styles --- */
@@ -666,7 +698,7 @@ footer.app-footer {
 }
 
 
-/* My Focus / My Notes Widget */
+/* My Contributions / My Notes Widget */
 .widget-list-condensed {
     list-style: none;
     padding: 0;
@@ -700,13 +732,53 @@ footer.app-footer {
 .dark .list-item .item-meta {
     color: #9ca3af;
 }
-.list-item .meta-overdue {
-    color: #ef4444;
+
+/* Member Contributions Widget */
+.contributions-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+.contribution-item {
+    padding: 0.75rem;
+    background-color: #f9fafb;
+    border-radius: 0.5rem;
+    border: 1px solid #f3f4f6;
+}
+.dark .contribution-item {
+    background-color: #374151;
+    border-color: #4b5563;
+}
+.contribution-project-name {
     font-weight: 600;
+    margin-bottom: 0.75rem;
+    display: block;
 }
-.dark .list-item .meta-overdue {
-    color: #f87171;
+.contribution-stats {
+    display: flex;
+    justify-content: space-around;
+    text-align: center;
 }
+.contribution-stat-item .label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: #6b7280;
+}
+.dark .contribution-stat-item .label {
+    color: #9ca3af;
+}
+.contribution-stat-item .value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #4f46e5;
+}
+.dark .contribution-stat-item .value {
+    color: #a5b4fc;
+}
+
 
 .projects-overview-container {
   display: grid;
@@ -2413,7 +2485,7 @@ footer.app-footer {
 }
 .dark .data-table td { color: #d1d5db; /* dark:text-gray-200 */ }
 .data-table td:nth-child(1), .data-table td:nth-child(4) { /* Member name, notes - allow wrapping */
-/*   white-space: normal; */
+  white-space: normal;
 }
 .data-table .truncate {
     max-width: 200px;
