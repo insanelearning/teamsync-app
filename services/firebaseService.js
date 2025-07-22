@@ -1,4 +1,5 @@
 
+
 import { initializeApp } from "firebase-app";
 import { getFirestore, collection, getDocs, doc, setDoc, updateDoc, deleteDoc, writeBatch, query, where, Timestamp } from "firebase-firestore";
 import { firebaseConfig } from '../firebaseConfig.js';
@@ -102,6 +103,28 @@ export async function deleteDocument(collectionName, docId) {
 }
 
 /**
+ * Deletes multiple documents from a collection by their IDs.
+ * @param {string} collectionName The name of the collection.
+ * @param {Array<string>} docIds An array of document IDs to delete.
+ */
+export async function batchDeleteDocuments(collectionName, docIds) {
+    if (!docIds || docIds.length === 0) return;
+
+    // Firestore limits batches to 500 operations.
+    // We chunk the array to handle larger deletion requests.
+    for (let i = 0; i < docIds.length; i += 500) {
+        const chunk = docIds.slice(i, i + 500);
+        const batch = writeBatch(db);
+        chunk.forEach(id => {
+            const docRef = doc(db, collectionName, id);
+            batch.delete(docRef);
+        });
+        await batch.commit();
+    }
+}
+
+
+/**
  * Writes multiple documents to a collection in a single batch.
  * This is useful for CSV imports. It uses set() so it can create or overwrite.
  * @param {string} collectionName The name of the collection.
@@ -138,4 +161,3 @@ export async function deleteByQuery(collectionName, field, value) {
     });
     await batch.commit();
 }
-
