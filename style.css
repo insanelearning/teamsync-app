@@ -350,6 +350,7 @@ footer.app-footer {
     box-shadow: 0 1px 2px rgba(0,0,0,0.05);
     display: flex;
     flex-direction: column;
+    gap: 1rem;
 }
 .dark .dashboard-widget {
     background-color: #1f2937;
@@ -358,7 +359,7 @@ footer.app-footer {
 .dashboard-widget h3 {
     font-size: 1.125rem;
     font-weight: 600;
-    margin: 0 0 1rem 0;
+    margin: 0;
     display: flex;
     align-items: center;
     gap: 0.625rem;
@@ -379,29 +380,34 @@ footer.app-footer {
     gap: 0.75rem;
 }
 
-/* Manager: Team Pulse Widget */
-.snapshot-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 1.5rem;
+/* Manager: Daily Standup Widget */
+.standup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
 }
-@media (min-width: 640px) {
-    .snapshot-grid { grid-template-columns: 1fr 1fr; }
-}
-.snapshot-grid h4 {
+.standup-header .form-input-sm {
+    padding: 0.375rem 0.625rem;
     font-size: 0.875rem;
-    font-weight: 600;
-    color: #6b7280;
-    margin-bottom: 0.75rem;
-    text-transform: uppercase;
+    max-width: 160px;
 }
-.dark .snapshot-grid h4 {
-    color: #9ca3af;
+.standup-tabs {
+    display: flex;
+    gap: 0.5rem;
+}
+.standup-tab-btn {
+    flex-grow: 1;
+}
+.standup-content {
+    min-height: 100px;
 }
 .attendance-stats {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
     gap: 1rem;
+    padding-top: 0.5rem;
 }
 .attendance-stats .stat-item {
     display: flex;
@@ -413,16 +419,67 @@ footer.app-footer {
 .attendance-stats .stat-item .fas {
     font-size: 1.125rem;
 }
-.snapshot-list {
+.log-status-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+}
+@media (min-width: 640px) {
+    .log-status-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+.log-status-section h4 {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #6b7280;
+    margin: 0 0 0.75rem 0;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.dark .log-status-section h4 {
+    color: #9ca3af;
+}
+.log-status-section h4 .status-logged { color: #22c55e; }
+.log-status-section h4 .status-pending { color: #f97316; }
+
+.log-status-list {
     list-style: none;
     padding: 0;
     margin: 0;
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+    max-height: 200px;
+    overflow-y: auto;
 }
-.snapshot-list li {
+.log-status-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem;
+    background-color: #f9fafb;
+    border-radius: 0.375rem;
     font-size: 0.9rem;
+}
+.dark .log-status-item {
+    background-color: #374151;
+}
+.log-status-time {
+    font-weight: 600;
+    color: #4f46e5;
+}
+.dark .log-status-time {
+    color: #a5b4fc;
+}
+.log-status-empty {
+    font-style: italic;
+    color: #6b7280;
+}
+.dark .log-status-empty {
+    color: #9ca3af;
 }
 
 /* Manager: Activity Feed Widget */
