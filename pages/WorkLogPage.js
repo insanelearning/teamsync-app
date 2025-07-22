@@ -17,12 +17,11 @@ function formatMinutes(minutes) {
 }
 
 export function renderWorkLogPage(container, props) {
-    const { workLogs, teamMembers, projects, currentUser, onAddMultipleWorkLogs, onUpdateWorkLog, onDeleteWorkLog, onDeleteMultipleWorkLogs, onExport, onImport } = props;
+    const { workLogs, teamMembers, projects, currentUser, onAddMultipleWorkLogs, onUpdateWorkLog, onDeleteWorkLog, onExport, onImport } = props;
 
     const isManager = currentUser.role === TeamMemberRole.Manager;
     let currentPage = 1;
     let rowsPerPage = 10;
-    let selectedLogIds = [];
 
     let filterState = {
         memberId: isManager ? '' : currentUser.id,
@@ -78,10 +77,6 @@ export function renderWorkLogPage(container, props) {
     const contentSection = document.createElement('div');
     contentSection.className = 'attendance-page-section'; // Reuse styles
     
-    // Bulk Actions Toolbar
-    const bulkActionsContainer = document.createElement('div');
-    contentSection.appendChild(bulkActionsContainer);
-
     // Filters
     const filtersDiv = document.createElement('div');
     filtersDiv.className = "filters-container";
@@ -208,42 +203,13 @@ export function renderWorkLogPage(container, props) {
             <div class="sub-label">Against 8h/day goal</div>`;
     }
 
-    function rerenderBulkActions() {
-        bulkActionsContainer.innerHTML = '';
-        if (selectedLogIds.length === 0) {
-            bulkActionsContainer.style.display = 'none';
-            return;
-        }
-
-        bulkActionsContainer.style.display = 'flex';
-        bulkActionsContainer.className = 'bulk-actions-container';
-
-        const text = document.createElement('span');
-        text.className = 'bulk-actions-text';
-        text.textContent = `${selectedLogIds.length} item${selectedLogIds.length > 1 ? 's' : ''} selected`;
-
-        const deleteBtn = Button({
-            children: 'Delete Selected',
-            variant: 'danger',
-            size: 'sm',
-            leftIcon: '<i class="fas fa-trash-alt"></i>',
-            onClick: () => {
-                if (confirm(`Are you sure you want to delete these ${selectedLogIds.length} log entries? This action cannot be undone.`)) {
-                    onDeleteMultipleWorkLogs(selectedLogIds);
-                    selectedLogIds = []; // Clear selection after initiating delete
-                    // The App component will trigger a full re-render
-                }
-            }
-        });
-
-        bulkActionsContainer.append(text, deleteBtn);
-    }
-
     function rerenderTableAndPagination(allFilteredLogs) {
         // Pagination logic
         const totalRows = allFilteredLogs.length;
         const totalPages = Math.ceil(totalRows / rowsPerPage) || 1;
-        if (currentPage > totalPages) currentPage = totalPages;
+        if (currentPage > totalPages) {
+            currentPage = totalPages;
+        }
         
         const startIndex = (currentPage - 1) * rowsPerPage;
         const endIndex = startIndex + rowsPerPage;
@@ -261,9 +227,7 @@ export function renderWorkLogPage(container, props) {
         } else {
             const table = document.createElement('table');
             table.className = 'data-table work-log-table';
-            const tableHead = document.createElement('thead');
-            tableHead.innerHTML = `<tr>
-                <th><input type="checkbox" aria-label="Select all on page" /></th>
+            table.innerHTML = `<thead><tr>
                 <th>Date</th>
                 <th>Member</th>
                 <th>Project</th>
@@ -271,48 +235,14 @@ export function renderWorkLogPage(container, props) {
                 <th>Comments</th>
                 <th>Time Spent</th>
                 <th class="action-cell">Actions</th>
-            </tr>`;
-            
-            const logsOnPageIds = logsForPage.map(l => l.id);
-            const selectAllCheckbox = tableHead.querySelector('input[type="checkbox"]');
-            selectAllCheckbox.checked = logsOnPageIds.length > 0 && logsOnPageIds.every(id => selectedLogIds.includes(id));
-            
-            selectAllCheckbox.onchange = () => {
-                const isChecked = selectAllCheckbox.checked;
-                if (isChecked) {
-                    logsOnPageIds.forEach(id => {
-                        if (!selectedLogIds.includes(id)) {
-                            selectedLogIds.push(id);
-                        }
-                    });
-                } else {
-                    selectedLogIds = selectedLogIds.filter(id => !logsOnPageIds.includes(id));
-                }
-                rerenderPage();
-            };
-
+            </tr></thead>`;
             const tbody = document.createElement('tbody');
+            
             const getMemberName = (id) => teamMembers.find(m => m.id === id)?.name || 'N/A';
             const getProjectName = (id) => projects.find(p => p.id === id)?.name || 'N/A';
 
             logsForPage.forEach(log => {
                 const tr = document.createElement('tr');
-                
-                const checkboxCell = document.createElement('td');
-                const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.checked = selectedLogIds.includes(log.id);
-                checkbox.ariaLabel = `Select log from ${getMemberName(log.memberId)} on ${new Date(log.date + 'T00:00:00').toLocaleDateString()}`;
-                checkbox.onchange = () => {
-                    if (checkbox.checked) {
-                        if (!selectedLogIds.includes(log.id)) selectedLogIds.push(log.id);
-                    } else {
-                        selectedLogIds = selectedLogIds.filter(id => id !== log.id);
-                    }
-                    rerenderPage();
-                };
-                checkboxCell.appendChild(checkbox);
-
                 tr.innerHTML = `
                     <td>${new Date(log.date + 'T00:00:00').toLocaleDateString()}</td>
                     <td>${getMemberName(log.memberId)}</td>
@@ -333,10 +263,9 @@ export function renderWorkLogPage(container, props) {
                     );
                 }
                 tr.appendChild(actionCell);
-                tr.prepend(checkboxCell);
                 tbody.appendChild(tr);
             });
-            table.append(tableHead, tbody);
+            table.appendChild(tbody);
             tableContainer.appendChild(table);
         }
 
@@ -345,7 +274,7 @@ export function renderWorkLogPage(container, props) {
         if (totalRows > 0) {
             const rowsSelectorContainer = document.createElement('div');
             rowsSelectorContainer.className = 'pagination-rows-selector';
-            rowsSelectorContainer.innerHTML = `<label for="rowsPerPageSelect" class="form-label">Rows:</label>`;
+            rowsSelectorContainer.innerHTML = `<label for="rowsPerPageSelect" class="form-label mb-0">Rows:</label>`;
             const rowsSelect = document.createElement('select');
             rowsSelect.id = 'rowsPerPageSelect';
             rowsSelect.className = 'form-select';
@@ -409,7 +338,6 @@ export function renderWorkLogPage(container, props) {
     function rerenderPage() {
         const filteredLogs = getFilteredLogs();
         updateSummaries(filteredLogs);
-        rerenderBulkActions();
         rerenderTableAndPagination(filteredLogs);
     }
 
