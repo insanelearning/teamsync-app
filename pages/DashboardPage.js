@@ -108,6 +108,13 @@ function renderDailyStandup(props) {
             const logsForDate = workLogs.filter(log => log.date === selectedDate);
             const loggedMemberIds = new Set(logsForDate.map(log => log.memberId));
             
+            // Get members who are on leave for the selected date
+            const onLeaveMemberIds = new Set(
+                attendanceRecords
+                    .filter(r => r.date === selectedDate && r.status === 'Leave')
+                    .map(r => r.memberId)
+            );
+
             const memberTimeMap = new Map();
             logsForDate.forEach(log => {
                 const currentMins = memberTimeMap.get(log.memberId) || 0;
@@ -115,7 +122,8 @@ function renderDailyStandup(props) {
             });
 
             const membersLogged = teamMembers.filter(m => loggedMemberIds.has(m.id));
-            const membersPending = teamMembers.filter(m => !loggedMemberIds.has(m.id));
+            // A member is pending if they haven't logged work AND they are not on leave
+            const membersPending = teamMembers.filter(m => !loggedMemberIds.has(m.id) && !onLeaveMemberIds.has(m.id));
             
             const createListHTML = (title, members, icon, showTime) => {
                 let listItems = members.length > 0 ? members.map(m => `
