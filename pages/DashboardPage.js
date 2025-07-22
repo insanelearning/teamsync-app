@@ -74,48 +74,142 @@ function renderManagerKPIs(props) {
     return container;
 }
 
-function renderTeamPulse(props) {
-    const { teamMembers, attendanceRecords, projects } = props;
+function renderDailyStandup(props) {
+    const { teamMembers, attendanceRecords, workLogs } = props;
     const container = document.createElement('div');
     container.className = 'dashboard-widget';
-    container.innerHTML = '<h3><i class="fas fa-heartbeat widget-icon"></i>Today\'s Snapshot</h3>';
+
+    let selectedDate = new Date().toISOString().split('T')[0];
+    let activeTab = 'attendance';
+
+    const rerenderContent = () => {
+        const contentContainer = container.querySelector('.standup-content');
+        if (!contentContainer) return;
+        contentContainer.innerHTML = '';
+
+        if (activeTab === 'attendance') {
+            const todaysRecords = attendanceRecords.filter(r => r.date === selectedDate);
+            const stats = { present: 0, wfh: 0, leave: 0, notMarked: 0 };
+            teamMembers.forEach(member => {
+                const record = todaysRecords.find(r => r.memberId === member.id);
+                if (!record) stats.notMarked++;
+                else if (record.status === 'Present') stats.present++;
+                else if (record.status === 'Work From Home') stats.wfh++;
+                else if (record.status === 'Leave') stats.leave++;
+            });
+            contentContainer.innerHTML = `
+                <div class="attendance-stats">
+                    <div class="stat-item" title="Present"><i class="fas fa-user-check" style="color: #22c55e;"></i> ${stats.present} Present</div>
+                    <div class="stat-item" title="Work From Home"><i class="fas fa-laptop-house" style="color: #3b82f6;"></i> ${stats.wfh} WFH</div>
+                    <div class="stat-item" title="On Leave"><i class="fas fa-umbrella-beach" style="color: #f97316;"></i> ${stats.leave} On Leave</div>
+                    <div class="stat-item" title="Not Marked"><i class="fas fa-question-circle" style="color: #6b7280;"></i> ${stats.notMarked} Not Marked</div>
+                </div>`;
+        } else { // 'logs' tab
+            const logsForDate = workLogs.filter(log => log.date === selectedDate);
+            const loggedMemberIds = new Set(logsForDate.map(log => log.memberId));
+            
+            const memberTimeMap = new Map();
+            logsForDate.forEach(log => {
+                const currentMins = memberTimeMap.get(log.memberId) || 0;
+                memberTimeMap.set(log.memberId, currentMins + log.timeSpentMinutes);
+            });
+
+            const membersLogged = teamMembers.filter(m => loggedMemberIds.has(m.id));
+            const membersPending = teamMembers.filter(m => !loggedMemberIds.has(m.id));
+            
+            const createListHTML = (title, members, icon, showTime) => {
+                let listItems = members.length > 0 ? members.map(m => `
+                    <li class="log-status-item">
+                        <span>${m.name}</span>
+                        ${showTime ? `<span class="log-status-time">${formatMinutes(memberTimeMap.get(m.id))}</span>` : ''}
+                    </li>`).join('') : '<li class="log-status-empty">None</li>';
+                
+                return `
+                    <div class="log-status-section">
+                        <h4><i class="fas ${icon}"></i> ${title} (${members.length})</h4>
+                        <ul class="log-status-list">${listItems}</ul>
+                    </div>`;
+            };
+
+            contentContainer.innerHTML = `
+                <div class="log-status-grid">
+                    ${createListHTML('Logged Today', membersLogged, 'fa-check-circle status-logged', true)}
+                    ${createListHTML('Pending Log', membersPending, 'fa-hourglass-half status-pending', false)}
+                </div>
+            `;
+        }
+    };
     
-    const content = document.createElement('div');
-    content.className = 'widget-content snapshot-grid';
-
-    const today = new Date().toISOString().split('T')[0];
-    const todaysRecords = attendanceRecords.filter(r => r.date === today);
-
-    const stats = { present: 0, wfh: 0, leave: 0, notMarked: 0 };
-    teamMembers.forEach(member => {
-        const record = todaysRecords.find(r => r.memberId === member.id);
-        if (!record) stats.notMarked++;
-        else if (record.status === 'Present') stats.present++;
-        else if (record.status === 'Work From Home') stats.wfh++;
-        else if (record.status === 'Leave') stats.leave++;
-    });
-
-    content.innerHTML = `
-        <div class="snapshot-attendance">
-            <h4>Attendance</h4>
-            <div class="attendance-stats">
-                <div class="stat-item" title="Present"><i class="fas fa-user-check" style="color: #22c55e;"></i> ${stats.present}</div>
-                <div class="stat-item" title="Work From Home"><i class="fas fa-laptop-house" style="color: #3b82f6;"></i> ${stats.wfh}</div>
-                <div class="stat-item" title="On Leave"><i class="fas fa-umbrella-beach" style="color: #f97316;"></i> ${stats.leave}</div>
-                <div class="stat-item" title="Not Marked"><i class="fas fa-question-circle" style="color: #6b7280;"></i> ${stats.notMarked}</div>
-            </div>
-        </div>
-        <div class="snapshot-deadlines">
-            <h4>Due Today</h4>
-            <ul class="snapshot-list">
-                ${projects.filter(p => p.dueDate === today && p.status !== ProjectStatus.Done).map(p => `<li>${p.name}</li>`).join('') || '<li>No deadlines today.</li>'}
-            </ul>
-        </div>
-    `;
+    const renderHeader = () => {
+        const header = document.createElement('div');
+        header.className = 'standup-header';
+        
+        const title = document.createElement('h3');
+        title.innerHTML = '<i class="fas fa-users widget-icon"></i>Daily Standup';
+        
+        const datePicker = document.createElement('input');
+        datePicker.type = 'date';
+        datePicker.className = 'form-input form-input-sm';
+        datePicker.value = selectedDate;
+        datePicker.onchange = (e) => {
+            selectedDate = e.target.value;
+            rerenderContent();
+        };
+        
+        header.append(title, datePicker);
+        return header;
+    };
     
-    container.appendChild(content);
+    const renderTabs = () => {
+        const tabsContainer = document.createElement('div');
+        tabsContainer.className = 'standup-tabs';
+        const attendanceTab = Button({
+            children: 'Attendance',
+            variant: activeTab === 'attendance' ? 'primary' : 'secondary',
+            size: 'sm',
+            className: 'standup-tab-btn',
+            onClick: () => {
+                if (activeTab === 'attendance') return;
+                activeTab = 'attendance';
+                updateTabs();
+                rerenderContent();
+            }
+        });
+        const logsTab = Button({
+            children: 'Work Logs',
+            variant: activeTab === 'logs' ? 'primary' : 'secondary',
+            size: 'sm',
+            className: 'standup-tab-btn',
+            onClick: () => {
+                if (activeTab === 'logs') return;
+                activeTab = 'logs';
+                updateTabs();
+                rerenderContent();
+            }
+        });
+        tabsContainer.append(attendanceTab, logsTab);
+        return tabsContainer;
+    };
+    
+    const updateTabs = () => {
+        const buttons = container.querySelectorAll('.standup-tab-btn');
+        if (buttons.length === 2) {
+            buttons[0].className = `button button-${activeTab === 'attendance' ? 'primary' : 'secondary'} button-sm standup-tab-btn`;
+            buttons[1].className = `button button-${activeTab === 'logs' ? 'primary' : 'secondary'} button-sm standup-tab-btn`;
+        }
+    };
+
+    container.appendChild(renderHeader());
+    container.appendChild(renderTabs());
+    
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'standup-content';
+    container.appendChild(contentDiv);
+    
+    rerenderContent();
     return container;
 }
+
 
 function renderActivityFeed(props) {
     const { workLogs, projects, teamMembers } = props;
@@ -458,7 +552,7 @@ function renderManagerDashboard(container, props) {
     
     const mainCol = document.createElement('div');
     mainCol.className = 'dashboard-main-col';
-    mainCol.appendChild(renderTeamPulse(props));
+    mainCol.appendChild(renderDailyStandup(props));
     mainCol.appendChild(renderActivityFeed(props));
 
     const sideCol = document.createElement('div');
