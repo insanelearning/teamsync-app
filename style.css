@@ -3091,8 +3091,18 @@ footer.app-footer {
     font-weight: 700;
 }
 
-
-.work-log-table th:nth-child(5), .work-log-table td:nth-child(5) {
+.work-log-table th:first-child, .work-log-table td:first-child {
+    width: 40px;
+    padding-left: 1rem;
+    padding-right: 0.5rem;
+    text-align: center;
+}
+.work-log-table th:first-child input[type="checkbox"],
+.work-log-table td:first-child input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+}
+.work-log-table th:nth-child(6), .work-log-table td:nth-child(6) {
     white-space: normal;
     word-break: break-word;
     max-width: 250px;
@@ -3222,6 +3232,35 @@ footer.app-footer {
 
 .project-form-actions {
     justify-content: space-between;
+}
+
+.bulk-actions-container {
+    padding: 0.75rem 1rem;
+    background-color: #eef2ff;
+    border: 1px solid #c7d2fe;
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    animation: fadeIn 0.3s ease-in-out;
+}
+.dark .bulk-actions-container {
+    background-color: #3730a3;
+    border-color: #4f46e5;
+}
+.bulk-actions-text {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #4338ca;
+}
+.dark .bulk-actions-text {
+    color: #c7d2fe;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* Login Page */
