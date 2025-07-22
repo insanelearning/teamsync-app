@@ -1,3 +1,4 @@
+
 import { Button } from './Button.js';
 import { TeamMemberRole } from '../types.js';
 import { WORK_LOG_TASKS } from '../constants.js';
@@ -27,6 +28,10 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, onSave, o
     // --- Handlers ---
     const handleCommonDataChange = (e) => {
         commonData[e.target.name] = e.target.value;
+        // If the member changes, we need to rerender to update the project list.
+        if(e.target.name === 'memberId') {
+            rerender();
+        }
     };
     
     const handleEntryChange = (entryId, field, value) => {
@@ -59,7 +64,8 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, onSave, o
             memberSelect.name = 'memberId';
             memberSelect.innerHTML = teamMembers.map(m => `<option value="${m.id}" ${commonData.memberId === m.id ? 'selected': ''}>${m.name}</option>`).join('');
             memberSelect.onchange = handleCommonDataChange;
-            memberSelect.disabled = isEditMode; // Disable if editing a specific log
+            // In add mode, manager can change member. In edit mode, it's locked.
+            memberSelect.disabled = isEditMode;
 
             const memberDiv = document.createElement('div');
             memberDiv.innerHTML = `<label class="form-label">Team Member</label>`;
@@ -104,7 +110,9 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, onSave, o
         </thead>`;
         
         const tbody = document.createElement('tbody');
-        const activeProjects = projects.filter(p => p.status !== 'Done');
+        
+        // Filter projects based on selected member
+        const projectsForMember = projects.filter(p => p.status !== 'Done' && (p.assignees || []).includes(commonData.memberId));
 
         formEntries.forEach(entry => {
             const tr = document.createElement('tr');
@@ -114,7 +122,7 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, onSave, o
             const projectSelect = document.createElement('select');
             projectSelect.className = 'form-select';
             projectSelect.required = true;
-            projectSelect.innerHTML = `<option value="">Select...</option>` + activeProjects.map(p => `<option value="${p.id}" ${entry.projectId === p.id ? 'selected' : ''}>${p.name}</option>`).join('');
+            projectSelect.innerHTML = `<option value="">Select...</option>` + projectsForMember.map(p => `<option value="${p.id}" ${entry.projectId === p.id ? 'selected' : ''}>${p.name}</option>`).join('');
             projectSelect.onchange = (e) => handleEntryChange(entry._id, 'projectId', e.target.value);
             projectCell.appendChild(projectSelect);
             tr.appendChild(projectCell);
