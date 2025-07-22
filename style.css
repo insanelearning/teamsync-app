@@ -2413,7 +2413,7 @@ footer.app-footer {
 }
 .dark .data-table td { color: #d1d5db; /* dark:text-gray-200 */ }
 .data-table td:nth-child(1), .data-table td:nth-child(4) { /* Member name, notes - allow wrapping */
-  white-space: normal;
+/*   white-space: normal; */
 }
 .data-table .truncate {
     max-width: 200px;
