@@ -14,8 +14,7 @@ try {
     }
     app = initializeApp(firebaseConfig);
     db = getFirestore(app);
-} catch (error)
-{
+} catch (error) {
     console.error("Firebase initialization error:", error);
     // Display a more generic error if config is missing, as the user now controls the config file.
     document.body.innerHTML = `
@@ -140,54 +139,3 @@ export async function deleteByQuery(collectionName, field, value) {
     await batch.commit();
 }
 
-/**
- * Fetches notifications specifically for a given user ID.
- * @param {string} userId The ID of the user.
- * @returns {Promise<Array<Object>>} A promise resolving to an array of notification documents.
- */
-export async function getNotificationsForUser(userId) {
-  const notificationsRef = collection(db, 'notifications');
-  const q = query(notificationsRef, where('userId', '==', userId));
-  const querySnapshot = await getDocs(q);
-  const data = [];
-  querySnapshot.forEach((document) => {
-    data.push({ id: document.id, ...sanitizeTimestamps(document.data()) });
-  });
-  return data;
-}
-
-/**
- * Marks all unread notifications for a user as read.
- * @param {string} userId The ID of the user.
- */
-export async function markAllUserNotificationsRead(userId) {
-    const notificationsRef = collection(db, 'notifications');
-    const q = query(notificationsRef, where('userId', '==', userId), where('isRead', '==', false));
-    const querySnapshot = await getDocs(q);
-
-    if (querySnapshot.empty) return;
-
-    const batch = writeBatch(db);
-    querySnapshot.forEach(docSnap => {
-        batch.update(docSnap.ref, { isRead: true });
-    });
-    await batch.commit();
-}
-
-/**
- * Deletes all notifications for a given user.
- * @param {string} userId The ID of the user.
- */
-export async function clearAllUserNotifications(userId) {
-    const notificationsRef = collection(db, 'notifications');
-    const q = query(notificationsRef, where('userId', '==', userId));
-    const querySnapshot = await getDocs(q);
-
-    if (querySnapshot.empty) return;
-    
-    const batch = writeBatch(db);
-    querySnapshot.forEach(docSnap => {
-        batch.delete(docSnap.ref);
-    });
-    await batch.commit();
-}
