@@ -1,5 +1,4 @@
 
-
 import { renderDashboardPage } from './pages/DashboardPage.js';
 import { renderProjectsPage } from './pages/ProjectsPage.js';
 import { renderAttendancePage } from './pages/AttendancePage.js';
@@ -9,7 +8,7 @@ import { renderLoginPage } from './pages/LoginPage.js';
 import { renderSettingsPage } from './pages/SettingsPage.js';
 import { Navbar } from './components/Navbar.js';
 import { INITIAL_TEAM_MEMBERS, DEFAULT_SETTINGS } from './constants.js';
-import { getCollection, setDocument, doc as getDocRef, getDoc, updateDoc, deleteDoc, writeBatch, query, where } from './services/firebaseService.js';
+import { getCollection, setDocument, doc as getDocRef, getDoc, updateDoc as updateDocumentService, deleteDoc, batchWrite, batchDelete, deleteByQuery } from './services/firebaseService.js';
 import { exportToCSV, importFromCSV } from './services/csvService.js';
 import { ProjectStatus, AttendanceStatus, LeaveType, NoteStatus, TeamMemberRole } from './types.js'; // Enums
 
@@ -76,7 +75,7 @@ const updateProject = async (updatedProject) => {
     }
 
     const { id, ...data } = updatedProject;
-    await updateDoc('projects', id, data);
+    await updateDocumentService('projects', id, data);
     projects = projects.map(p => p.id === id ? updatedProject : p);
     renderApp();
   } catch (error) {
@@ -92,8 +91,7 @@ const deleteProject = async (projectId) => {
     // Also delete associated work logs
     const logsToDelete = workLogs.filter(wl => wl.projectId === projectId);
     if (logsToDelete.length > 0) {
-        const deletePromises = logsToDelete.map(wl => deleteDoc('worklogs', wl.id));
-        await Promise.all(deletePromises);
+        await batchDelete('worklogs', logsToDelete.map(l => l.id));
     }
     workLogs = workLogs.filter(wl => wl.projectId !== projectId);
     renderApp();
@@ -150,7 +148,7 @@ const addNote = async (note) => {
 const updateNote = async (updatedNote) => {
   try {
     const { id, ...data } = updatedNote;
-    await updateDoc('notes', id, data);
+    await updateDocumentService('notes', id, data);
     notes = notes.map(n => n.id === id ? updatedNote : n);
     renderApp();
   } catch (error) {
@@ -197,7 +195,7 @@ const addMultipleWorkLogs = async (workLogsToAdd) => {
 const updateWorkLog = async (updatedWorkLog) => {
     try {
         const { id, ...data } = updatedWorkLog;
-        await updateDoc('worklogs', id, data);
+        await updateDocumentService('worklogs', id, data);
         workLogs = workLogs.map(wl => wl.id === id ? updatedWorkLog : wl);
         renderApp();
     } catch (error) {
@@ -219,7 +217,7 @@ const deleteWorkLog = async (workLogId) => {
 
 const deleteMultipleWorkLogs = async (workLogIds) => {
     try {
-        await batchWrite('worklogs', workLogIds.map(id => ({ id, _delete: true }))); // Using a flag for deletion in batchWrite
+        await batchDelete('worklogs', workLogIds);
         workLogs = workLogs.filter(wl => !workLogIds.includes(wl.id));
         renderApp();
     } catch (error) {
@@ -296,7 +294,7 @@ const deleteTeamMember = async (memberId) => {
 
     const projectUpdatePromises = projectsToUpdate.map(p => {
         const { id, ...data } = p;
-        return updateDoc('projects', id, data);
+        return updateDocumentService('projects', id, data);
     });
     await Promise.all(projectUpdatePromises);
 
@@ -519,7 +517,7 @@ function renderApp() {
   mainContentElement.innerHTML = '';
 
   if (currentView === 'dashboard') {
-    renderDashboardPage(mainContentElement, { currentUser, teamMembers, projects: pageProjects, notes: pageNotes, workLogs: pageWorkLogs, attendanceRecords: pageAttendance, onAddNote: addNote, onAddMultipleWorkLogs: addMultipleWorkLogs, onNavChange: handleNavChange });
+    renderDashboardPage(mainContentElement, { currentUser, teamMembers, projects: pageProjects, notes: pageNotes, workLogs: pageWorkLogs, attendanceRecords: pageAttendance, appSettings, onAddNote: addNote, onAddMultipleWorkLogs: addMultipleWorkLogs, onNavChange: handleNavChange });
   } else if (currentView === 'projects') {
     renderProjectsPage(mainContentElement, { projects: pageProjects, teamMembers, currentUser, projectStatuses: Object.values(ProjectStatus), priorities: appSettings.priorities, onAddProject: addProject, onUpdateProject: updateProject, onDeleteProject: deleteProject, onExport: () => handleExport('projects'), onImport: (file) => handleImport(file, 'projects') });
   } else if (currentView === 'attendance') {
@@ -527,7 +525,7 @@ function renderApp() {
   } else if (currentView === 'notes') {
     renderNotesPage(mainContentElement, { notes: pageNotes, currentUser, noteStatuses: Object.values(NoteStatus), onAddNote: addNote, onUpdateNote: updateNote, onDeleteNote: deleteNote, onExport: () => handleExport('notes'), onImport: (file) => handleImport(file, 'notes') });
   } else if (currentView === 'worklog') {
-    renderWorkLogPage(mainContentElement, { workLogs: pageWorkLogs, teamMembers, projects, currentUser, onAddMultipleWorkLogs: addMultipleWorkLogs, onUpdateWorkLog: updateWorkLog, onDeleteWorkLog: deleteWorkLog, onDeleteMultipleWorkLogs: deleteMultipleWorkLogs, onExport: () => handleExport('worklogs'), onImport: (file) => handleImport(file, 'worklogs') });
+    renderWorkLogPage(mainContentElement, { workLogs: pageWorkLogs, teamMembers, projects, currentUser, appSettings, onAddMultipleWorkLogs: addMultipleWorkLogs, onUpdateWorkLog: updateWorkLog, onDeleteWorkLog: deleteWorkLog, onDeleteMultipleWorkLogs: deleteMultipleWorkLogs, onExport: () => handleExport('worklogs'), onImport: (file) => handleImport(file, 'worklogs') });
   } else if (currentView === 'settings' && currentUser.role === TeamMemberRole.Manager) {
     renderSettingsPage(mainContentElement, { appSettings, onUpdateAppSettings: updateAppSettings });
   }
