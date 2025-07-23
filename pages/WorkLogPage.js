@@ -162,7 +162,7 @@ export function renderWorkLogPage(container, props) {
         }).sort((a,b) => new Date(b.date) - new Date(a.date));
     }
     
-    function updateSummaries(logsToSummarize) {
+    function updateSummaries(logsToSummarize, todaysTotalMinutes) {
         const totalMinutes = logsToSummarize.reduce((acc, log) => acc + (log.timeSpentMinutes || 0), 0);
 
         // --- Calculation for person-days (unique member+date combinations) ---
@@ -177,7 +177,10 @@ export function renderWorkLogPage(container, props) {
         const dayDiffText = dayDiff > 0 ? `(${dayDiff} day${dayDiff !== 1 ? 's' : ''})` : '';
         
         rangeTotalCard.innerHTML = `
-            <div class="label">Selected Range Total</div>
+            <div class="label" style="display: flex; justify-content: space-between; align-items: baseline;">
+                <span>Selected Range Total</span>
+                <span style="font-weight: 400; font-size: 0.8rem;">Today: ${formatMinutes(todaysTotalMinutes)}</span>
+            </div>
             <div class="value">${formatMinutes(totalMinutes)}</div>
             <div class="sub-label">${start.toLocaleDateString()} - ${end.toLocaleDateString()} ${dayDiffText}</div>`;
         
@@ -337,7 +340,18 @@ export function renderWorkLogPage(container, props) {
 
     function rerenderPage() {
         const filteredLogs = getFilteredLogs();
-        updateSummaries(filteredLogs);
+
+        // Calculate today's hours using current member/project filters, but ignoring date filter
+        const todaysDate = new Date().toISOString().split('T')[0];
+        const todaysLogs = workLogs.filter(log => {
+            const isMemberMatch = !filterState.memberId || log.memberId === filterState.memberId;
+            const isProjectMatch = !filterState.projectId || log.projectId === filterState.projectId;
+            const isToday = log.date === todaysDate;
+            return isMemberMatch && isProjectMatch && isToday;
+        });
+        const todaysTotalMinutes = todaysLogs.reduce((acc, log) => acc + (log.timeSpentMinutes || 0), 0);
+        
+        updateSummaries(filteredLogs, todaysTotalMinutes);
         rerenderTableAndPagination(filteredLogs);
     }
 
