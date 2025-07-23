@@ -515,17 +515,21 @@ function renderApp() {
   }
 
   mainContentElement.innerHTML = '';
+  
+  // Provide guaranteed fallbacks for dynamic settings to prevent crashes
+  const safePriorities = appSettings?.priorities || DEFAULT_SETTINGS.priorities;
+  const safeWorkLogTasks = appSettings?.workLogTasks || DEFAULT_SETTINGS.workLogTasks;
 
   if (currentView === 'dashboard') {
-    renderDashboardPage(mainContentElement, { currentUser, teamMembers, projects: pageProjects, notes: pageNotes, workLogs: pageWorkLogs, attendanceRecords: pageAttendance, appSettings, onAddNote: addNote, onAddMultipleWorkLogs: addMultipleWorkLogs, onNavChange: handleNavChange });
+    renderDashboardPage(mainContentElement, { currentUser, teamMembers, projects: pageProjects, notes: pageNotes, workLogs: pageWorkLogs, attendanceRecords: pageAttendance, workLogTasks: safeWorkLogTasks, onAddNote: addNote, onAddMultipleWorkLogs: addMultipleWorkLogs, onNavChange: handleNavChange });
   } else if (currentView === 'projects') {
-    renderProjectsPage(mainContentElement, { projects: pageProjects, teamMembers, currentUser, projectStatuses: Object.values(ProjectStatus), priorities: appSettings.priorities, onAddProject: addProject, onUpdateProject: updateProject, onDeleteProject: deleteProject, onExport: () => handleExport('projects'), onImport: (file) => handleImport(file, 'projects') });
+    renderProjectsPage(mainContentElement, { projects: pageProjects, teamMembers, currentUser, projectStatuses: Object.values(ProjectStatus), priorities: safePriorities, onAddProject: addProject, onUpdateProject: updateProject, onDeleteProject: deleteProject, onExport: () => handleExport('projects'), onImport: (file) => handleImport(file, 'projects') });
   } else if (currentView === 'attendance') {
     renderAttendancePage(mainContentElement, { attendanceRecords: pageAttendance, teamMembers, currentUser, projects, attendanceStatuses: Object.values(AttendanceStatus), leaveTypes: Object.values(LeaveType), onUpsertAttendanceRecord: upsertAttendanceRecord, onDeleteAttendanceRecord: deleteAttendanceRecord, onExport: () => handleExport('attendance'), onImport: (file) => handleImport(file, 'attendance'), maxTeamMembers: 20, onAddTeamMember: addTeamMember, onUpdateTeamMember: updateTeamMember, onDeleteTeamMember: deleteTeamMember, onExportTeam: () => handleExport('team'), onImportTeam: (file) => handleImport(file, 'team') });
   } else if (currentView === 'notes') {
     renderNotesPage(mainContentElement, { notes: pageNotes, currentUser, noteStatuses: Object.values(NoteStatus), onAddNote: addNote, onUpdateNote: updateNote, onDeleteNote: deleteNote, onExport: () => handleExport('notes'), onImport: (file) => handleImport(file, 'notes') });
   } else if (currentView === 'worklog') {
-    renderWorkLogPage(mainContentElement, { workLogs: pageWorkLogs, teamMembers, projects, currentUser, appSettings, onAddMultipleWorkLogs: addMultipleWorkLogs, onUpdateWorkLog: updateWorkLog, onDeleteWorkLog: deleteWorkLog, onDeleteMultipleWorkLogs: deleteMultipleWorkLogs, onExport: () => handleExport('worklogs'), onImport: (file) => handleImport(file, 'worklogs') });
+    renderWorkLogPage(mainContentElement, { workLogs: pageWorkLogs, teamMembers, projects, currentUser, workLogTasks: safeWorkLogTasks, onAddMultipleWorkLogs: addMultipleWorkLogs, onUpdateWorkLog: updateWorkLog, onDeleteWorkLog: deleteWorkLog, onDeleteMultipleWorkLogs: deleteMultipleWorkLogs, onExport: () => handleExport('worklogs'), onImport: (file) => handleImport(file, 'worklogs') });
   } else if (currentView === 'settings' && currentUser.role === TeamMemberRole.Manager) {
     renderSettingsPage(mainContentElement, { appSettings, onUpdateAppSettings: updateAppSettings });
   }
