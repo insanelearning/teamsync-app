@@ -1,14 +1,14 @@
 
+
 import { renderDashboardPage } from './pages/DashboardPage.js';
 import { renderProjectsPage } from './pages/ProjectsPage.js';
 import { renderAttendancePage } from './pages/AttendancePage.js';
 import { renderNotesPage } from './pages/NotesPage.js';
 import { renderWorkLogPage } from './pages/WorkLogPage.js';
-import { renderSettingsPage } from './pages/SettingsPage.js';
 import { renderLoginPage } from './pages/LoginPage.js';
 import { Navbar } from './components/Navbar.js';
-import { INITIAL_TEAM_MEMBERS, DEFAULT_WORK_LOG_TASKS } from './constants.js';
-import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery, getDoc, getNotificationsForUser, markAllUserNotificationsRead, clearAllUserNotifications } from './services/firebaseService.js';
+import { INITIAL_TEAM_MEMBERS } from './constants.js';
+import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery } from './services/firebaseService.js';
 import { exportToCSV, importFromCSV } from './services/csvService.js';
 import { ProjectStatus, AttendanceStatus, LeaveType, NoteStatus, TeamMemberRole } from './types.js'; // Enums
 
@@ -22,85 +22,26 @@ let attendance = [];
 let notes = [];
 let teamMembers = [];
 let workLogs = [];
-let notifications = [];
-let settings = { workLogTasks: [...DEFAULT_WORK_LOG_TASKS] };
 let currentUser = null; // Start as null, will be set on login
 
 // --- Login/Logout Handlers ---
 
-const handleLogin = async (member) => {
+const handleLogin = (member) => {
     currentUser = member;
     sessionStorage.setItem('currentUserId', member.id);
+    // After login, always go to dashboard
     currentView = 'dashboard';
     sessionStorage.setItem('currentView', 'dashboard');
-    // Load user-specific data after login
-    await loadUserSpecificData();
     renderApp();
 };
 
 const handleLogout = () => {
     currentUser = null;
-    notifications = [];
     sessionStorage.removeItem('currentUserId');
     sessionStorage.removeItem('currentView'); // Also clear view preference
     renderApp();
 };
 
-
-// --- Notification Handlers ---
-const createNotification = async (notificationData) => {
-    const id = crypto.randomUUID();
-    const newNotification = {
-        isRead: false,
-        createdAt: new Date().toISOString(),
-        ...notificationData,
-        id,
-    };
-    try {
-        await setDocument('notifications', id, newNotification);
-        // If the notification is for the current user, add it to the local state
-        // to provide a real-time feel without setting up a listener.
-        if (newNotification.userId === currentUser?.id) {
-            notifications.unshift(newNotification);
-            renderApp();
-        }
-    } catch (error) {
-        console.error("Failed to create notification:", error);
-    }
-};
-
-const markNotificationRead = async (notificationId) => {
-    try {
-        await updateDocument('notifications', notificationId, { isRead: true });
-        const note = notifications.find(n => n.id === notificationId);
-        if (note) note.isRead = true;
-        renderApp();
-    } catch (error) {
-        console.error("Failed to mark notification as read:", error);
-    }
-};
-
-const markAllNotificationsRead = async () => {
-    if (!currentUser) return;
-    try {
-        await markAllUserNotificationsRead(currentUser.id);
-        notifications.forEach(n => { if (n.userId === currentUser.id) n.isRead = true; });
-        renderApp();
-    } catch (error) {
-        console.error("Failed to mark all notifications as read:", error);
-    }
-};
-
-const clearAllNotifications = async () => {
-    if (!currentUser || !confirm('Are you sure you want to delete all your notifications? This cannot be undone.')) return;
-    try {
-        await clearAllUserNotifications(currentUser.id);
-        notifications = notifications.filter(n => n.userId !== currentUser.id); // Keep other users' notifs if loaded by manager
-        renderApp();
-    } catch(error) {
-        console.error("Failed to clear notifications:", error);
-    }
-};
 
 // --- Handler Functions ---
 
@@ -110,19 +51,6 @@ const addProject = async (project) => {
     const { id, ...data } = project;
     await setDocument('projects', id, data);
     projects.push(project);
-    
-    // Create notifications for assignees
-    for (const assigneeId of project.assignees) {
-        if (assigneeId !== currentUser.id) { // Don't notify user for their own action
-            await createNotification({
-                userId: assigneeId,
-                title: 'New Project Assigned',
-                message: `You have been assigned to the new project: <strong>${project.name}</strong>.`,
-                type: 'project',
-                link: `view=projects&projectId=${project.id}`
-            });
-        }
-    }
     renderApp();
   } catch (error) {
     console.error("Failed to add project:", error);
@@ -133,31 +61,13 @@ const addProject = async (project) => {
 const updateProject = async (updatedProject) => {
   try {
     const originalProject = projects.find(p => p.id === updatedProject.id);
-    if (!originalProject) return;
-
-    if (originalProject.status !== ProjectStatus.Done && updatedProject.status === ProjectStatus.Done) {
+    if (originalProject && originalProject.status !== ProjectStatus.Done && updatedProject.status === ProjectStatus.Done) {
         updatedProject.completionDate = new Date().toISOString();
     }
 
     const { id, ...data } = updatedProject;
     await updateDocument('projects', id, data);
     projects = projects.map(p => p.id === id ? updatedProject : p);
-    
-    // Notify newly added assignees
-    const originalAssignees = new Set(originalProject.assignees || []);
-    const newAssignees = updatedProject.assignees || [];
-    for (const assigneeId of newAssignees) {
-        if (!originalAssignees.has(assigneeId) && assigneeId !== currentUser.id) {
-            await createNotification({
-                userId: assigneeId,
-                title: 'Assigned to Project',
-                message: `You have been assigned to the project: <strong>${updatedProject.name}</strong>.`,
-                type: 'project',
-                link: `view=projects&projectId=${updatedProject.id}`
-            });
-        }
-    }
-
     renderApp();
   } catch (error) {
     console.error("Failed to update project:", error);
@@ -316,11 +226,14 @@ const updateTeamMember = async (updatedMember) => {
     const { id, ...data } = updatedMember;
     await updateDocument('teamMembers', id, data);
     
+    // To update local state, we need to merge the changes with the existing member object
+    // to preserve fields that weren't changed (like the password if left blank).
     const oldMember = teamMembers.find(m => m.id === id);
     const locallyUpdatedMember = { ...oldMember, ...updatedMember };
     
     teamMembers = teamMembers.map(m => m.id === id ? locallyUpdatedMember : m);
     
+    // If the currently logged in user was updated, update the currentUser object
     if (currentUser && currentUser.id === id) {
         currentUser = locallyUpdatedMember;
     }
@@ -332,6 +245,8 @@ const updateTeamMember = async (updatedMember) => {
 };
 
 const deleteTeamMember = async (memberId) => {
+  // This is a complex transaction. A Cloud Function would be better for atomicity.
+  // Here we perform the steps sequentially.
   try {
     const projectsToUpdate = [];
     const currentProjects = projects.map(p => {
@@ -354,23 +269,29 @@ const deleteTeamMember = async (memberId) => {
         return updatedProject;
     });
 
+    // 1. Update all affected projects
     const projectUpdatePromises = projectsToUpdate.map(p => {
         const { id, ...data } = p;
         return updateDocument('projects', id, data);
     });
     await Promise.all(projectUpdatePromises);
 
+    // 2. Delete all attendance records for the member
     await deleteByQuery('attendance', 'memberId', memberId);
+    
+    // 3. Delete all work logs for the member
     await deleteByQuery('worklogs', 'memberId', memberId);
-    await deleteByQuery('notifications', 'userId', memberId); // Also delete notifications
+
+    // 4. Delete the team member itself
     await deleteDocument('teamMembers', memberId);
     
+    // 5. Update local state and re-render
     projects = currentProjects;
     attendance = attendance.filter(a => a.memberId !== memberId);
     workLogs = workLogs.filter(wl => wl.memberId !== memberId);
-    notifications = notifications.filter(n => n.userId !== memberId);
     teamMembers = teamMembers.filter(m => m.id !== memberId);
 
+    // 6. Logout if the current user was deleted
     if (currentUser && currentUser.id === memberId) {
         handleLogout();
     } else {
@@ -380,23 +301,11 @@ const deleteTeamMember = async (memberId) => {
   } catch (error) {
     console.error("Error deleting team member:", error);
     alert("Failed to delete member and all associated data. The data may be in an inconsistent state. Please reload the page.");
+    // Refetch data to get back to a consistent state
     await loadInitialData(false);
     renderApp();
   }
 };
-
-// Settings handler
-const updateSettings = async (newSettings) => {
-    try {
-        await setDocument('settings', 'app_config', newSettings);
-        settings = newSettings;
-        renderApp();
-    } catch(error) {
-        console.error("Failed to update settings:", error);
-        alert("Error: Could not save settings.");
-    }
-};
-
 
 // CSV Handlers
 const handleExport = (dataType) => {
@@ -558,11 +467,14 @@ const handleImport = async (file, dataType) => {
                 return null;
             }
 
+            // --- Date Normalization Fix ---
             let normalizedDate = item.date;
             const dateParts = String(item.date).split('-');
             if (dateParts.length === 3 && dateParts[0].length === 2 && dateParts[2].length === 4) {
+                 // It's likely DD-MM-YYYY, convert to YYYY-MM-DD for consistent filtering
                  normalizedDate = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`;
             }
+            // --- End of Fix ---
 
             const member = teamMembers.find(m => m.name.trim().toLowerCase() === item.memberName.trim().toLowerCase());
             if (!member) {
@@ -579,7 +491,7 @@ const handleImport = async (file, dataType) => {
             const now = new Date().toISOString();
             return {
                 id: item.id || crypto.randomUUID(),
-                date: normalizedDate,
+                date: normalizedDate, // Use the normalized date
                 memberId: member.id,
                 projectId: project.id,
                 taskName: item.taskName || 'N/A',
@@ -614,10 +526,10 @@ const handleImport = async (file, dataType) => {
 };
 
 
-function handleNavChange(view, params = {}) {
+function handleNavChange(view) {
   currentView = view;
   sessionStorage.setItem('currentView', view);
-  renderApp(params); // Pass params to renderApp
+  renderApp();
 }
 
 function handleThemeToggle() {
@@ -632,9 +544,11 @@ function buildMainLayout() {
     rootElement.className = ''; // Reset class from login page
 
     const navbar = Navbar({ 
-        currentView, onNavChange: handleNavChange, onThemeToggle: handleThemeToggle,
-        currentUser, onLogout: handleLogout,
-        notifications, onMarkNotificationRead: markNotificationRead, onMarkAllNotificationsRead: markAllNotificationsRead, onClearAllNotifications: clearAllNotifications
+        currentView, 
+        onNavChange: handleNavChange, 
+        onThemeToggle: handleThemeToggle,
+        currentUser,
+        onLogout: handleLogout
     });
     rootElement.appendChild(navbar);
 
@@ -649,18 +563,20 @@ function buildMainLayout() {
 }
 
 
-function renderApp(params = {}) {
+function renderApp() {
   if (!rootElement) {
     console.error("Root or main content element not initialized for rendering.");
     return;
   }
   
   if (!currentUser) {
-      rootElement.innerHTML = '';
+      // Not logged in, render login page
+      rootElement.innerHTML = ''; // Clear whatever was there
       renderLoginPage(rootElement, { onLogin: handleLogin, teamMembers });
       return;
   }
   
+  // If we are here, user is logged in. Build the main layout if it doesn't exist.
   const isLayoutBuilt = rootElement.querySelector('nav.navbar');
   if (!isLayoutBuilt) {
       buildMainLayout();
@@ -676,6 +592,7 @@ function renderApp(params = {}) {
       pageProjects = projects.filter(p => (p.assignees || []).includes(currentUser.id) || p.teamLeadId === currentUser.id);
       pageWorkLogs = workLogs.filter(w => w.memberId === currentUser.id);
       pageAttendance = attendance.filter(a => a.memberId === currentUser.id);
+      // A member can see notes they created. Old notes without a userId will not be visible to them.
       pageNotes = notes.filter(n => n.userId === currentUser.id);
   }
 
@@ -684,118 +601,122 @@ function renderApp(params = {}) {
 
   if (currentView === 'dashboard') {
     renderDashboardPage(mainContentElement, {
-        currentUser, teamMembers, projects: pageProjects, notes: pageNotes, workLogs: pageWorkLogs,
-        attendanceRecords: pageAttendance, projectStatuses: Object.values(ProjectStatus),
-        onAddProject: addProject, onAddNote: addNote, onAddMultipleWorkLogs: addMultipleWorkLogs,
+        currentUser,
+        teamMembers,
+        projects: pageProjects, // Pass filtered data
+        notes: pageNotes,
+        workLogs: pageWorkLogs,
+        attendanceRecords: pageAttendance,
+        projectStatuses: Object.values(ProjectStatus),
+        onAddProject: addProject,
+        onAddNote: addNote,
+        onAddMultipleWorkLogs: addMultipleWorkLogs,
         onNavChange: handleNavChange,
     });
   } else if (currentView === 'projects') {
     renderProjectsPage(mainContentElement, {
-      projects: pageProjects, teamMembers, currentUser, projectStatuses: Object.values(ProjectStatus),
-      onAddProject: addProject, onUpdateProject: updateProject, onDeleteProject: deleteProject,
-      onExport: () => handleExport('projects'), onImport: (file) => handleImport(file, 'projects'),
-      openProjectWithId: params.projectId, // Pass projectId from nav change
+      projects: pageProjects, // Pass filtered data
+      teamMembers,
+      currentUser,
+      projectStatuses: Object.values(ProjectStatus),
+      onAddProject: addProject,
+      onUpdateProject: updateProject,
+      onDeleteProject: deleteProject,
+      onExport: () => handleExport('projects'),
+      onImport: (file) => handleImport(file, 'projects'),
     });
   } else if (currentView === 'attendance') {
     renderAttendancePage(mainContentElement, {
-      attendanceRecords: pageAttendance, teamMembers, currentUser, projects,
-      attendanceStatuses: Object.values(AttendanceStatus), leaveTypes: Object.values(LeaveType),
-      onUpsertAttendanceRecord: upsertAttendanceRecord, onDeleteAttendanceRecord: deleteAttendanceRecord,
-      onExport: () => handleExport('attendance'), onImport: (file) => handleImport(file, 'attendance'),
-      maxTeamMembers: 20, onAddTeamMember: addTeamMember, onUpdateTeamMember: updateTeamMember,
-      onDeleteTeamMember: deleteTeamMember, onExportTeam: () => handleExport('team'),
+      attendanceRecords: pageAttendance, // Pass filtered data
+      teamMembers, // Full list for manager, member view will self-filter the grid
+      currentUser,
+      projects, // Pass full project list for workload calculations
+      attendanceStatuses: Object.values(AttendanceStatus),
+      leaveTypes: Object.values(LeaveType),
+      onUpsertAttendanceRecord: upsertAttendanceRecord,
+      onDeleteAttendanceRecord: deleteAttendanceRecord,
+      onExport: () => handleExport('attendance'),
+      onImport: (file) => handleImport(file, 'attendance'),
+      maxTeamMembers: 20,
+      onAddTeamMember: addTeamMember,
+      onUpdateTeamMember: updateTeamMember,
+      onDeleteTeamMember: deleteTeamMember,
+      onExportTeam: () => handleExport('team'),
       onImportTeam: (file) => handleImport(file, 'team'),
     });
   } else if (currentView === 'notes') {
     renderNotesPage(mainContentElement, {
-        notes: pageNotes, currentUser, noteStatuses: Object.values(NoteStatus),
-        onAddNote: addNote, onUpdateNote: updateNote, onDeleteNote: deleteNote,
-        onExport: () => handleExport('notes'), onImport: (file) => handleImport(file, 'notes'),
+        notes: pageNotes, // Pass filtered data
+        currentUser,
+        noteStatuses: Object.values(NoteStatus),
+        onAddNote: addNote,
+        onUpdateNote: updateNote,
+        onDeleteNote: deleteNote,
+        onExport: () => handleExport('notes'),
+        onImport: (file) => handleImport(file, 'notes'),
     });
   } else if (currentView === 'worklog') {
     renderWorkLogPage(mainContentElement, {
-        workLogs: pageWorkLogs, teamMembers, projects, currentUser,
-        onAddMultipleWorkLogs: addMultipleWorkLogs, onUpdateWorkLog: updateWorkLog,
-        onDeleteWorkLog: deleteWorkLog, onExport: () => handleExport('worklogs'),
+        workLogs: pageWorkLogs, // Pass filtered data
+        teamMembers,
+        projects,
+        currentUser,
+        onAddMultipleWorkLogs: addMultipleWorkLogs,
+        onUpdateWorkLog: updateWorkLog,
+        onDeleteWorkLog: deleteWorkLog,
+        onExport: () => handleExport('worklogs'),
         onImport: (file) => handleImport(file, 'worklogs'),
-        appSettings: settings,
-    });
-  } else if (currentView === 'settings' && currentUser.role === TeamMemberRole.Manager) {
-    renderSettingsPage(mainContentElement, {
-        settings,
-        onUpdateSettings: updateSettings,
     });
   }
   
   const navbarElement = rootElement.querySelector('nav.navbar');
   if (navbarElement) {
       const newNavbar = Navbar({ 
-          currentView, onNavChange: handleNavChange, onThemeToggle: handleThemeToggle,
-          currentUser, onLogout: handleLogout,
-          notifications, onMarkNotificationRead: markNotificationRead, onMarkAllNotificationsRead: markAllNotificationsRead, onClearAllNotifications: clearAllNotifications
+          currentView, 
+          onNavChange: handleNavChange, 
+          onThemeToggle: handleThemeToggle,
+          currentUser,
+          onLogout: handleLogout
       });
       navbarElement.replaceWith(newNavbar);
   }
 }
 
-async function loadGlobalData() {
-    const [projectData, attendanceData, notesData, workLogData, settingsDocSnap] = await Promise.all([
+async function loadInitialData(seedIfEmpty = true) {
+  try {
+    const [projectData, attendanceData, notesData, teamMemberData, workLogData] = await Promise.all([
         getCollection('projects'),
         getCollection('attendance'),
         getCollection('notes'),
+        getCollection('teamMembers'),
         getCollection('worklogs'),
-        getDoc(doc(getFirestore(), 'settings', 'app_config')),
     ]);
     
     projects = projectData;
     attendance = attendanceData;
     notes = notesData;
     workLogs = workLogData;
-    
-    if (settingsDocSnap.exists()) {
-        const settingsData = settingsDocSnap.data();
-        settings = {
-            ...settings, // Keep defaults
-            ...settingsData // Overwrite with DB values
-        };
-    } else {
-        // If settings don't exist, create them with defaults.
-        console.log("No settings found in DB, creating with defaults.");
-        const defaultSettings = { workLogTasks: [...DEFAULT_WORK_LOG_TASKS] };
-        await setDocument('settings', 'app_config', defaultSettings);
-        settings = defaultSettings;
-    }
-}
 
-async function loadUserSpecificData() {
-    if (!currentUser) {
-        notifications = [];
-        return;
-    }
-    const userNotifications = await getNotificationsForUser(currentUser.id);
-    notifications = userNotifications.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
-}
-
-
-async function loadInitialData(seedIfEmpty = true) {
-  try {
-    // Team Members must be loaded first to determine login status
-    let teamMemberData = await getCollection('teamMembers');
-
+    // Check if team members need to be seeded. This is more robust.
     if (seedIfEmpty && teamMemberData.length === 0) {
         console.log("No team members found in database. Seeding with initial data.");
-        await batchWrite('teamMembers', INITIAL_TEAM_MEMBERS);
+        const membersToSeed = INITIAL_TEAM_MEMBERS;
+        await batchWrite('teamMembers', membersToSeed);
         teamMembers = await getCollection('teamMembers'); 
     } else {
         teamMembers = teamMemberData;
     }
 
+    // Data migration: ensure all members have a role
     teamMembers.forEach(m => {
-        if (!m.role) m.role = TeamMemberRole.Member;
+        if (!m.role) {
+            m.role = TeamMemberRole.Member; // Default to 'Member' if role is missing
+        }
     });
 
-    await loadGlobalData();
-
+    // One-time data migration for existing notes to add userId, to avoid orphaning them.
+    // This is not perfectly accurate but prevents data loss for the user.
+    // We'll assign them to the first manager found, or the first user.
     const firstManager = teamMembers.find(m => m.role === TeamMemberRole.Manager);
     const defaultOwnerId = (firstManager || teamMembers[0])?.id;
 
@@ -805,6 +726,7 @@ async function loadInitialData(seedIfEmpty = true) {
             console.log(`Migrating ${notesWithoutOwner.length} notes to have an owner...`);
             const notesToUpdate = notesWithoutOwner.map(n => ({...n, userId: defaultOwnerId }));
             await batchWrite('notes', notesToUpdate);
+            // Re-fetch notes to get the updated data
             notes = await getCollection('notes');
         }
     }
@@ -818,7 +740,7 @@ async function loadInitialData(seedIfEmpty = true) {
             <p>Please check your internet connection and ensure your Firestore security rules are correctly set up to allow reads.</p>
             <p class="error-message"><strong>Original Error:</strong> ${error.message}</p>
         </div>`;
-    throw error;
+    throw error; // Stop execution
   }
 }
 
@@ -828,6 +750,7 @@ export async function initializeApp(appRootElement) {
 
   await loadInitialData();
   
+  // Set theme based on preference
   if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
     document.documentElement.classList.add('dark');
     document.body.classList.add('dark');
@@ -836,10 +759,10 @@ export async function initializeApp(appRootElement) {
     document.body.classList.remove('dark');
   }
 
+  // Attempt to resume session
   const savedUserId = sessionStorage.getItem('currentUserId');
   if (savedUserId) {
     currentUser = teamMembers.find(m => m.id === savedUserId) || null;
-    if(currentUser) await loadUserSpecificData();
   }
 
   renderApp();

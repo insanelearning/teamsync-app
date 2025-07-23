@@ -32,23 +32,6 @@ export const TeamMemberRole = {
 };
 
 // Interfaces are conceptual in JS. These comments describe the expected object shapes.
-
-// interface AppSettings {
-//   id: string; // Should be a singleton, e.g., 'app_config'
-//   workLogTasks: string[];
-// }
-
-// interface Notification {
-//   id: string;
-//   userId: string; // ID of the user this notification is for
-//   title: string;
-//   message: string;
-//   type: 'project' | 'attendance' | 'worklog' | 'general';
-//   link: string; // e.g., view=projects&projectId=xyz to navigate on click
-//   isRead: boolean;
-//   createdAt: string; // ISO Date string
-// }
-
 // interface TeamMember {
 //   id: string;
 //   name: string;

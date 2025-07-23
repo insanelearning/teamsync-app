@@ -30,9 +30,7 @@ export const NOTE_COLORS = [
   '#e1bee7', // Light Purple
 ];
 
-// This is now managed in the Settings page and stored in Firestore.
-// It will be used as the default if no settings are found.
-export const DEFAULT_WORK_LOG_TASKS = [
+export const WORK_LOG_TASKS = [
     'Development',
     'Meeting',
     'Code Review',
