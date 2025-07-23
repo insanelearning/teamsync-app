@@ -17,7 +17,7 @@ function formatMinutes(minutes) {
 }
 
 export function renderWorkLogPage(container, props) {
-    const { workLogs, teamMembers, projects, currentUser, onAddMultipleWorkLogs, onUpdateWorkLog, onDeleteWorkLog, onExport, onImport } = props;
+    const { workLogs, teamMembers, projects, currentUser, appSettings, onAddMultipleWorkLogs, onUpdateWorkLog, onDeleteWorkLog, onExport, onImport } = props;
 
     const isManager = currentUser.role === TeamMemberRole.Manager;
     let currentPage = 1;
@@ -310,7 +310,7 @@ export function renderWorkLogPage(container, props) {
     
     function openModal(log = null) {
         const form = WorkLogForm({
-            log, currentUser, teamMembers, projects,
+            log, currentUser, teamMembers, projects, appSettings,
             onSave: (logData) => { // For single edits
                 onUpdateWorkLog(logData);
                 closeModal();
