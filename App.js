@@ -1,5 +1,4 @@
 
-
 import { renderDashboardPage } from './pages/DashboardPage.js';
 import { renderProjectsPage } from './pages/ProjectsPage.js';
 import { renderAttendancePage } from './pages/AttendancePage.js';
@@ -9,7 +8,7 @@ import { renderSettingsPage } from './pages/SettingsPage.js';
 import { renderLoginPage } from './pages/LoginPage.js';
 import { Navbar } from './components/Navbar.js';
 import { INITIAL_TEAM_MEMBERS, DEFAULT_WORK_LOG_TASKS } from './constants.js';
-import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery, doc, getDoc } from './services/firebaseService.js';
+import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery, getDoc, getNotificationsForUser, markAllUserNotificationsRead, clearAllUserNotifications } from './services/firebaseService.js';
 import { exportToCSV, importFromCSV } from './services/csvService.js';
 import { ProjectStatus, AttendanceStatus, LeaveType, NoteStatus, TeamMemberRole } from './types.js'; // Enums
 
@@ -82,17 +81,10 @@ const markNotificationRead = async (notificationId) => {
 };
 
 const markAllNotificationsRead = async () => {
+    if (!currentUser) return;
     try {
-        const unreadIds = notifications.filter(n => !n.isRead).map(n => n.id);
-        if (unreadIds.length === 0) return;
-
-        const batch = writeBatch(getFirestore()); // Need to get db instance here or pass it
-        unreadIds.forEach(id => {
-            batch.update(doc(getFirestore(), 'notifications', id), { isRead: true });
-        });
-        await batch.commit();
-
-        notifications.forEach(n => { if (!n.isRead) n.isRead = true; });
+        await markAllUserNotificationsRead(currentUser.id);
+        notifications.forEach(n => { if (n.userId === currentUser.id) n.isRead = true; });
         renderApp();
     } catch (error) {
         console.error("Failed to mark all notifications as read:", error);
@@ -100,15 +92,10 @@ const markAllNotificationsRead = async () => {
 };
 
 const clearAllNotifications = async () => {
-    if (!confirm('Are you sure you want to delete all your notifications? This cannot be undone.')) return;
+    if (!currentUser || !confirm('Are you sure you want to delete all your notifications? This cannot be undone.')) return;
     try {
-        const userNotifications = notifications.filter(n => n.userId === currentUser.id);
-        const batch = writeBatch(getFirestore());
-        userNotifications.forEach(n => {
-            batch.delete(doc(getFirestore(), 'notifications', n.id));
-        });
-        await batch.commit();
-        notifications = notifications.filter(n => n.userId !== currentUser.id);
+        await clearAllUserNotifications(currentUser.id);
+        notifications = notifications.filter(n => n.userId !== currentUser.id); // Keep other users' notifs if loaded by manager
         renderApp();
     } catch(error) {
         console.error("Failed to clear notifications:", error);
@@ -766,9 +753,13 @@ async function loadGlobalData() {
     workLogs = workLogData;
     
     if (settingsDocSnap.exists()) {
-        settings = settingsDocSnap.data();
+        const settingsData = settingsDocSnap.data();
+        settings = {
+            ...settings, // Keep defaults
+            ...settingsData // Overwrite with DB values
+        };
     } else {
-        // If settings don't exist, create them with defaults
+        // If settings don't exist, create them with defaults.
         console.log("No settings found in DB, creating with defaults.");
         const defaultSettings = { workLogTasks: [...DEFAULT_WORK_LOG_TASKS] };
         await setDocument('settings', 'app_config', defaultSettings);
@@ -781,7 +772,7 @@ async function loadUserSpecificData() {
         notifications = [];
         return;
     }
-    const userNotifications = await getCollection('notifications', where('userId', '==', currentUser.id));
+    const userNotifications = await getNotificationsForUser(currentUser.id);
     notifications = userNotifications.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
