@@ -2,9 +2,8 @@
 
 import { Button } from './Button.js';
 import { TeamMemberRole } from '../types.js';
-import { WORK_LOG_TASKS } from '../constants.js';
 
-export function WorkLogForm({ log, currentUser, teamMembers, projects, onSave, onSaveAll, onCancel }) {
+export function WorkLogForm({ log, currentUser, teamMembers, projects, workLogTasks, onSave, onSaveAll, onCancel }) {
     // Mode determination: 'edit' for a single log, 'add' for multiple new logs.
     const isEditMode = !!log;
     
@@ -24,14 +23,14 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, onSave, o
             formEntries = activeProjectsForMember.map(p => ({
                 _id: crypto.randomUUID(),
                 projectId: p.id,
-                taskName: WORK_LOG_TASKS[0],
+                taskName: workLogTasks[0] || '',
                 timeSpentMinutes: '', // Use empty string to prompt user input
                 requestedFrom: '',
                 comments: ''
             }));
         } else {
              // If no active projects, provide one blank row to start.
-             formEntries = [{ _id: crypto.randomUUID(), projectId: '', taskName: WORK_LOG_TASKS[0], timeSpentMinutes: 0, requestedFrom: '', comments: '' }];
+             formEntries = [{ _id: crypto.randomUUID(), projectId: '', taskName: workLogTasks[0] || '', timeSpentMinutes: 0, requestedFrom: '', comments: '' }];
         }
     }
 
@@ -61,7 +60,7 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, onSave, o
     };
     
     const addEntryRow = () => {
-        formEntries.push({ _id: crypto.randomUUID(), projectId: '', taskName: WORK_LOG_TASKS[0], timeSpentMinutes: 0, requestedFrom: '', comments: '' });
+        formEntries.push({ _id: crypto.randomUUID(), projectId: '', taskName: workLogTasks[0], timeSpentMinutes: 0, requestedFrom: '', comments: '' });
         rerender();
     };
 
@@ -150,7 +149,7 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, onSave, o
             const taskCell = document.createElement('td');
             const taskSelect = document.createElement('select');
             taskSelect.className = 'form-select';
-            taskSelect.innerHTML = WORK_LOG_TASKS.map(t => `<option value="${t}" ${entry.taskName === t ? 'selected' : ''}>${t}</option>`).join('');
+            taskSelect.innerHTML = (workLogTasks || []).map(t => `<option value="${t}" ${entry.taskName === t ? 'selected' : ''}>${t}</option>`).join('');
             taskSelect.onchange = (e) => handleEntryChange(entry._id, 'taskName', e.target.value);
             taskCell.appendChild(taskSelect);
             tr.appendChild(taskCell);
