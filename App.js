@@ -6,9 +6,10 @@ import { renderAttendancePage } from './pages/AttendancePage.js';
 import { renderNotesPage } from './pages/NotesPage.js';
 import { renderWorkLogPage } from './pages/WorkLogPage.js';
 import { renderLoginPage } from './pages/LoginPage.js';
+import { renderSettingsPage } from './pages/SettingsPage.js';
 import { Navbar } from './components/Navbar.js';
-import { INITIAL_TEAM_MEMBERS } from './constants.js';
-import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery } from './services/firebaseService.js';
+import { INITIAL_TEAM_MEMBERS, DEFAULT_SETTINGS } from './constants.js';
+import { getCollection, setDocument, getDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery } from './services/firebaseService.js';
 import { exportToCSV, importFromCSV } from './services/csvService.js';
 import { ProjectStatus, AttendanceStatus, LeaveType, NoteStatus, TeamMemberRole } from './types.js'; // Enums
 
@@ -22,18 +23,25 @@ let attendance = [];
 let notes = [];
 let teamMembers = [];
 let workLogs = [];
+let appSettings = { ...DEFAULT_SETTINGS };
 let currentUser = null; // Start as null, will be set on login
 
 // --- Login/Logout Handlers ---
 
-const handleLogin = (member) => {
-    currentUser = member;
-    sessionStorage.setItem('currentUserId', member.id);
-    // After login, always go to dashboard
-    currentView = 'dashboard';
-    sessionStorage.setItem('currentView', 'dashboard');
-    renderApp();
+const handleLogin = (member, password) => {
+    // Password check is now mandatory
+    if (member && member.password === password) {
+        currentUser = member;
+        sessionStorage.setItem('currentUserId', member.id);
+        // After login, always go to dashboard
+        currentView = 'dashboard';
+        sessionStorage.setItem('currentView', 'dashboard');
+        renderApp();
+        return true;
+    }
+    return false;
 };
+
 
 const handleLogout = () => {
     currentUser = null;
@@ -205,7 +213,12 @@ const deleteWorkLog = async (workLogId) => {
 
 const deleteMultipleWorkLogs = async (workLogIds) => {
     try {
-        await batchWrite('worklogs', workLogIds.map(id => ({ id, _delete: true })));
+        const batch = writeBatch(db);
+        workLogIds.forEach(id => {
+            batch.delete(doc(db, 'worklogs', id));
+        });
+        await batch.commit();
+
         workLogs = workLogs.filter(wl => !workLogIds.includes(wl.id));
         renderApp();
     } catch (error) {
@@ -235,13 +248,16 @@ const addTeamMember = async (member) => {
 const updateTeamMember = async (updatedMember) => {
   try {
     const { id, ...data } = updatedMember;
-    await updateDocument('teamMembers', id, data);
-    
-    // To update local state, we need to merge the changes with the existing member object
-    // to preserve fields that weren't changed (like the password if left blank).
     const oldMember = teamMembers.find(m => m.id === id);
     const locallyUpdatedMember = { ...oldMember, ...updatedMember };
     
+    // If the password field was left blank, don't update it in the database.
+    // The `data` object will not have a password property if it was empty in the form.
+    if (!data.password) {
+        data.password = oldMember.password;
+    }
+
+    await setDocument('teamMembers', id, data);
     teamMembers = teamMembers.map(m => m.id === id ? locallyUpdatedMember : m);
     
     // If the currently logged in user was updated, update the currentUser object
@@ -318,6 +334,18 @@ const deleteTeamMember = async (memberId) => {
   }
 };
 
+// Settings handler
+const updateAppSettings = async (newSettings) => {
+    try {
+        await setDocument('settings', 'main', newSettings);
+        appSettings = newSettings;
+        renderApp();
+    } catch (error) {
+        console.error("Failed to update settings:", error);
+        alert("Error: Could not save application settings.");
+    }
+};
+
 // CSV Handlers
 const handleExport = (dataType) => {
   if (dataType === 'projects') {
@@ -361,7 +389,9 @@ const handleExport = (dataType) => {
     });
     exportToCSV(attendanceToExport, 'attendance.csv');
   } else if (dataType === 'team') {
-    exportToCSV(teamMembers, 'team_members.csv');
+    // Exclude password from team export
+    const teamToExport = teamMembers.map(({ password, ...rest }) => rest);
+    exportToCSV(teamToExport, 'team_members.csv');
   } else if (dataType === 'notes') {
     const notesToExport = notes.map(n => ({
         ...n,
@@ -452,9 +482,11 @@ const handleImport = async (file, dataType) => {
         collectionName = 'teamMembers';
         processedData = data.map(item => {
             if (!item.id || !item.name) return null;
-            // Remove password property if it exists from imported data
-            const { password, ...memberData } = item;
-            return memberData;
+            // When importing, if password is not provided, use a default one.
+            if (!item.password) {
+                item.password = 'password123';
+            }
+            return item;
         }).filter(Boolean);
         if ((teamMembers.length + processedData.length) > 20) {
            alert("Import would exceed the 20 team member limit. Please adjust your CSV file.");
@@ -584,7 +616,22 @@ function renderApp() {
   if (!currentUser) {
       // Not logged in, render login page
       rootElement.innerHTML = ''; // Clear whatever was there
-      renderLoginPage(rootElement, { onLogin: handleLogin, teamMembers });
+      renderLoginPage(rootElement, { 
+          onLogin: (member) => {
+              // The login page now just finds the member by email.
+              // We could pass the password to onLogin, but for simplicity, let's keep it clean.
+              const password = rootElement.querySelector('#password').value;
+              if (!handleLogin(member, password)) {
+                  // handleLogin returns false on failure
+                  const errorMsg = rootElement.querySelector('.login-error-message');
+                  if (errorMsg) {
+                      errorMsg.textContent = 'Invalid email or password.';
+                      errorMsg.style.display = 'block';
+                  }
+              }
+          }, 
+          teamMembers 
+      });
       return;
   }
   
@@ -645,6 +692,7 @@ function renderApp() {
         workLogs: pageWorkLogs,
         attendanceRecords: pageAttendance,
         projectStatuses: Object.values(ProjectStatus),
+        workLogTasks: appSettings.workLogTasks,
         onAddProject: addProject,
         onAddNote: addNote,
         onAddMultipleWorkLogs: addMultipleWorkLogs,
@@ -656,6 +704,7 @@ function renderApp() {
       teamMembers,
       currentUser,
       projectStatuses: Object.values(ProjectStatus),
+      priorities: appSettings.priorities,
       onAddProject: addProject,
       onUpdateProject: updateProject,
       onDeleteProject: deleteProject,
@@ -698,12 +747,18 @@ function renderApp() {
         teamMembers,
         projects,
         currentUser,
+        workLogTasks: appSettings.workLogTasks,
         onAddMultipleWorkLogs: addMultipleWorkLogs,
         onUpdateWorkLog: updateWorkLog,
         onDeleteWorkLog: deleteWorkLog,
         onDeleteMultipleWorkLogs: deleteMultipleWorkLogs,
         onExport: () => handleExport('worklogs'),
         onImport: (file) => handleImport(file, 'worklogs'),
+    });
+  } else if (currentView === 'settings' && currentUser.role === TeamMemberRole.Manager) {
+    renderSettingsPage(mainContentElement, {
+        appSettings,
+        onUpdateAppSettings: updateAppSettings
     });
   }
   
@@ -723,18 +778,28 @@ function renderApp() {
 
 async function loadInitialData(seedIfEmpty = true) {
   try {
-    const [projectData, attendanceData, notesData, teamMemberData, workLogData] = await Promise.all([
+    const [projectData, attendanceData, notesData, teamMemberData, workLogData, settingsData] = await Promise.all([
         getCollection('projects'),
         getCollection('attendance'),
         getCollection('notes'),
         getCollection('teamMembers'),
         getCollection('worklogs'),
+        getDocument('settings', 'main') // Fetch settings
     ]);
     
     projects = projectData;
     attendance = attendanceData;
     notes = notesData;
     workLogs = workLogData;
+    
+    // Seed settings if they don't exist
+    if (settingsData) {
+        appSettings = { ...DEFAULT_SETTINGS, ...settingsData };
+    } else if (seedIfEmpty) {
+        console.log("No settings found in database. Seeding with default values.");
+        await setDocument('settings', 'main', DEFAULT_SETTINGS);
+        appSettings = { ...DEFAULT_SETTINGS };
+    }
 
     // Check if team members need to be seeded. This is more robust.
     if (seedIfEmpty && teamMemberData.length === 0) {
@@ -746,15 +811,13 @@ async function loadInitialData(seedIfEmpty = true) {
         teamMembers = teamMemberData;
     }
 
-    // Data migration: ensure all members have a role
+    // Data migration: ensure all members have a role and password
     teamMembers.forEach(m => {
-        if (!m.role) {
-            m.role = TeamMemberRole.Member; // Default to 'Member' if role is missing
-        }
+        if (!m.role) m.role = TeamMemberRole.Member; // Default to 'Member' if role is missing
+        if (!m.password) m.password = 'password123'; // Default password if missing
     });
 
     // One-time data migration for existing notes to add userId, to avoid orphaning them.
-    // This is not perfectly accurate but prevents data loss for the user.
     // We'll assign them to the first manager found, or the first user.
     const firstManager = teamMembers.find(m => m.role === TeamMemberRole.Manager);
     const defaultOwnerId = (firstManager || teamMembers[0])?.id;
