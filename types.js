@@ -31,14 +31,6 @@ export const TeamMemberRole = {
   Member: 'Member',
 };
 
-export const NotificationType = {
-  NEW_ASSIGNMENT: 'NEW_ASSIGNMENT',
-  PROJECT_STATUS_CHANGE: 'PROJECT_STATUS_CHANGE',
-  PROJECT_DUE_SOON: 'PROJECT_DUE_SOON',
-  PROJECT_OVERDUE: 'PROJECT_OVERDUE',
-};
-
-
 // Interfaces are conceptual in JS. These comments describe the expected object shapes.
 // interface TeamMember {
 //   id: string;
@@ -115,17 +107,6 @@ export const NotificationType = {
 //   color: string; // hex code
 //   createdAt: string; // ISO date string
 //   updatedAt: string; // ISO date string
-// }
-
-// interface Notification {
-//   id: string;
-//   userId: string; // TeamMember ID
-//   type: NotificationType value;
-//   message: string;
-//   relatedId?: string; // e.g., Project ID
-//   isRead: boolean;
-//   createdAt: string; // ISO date string
-//   readAt?: string; // ISO date string
 // }
 
 // interface WorkLog {
