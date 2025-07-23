@@ -1,6 +1,7 @@
 
 
 import { Button } from './Button.js';
+import { TeamMemberRole } from '../types.js';
 
 export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, onLogout, notificationCount }) {
   const navItems = [
@@ -10,6 +11,12 @@ export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, o
     { view: 'worklog', label: 'Work Log', icon: 'fas fa-clock' },
     { view: 'notes', label: 'Notes', icon: 'fas fa-sticky-note' },
   ];
+  
+  // Add Settings view only for managers
+  if (currentUser && currentUser.role === TeamMemberRole.Manager) {
+      navItems.push({ view: 'settings', label: 'Settings', icon: 'fas fa-cog' });
+  }
+
 
   const navElement = document.createElement('nav');
   navElement.className = 'navbar';
@@ -57,7 +64,35 @@ export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, o
   desktopMenuDiv.appendChild(desktopMenuItemsDiv);
   rightSection.appendChild(desktopMenuDiv);
   
-  // Logout Button (replaces user profile menu)
+  // --- Notification Bell ---
+  const notificationButton = document.createElement('button');
+  notificationButton.className = 'notification-button';
+  notificationButton.setAttribute('aria-label', `View notifications`);
+  // Clicking the bell navigates to the projects page, where most actionable items are.
+  notificationButton.onclick = () => onNavChange('projects');
+  notificationButton.innerHTML = '<i class="fas fa-bell"></i>';
+
+  if (notificationCount > 0) {
+      const badge = document.createElement('span');
+      badge.className = 'notification-badge';
+      badge.textContent = notificationCount > 9 ? '9+' : String(notificationCount);
+      notificationButton.appendChild(badge);
+      notificationButton.classList.add('has-notifications');
+  }
+  rightSection.appendChild(notificationButton);
+
+  // Theme Toggle Button
+  const themeToggleButton = document.createElement('button');
+  themeToggleButton.className = 'theme-toggle-button';
+  themeToggleButton.setAttribute('aria-label', 'Toggle dark mode');
+  const isCurrentlyDark = document.documentElement.classList.contains('dark');
+  themeToggleButton.innerHTML = isCurrentlyDark ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
+  themeToggleButton.onclick = () => {
+    onThemeToggle();
+  };
+  rightSection.appendChild(themeToggleButton);
+
+  // Logout Button
   if (currentUser) {
     const logoutContainer = document.createElement('div');
     logoutContainer.className = 'navbar-logout-container';
@@ -72,36 +107,6 @@ export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, o
     logoutContainer.appendChild(logoutButton);
     rightSection.appendChild(logoutContainer);
   }
-
-  // --- Notification Bell ---
-  const notificationButton = document.createElement('button');
-  notificationButton.className = 'notification-button';
-  notificationButton.setAttribute('aria-label', `View notifications`);
-  // Clicking the bell navigates to the projects page, where most actionable items are.
-  notificationButton.onclick = () => onNavChange('projects');
-  notificationButton.innerHTML = '<i class="fas fa-bell"></i>';
-
-  if (notificationCount > 0) {
-      const badge = document.createElement('span');
-      badge.className = 'notification-badge';
-      badge.textContent = notificationCount > 9 ? '9+' : notificationCount;
-      notificationButton.appendChild(badge);
-      notificationButton.classList.add('has-notifications');
-  }
-  rightSection.appendChild(notificationButton);
-
-  // Theme Toggle Button
-  const themeToggleButton = document.createElement('button');
-  themeToggleButton.className = 'theme-toggle-button';
-  themeToggleButton.setAttribute('aria-label', 'Toggle dark mode');
-  const isCurrentlyDark = document.documentElement.classList.contains('dark');
-  themeToggleButton.innerHTML = isCurrentlyDark ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
-  themeToggleButton.onclick = () => {
-    onThemeToggle();
-    // The icon will be updated on the next render pass which is triggered by onThemeToggle
-  };
-  rightSection.appendChild(themeToggleButton);
-
 
   // Mobile Menu Button
   const mobileMenuButtonDiv = document.createElement('div');
