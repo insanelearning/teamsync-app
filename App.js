@@ -203,6 +203,17 @@ const deleteWorkLog = async (workLogId) => {
     }
 };
 
+const deleteMultipleWorkLogs = async (workLogIds) => {
+    try {
+        await batchWrite('worklogs', workLogIds.map(id => ({ id, _delete: true })));
+        workLogs = workLogs.filter(wl => !workLogIds.includes(wl.id));
+        renderApp();
+    } catch (error) {
+        console.error("Failed to delete multiple work logs:", error);
+        alert("Error: Could not delete the selected work logs.");
+    }
+};
+
 
 // Team Member handlers
 const addTeamMember = async (member) => {
@@ -690,6 +701,7 @@ function renderApp() {
         onAddMultipleWorkLogs: addMultipleWorkLogs,
         onUpdateWorkLog: updateWorkLog,
         onDeleteWorkLog: deleteWorkLog,
+        onDeleteMultipleWorkLogs: deleteMultipleWorkLogs,
         onExport: () => handleExport('worklogs'),
         onImport: (file) => handleImport(file, 'worklogs'),
     });
