@@ -198,7 +198,7 @@ function renderDeadlinesAndRisks(projects, onProjectClick) {
 
 
 // Renders the new overview section
-function renderProjectsOverview(projects, projectStatuses, onProjectClick) {
+function renderProjectsOverview(projects, projectStatuses, onProjectClick, onKpiClick) {
   const overviewContainer = document.createElement('div');
   overviewContainer.className = 'projects-overview-container';
   
@@ -212,15 +212,16 @@ function renderProjectsOverview(projects, projectStatuses, onProjectClick) {
   const overdue = projects.filter(p => p.status !== 'Done' && new Date(p.dueDate) < new Date()).length;
 
   const kpis = [
-    { label: 'Total Projects', value: totalProjects, icon: 'fas fa-layer-group' },
-    { label: 'In Progress', value: inProgress, icon: 'fas fa-tasks' },
-    { label: 'Completed', value: completed, icon: 'fas fa-check-circle' },
-    { label: 'Overdue', value: overdue, icon: 'fas fa-exclamation-triangle', isWarning: overdue > 0 }
+    { label: 'Total Projects', value: totalProjects, icon: 'fas fa-layer-group', filterKey: 'total' },
+    { label: 'In Progress', value: inProgress, icon: 'fas fa-tasks', filterKey: 'inProgress' },
+    { label: 'Completed', value: completed, icon: 'fas fa-check-circle', filterKey: 'completed' },
+    { label: 'Overdue', value: overdue, icon: 'fas fa-exclamation-triangle', isWarning: overdue > 0, filterKey: 'overdue' }
   ];
 
   kpis.forEach(kpi => {
     const card = document.createElement('div');
-    card.className = `stat-card ${kpi.isWarning ? 'warning' : ''}`;
+    card.className = `stat-card clickable ${kpi.isWarning ? 'warning' : ''}`;
+    card.onclick = () => onKpiClick(kpi.filterKey);
     card.innerHTML = `
       <div class="stat-card-icon"><i class="${kpi.icon}"></i></div>
       <div>
@@ -278,6 +279,7 @@ export function renderProjectsPage(container, props) {
   let projectTypeFilter = '';
   let projectCategoryFilter = '';
   let sortOrder = 'dueDateAsc';
+  let overdueFilterActive = false;
 
   container.innerHTML = ''; 
   const pageWrapper = document.createElement('div');
@@ -305,24 +307,59 @@ export function renderProjectsPage(container, props) {
   }
   pageWrapper.appendChild(headerDiv);
   
+  const projectsContainer = document.createElement('div'); // Define early for handleKpiClick
+
+  function handleKpiClick(filterKey) {
+    // Reset all filters first
+    statusFilter = '';
+    overdueFilterActive = false;
+
+    // Reset relevant UI controls
+    document.getElementById('project-status-filter').value = '';
+    
+    // Apply specific filter based on key
+    switch(filterKey) {
+        case 'inProgress':
+            statusFilter = 'In Progress';
+            document.getElementById('project-status-filter').value = 'In Progress';
+            break;
+        case 'completed':
+            statusFilter = 'Done';
+            document.getElementById('project-status-filter').value = 'Done';
+            break;
+        case 'overdue':
+            overdueFilterActive = true;
+            // No specific status to select, it's a custom flag.
+            break;
+        case 'total':
+            // Already reset everything, so nothing more to do.
+            break;
+    }
+    rerenderProjectList();
+    // Scroll down to the list for immediate feedback
+    projectsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   // Render the new overview section, passing the function to open a project modal
-  pageWrapper.appendChild(renderProjectsOverview(projects, projectStatuses, openModalWithProject));
+  pageWrapper.appendChild(renderProjectsOverview(projects, projectStatuses, openModalWithProject, handleKpiClick));
 
   const filtersDiv = document.createElement('div');
   filtersDiv.className = "filters-container";
   const filterGrid = document.createElement('div');
   filterGrid.className = "filters-grid";
 
-  function createFilterInput(type, placeholder, onUpdate) {
+  function createFilterInput(type, placeholder, onUpdate, id) {
     const input = document.createElement('input');
     input.type = type; input.placeholder = placeholder;
     input.className = "form-input";
+    if (id) input.id = id;
     input.oninput = (e) => { onUpdate(e.target.value); rerenderProjectList(); };
     return input;
   }
-  function createFilterSelect(optionsArray, defaultOptionText, onUpdate, currentValue = '') {
+  function createFilterSelect(optionsArray, defaultOptionText, onUpdate, currentValue = '', id = '') {
     const select = document.createElement('select');
     select.className = "form-select";
+    if (id) select.id = id;
     if (defaultOptionText) select.innerHTML = `<option value="">${defaultOptionText}</option>`;
     optionsArray.forEach(opt => select.innerHTML += `<option value="${opt.value}" ${opt.value === currentValue ? 'selected' : ''}>${opt.label}</option>`);
     select.value = currentValue;
@@ -338,29 +375,57 @@ export function renderProjectsPage(container, props) {
   ];
 
   filterGrid.append(
-    createFilterInput('text', 'Search projects...', val => searchTerm = val),
-    createFilterSelect(projectStatuses.map(s => ({value: s, label: s})), 'All Statuses', val => statusFilter = val),
-    createFilterSelect(teamMembers.map(m => ({value: m.id, label: m.name})), 'Any Assignee', val => assigneeFilter = val),
-    createFilterSelect(teamMembers.map(m => ({value: m.id, label: m.name})), 'Any Team Lead', val => teamLeadFilter = val),
-    createFilterSelect(uniqueProjectTypes.map(t => ({value: t, label: t})), 'All Types', val => projectTypeFilter = val),
-    createFilterSelect(uniqueProjectCategories.map(c => ({value: c, label: c})), 'All Categories', val => projectCategoryFilter = val),
-    createFilterSelect(sortOptions, '', val => sortOrder = val, sortOrder)
+    createFilterInput('text', 'Search name, desc, tags...', val => searchTerm = val, 'project-search-input'),
+    createFilterSelect(projectStatuses.map(s => ({value: s, label: s})), 'All Statuses', val => { statusFilter = val; overdueFilterActive = false; }, '', 'project-status-filter'),
+    createFilterSelect(teamMembers.map(m => ({value: m.id, label: m.name})), 'Any Assignee', val => assigneeFilter = val, '', 'project-assignee-filter'),
+    createFilterSelect(teamMembers.map(m => ({value: m.id, label: m.name})), 'Any Team Lead', val => teamLeadFilter = val, '', 'project-lead-filter'),
+    createFilterSelect(uniqueProjectTypes.map(t => ({value: t, label: t})), 'All Types', val => projectTypeFilter = val, '', 'project-type-filter'),
+    createFilterSelect(uniqueProjectCategories.map(c => ({value: c, label: c})), 'All Categories', val => projectCategoryFilter = val, '', 'project-category-filter'),
+    createFilterSelect(sortOptions, '', val => sortOrder = val, sortOrder, 'project-sort-select'),
+    Button({
+        children: 'Clear',
+        variant: 'secondary',
+        size: 'sm',
+        leftIcon: '<i class="fas fa-times"></i>',
+        onClick: () => {
+            searchTerm = ''; statusFilter = ''; assigneeFilter = ''; teamLeadFilter = '';
+            projectTypeFilter = ''; projectCategoryFilter = ''; sortOrder = 'dueDateAsc';
+            overdueFilterActive = false;
+
+            document.getElementById('project-search-input').value = '';
+            document.getElementById('project-status-filter').value = '';
+            document.getElementById('project-assignee-filter').value = '';
+            document.getElementById('project-lead-filter').value = '';
+            document.getElementById('project-type-filter').value = '';
+            document.getElementById('project-category-filter').value = '';
+            document.getElementById('project-sort-select').value = 'dueDateAsc';
+            rerenderProjectList();
+        }
+    })
   );
   filtersDiv.appendChild(filterGrid);
   pageWrapper.appendChild(filtersDiv);
   
-  const projectsContainer = document.createElement('div');
   pageWrapper.appendChild(projectsContainer);
 
   function getFilteredAndSortedProjects() {
     return projects.filter(p => {
       const sTerm = searchTerm.toLowerCase();
-      return (p.name.toLowerCase().includes(sTerm) || (p.description||'').toLowerCase().includes(sTerm) || (p.stakeholderName && p.stakeholderName.toLowerCase().includes(sTerm))) &&
+      const searchMatch = !searchTerm ||
+             (p.name.toLowerCase().includes(sTerm) || 
+             (p.description||'').toLowerCase().includes(sTerm) || 
+             (p.stakeholderName && p.stakeholderName.toLowerCase().includes(sTerm)) ||
+             (p.tags || []).some(tag => tag.toLowerCase().includes(sTerm)));
+      
+      const isOverdue = p.status !== 'Done' && new Date(p.dueDate) < new Date();
+
+      return searchMatch &&
              (!statusFilter || p.status === statusFilter) &&
              (!assigneeFilter || (p.assignees && p.assignees.includes(assigneeFilter))) &&
              (!teamLeadFilter || p.teamLeadId === teamLeadFilter) &&
              (!projectTypeFilter || p.projectType === projectTypeFilter) &&
-             (!projectCategoryFilter || p.projectCategory === projectCategoryFilter);
+             (!projectCategoryFilter || p.projectCategory === projectCategoryFilter) &&
+             (!overdueFilterActive || isOverdue);
     }).sort((a, b) => {
       if (sortOrder === 'dueDateAsc') return new Date(a.dueDate) - new Date(b.dueDate);
       if (sortOrder === 'dueDateDesc') return new Date(b.dueDate) - new Date(a.dueDate);
@@ -374,6 +439,7 @@ export function renderProjectsPage(container, props) {
     const displayProjects = getFilteredAndSortedProjects();
     projectsContainer.innerHTML = ''; 
     if (displayProjects.length > 0) {
+        projectsContainer.className = ''; // Reset placeholder class
         const table = document.createElement('table');
         table.className = "data-table projects-table";
         table.innerHTML = `
