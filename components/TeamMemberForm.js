@@ -6,7 +6,6 @@ import { TeamMemberRole } from '../types.js';
 const getDefaultTeamMember = () => ({
   name: '',
   email: '',
-  password: '',
   employeeId: '',
   joinDate: new Date().toISOString().split('T')[0],
   birthDate: '',
@@ -17,14 +16,9 @@ const getDefaultTeamMember = () => ({
 });
 
 export function TeamMemberForm({ member, onSave, onCancel }) {
-  const isEditing = !!member;
-  
-  let formData = isEditing 
+  let formData = member 
     ? { ...getDefaultTeamMember(), ...member, joinDate: member.joinDate || new Date().toISOString().split('T')[0] } 
     : { ...getDefaultTeamMember(), id: undefined };
-  
-  // Add a field for password confirmation, not part of the model
-  formData.confirmPassword = isEditing ? '' : '';
 
   const form = document.createElement('form');
   form.className = 'project-form'; // Re-use project form's base class for spacing etc.
@@ -74,25 +68,6 @@ export function TeamMemberForm({ member, onSave, onCancel }) {
   nameEmailGrid.appendChild(createField('Member Name', 'text', 'name', formData.name, true));
   nameEmailGrid.appendChild(createField('Email', 'email', 'email', formData.email, true));
   form.appendChild(nameEmailGrid);
-  
-  // --- Password Fields ---
-  const passwordNote = document.createElement('p');
-  passwordNote.className = 'form-label';
-  passwordNote.style.fontSize = '0.75rem';
-  passwordNote.style.fontStyle = 'italic';
-  passwordNote.style.color = '#6b7280';
-  passwordNote.style.marginTop = '1rem';
-  passwordNote.textContent = isEditing ? 'Leave password fields blank to keep the current password.' : 'Password is required for new members.';
-  form.appendChild(passwordNote);
-
-  const passwordGrid = document.createElement('div');
-  passwordGrid.className = 'form-grid-cols-2';
-  // For new members, password is required. For edits, it's optional.
-  passwordGrid.appendChild(createField('Password', 'password', 'password', '', !isEditing, { placeholder: isEditing ? 'Enter new password' : '' }));
-  passwordGrid.appendChild(createField('Confirm Password', 'password', 'confirmPassword', '', !isEditing, { placeholder: 'Confirm new password' }));
-  form.appendChild(passwordGrid);
-  // --- End Password Fields ---
-
 
   const idDesignationGrid = document.createElement('div');
   idDesignationGrid.className = "form-grid-cols-2";
@@ -131,16 +106,6 @@ export function TeamMemberForm({ member, onSave, onCancel }) {
       return;
     }
     
-    // Password validation
-    if (formData.password !== formData.confirmPassword) {
-        alert("Passwords do not match.");
-        return;
-    }
-    if (!isEditing && !formData.password) {
-        alert("Password is required for new members.");
-        return;
-    }
-
     const memberToSave = {
       id: member?.id || crypto.randomUUID(),
       name: formData.name.trim(),
@@ -155,13 +120,6 @@ export function TeamMemberForm({ member, onSave, onCancel }) {
     if (formData.designation?.trim()) memberToSave.designation = formData.designation.trim();
     if (formData.department?.trim()) memberToSave.department = formData.department.trim();
     if (formData.company?.trim()) memberToSave.company = formData.company.trim();
-
-    // Add password only if it's being set/changed
-    if (formData.password) {
-        // NOTE: In a real-world application, this password should be hashed on the server-side
-        // before being stored. Storing plain text passwords is a security risk.
-        memberToSave.password = formData.password;
-    }
 
     onSave(memberToSave);
   });

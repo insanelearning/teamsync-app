@@ -1,5 +1,6 @@
 
 import { Button } from './Button.js';
+import { PRIORITIES } from '../constants.js';
 import { ProjectStatus } from '../types.js';
 
 const getDefaultProject = () => ({
@@ -54,7 +55,7 @@ function updateCampaignCalculations(fieldset) {
 }
 
 
-export function ProjectForm({ project, teamMembers, projectStatuses, priorities = [], onSave, onCancel }) {
+export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onCancel }) {
   let formData = project 
     ? { ...getDefaultProject(), ...project, assignees: project.assignees || [], tags: project.tags || [], goals: project.goals || [] } 
     : { ...getDefaultProject(), id: undefined, createdAt: undefined, updatedAt: undefined };
@@ -302,7 +303,7 @@ export function ProjectForm({ project, teamMembers, projectStatuses, priorities 
   datePriorityGrid.className = 'form-grid-cols-2';
   datePriorityGrid.appendChild(createField('Due Date', 'date', 'dueDate', formData.dueDate, {}, true));
   datePriorityGrid.appendChild(createField('Priority', 'select', 'priority', formData.priority, {
-    options: priorities.map(p => ({ value: p, label: p }))
+    options: PRIORITIES.map(p => ({ value: p, label: p }))
   }));
   form.appendChild(datePriorityGrid);
 
