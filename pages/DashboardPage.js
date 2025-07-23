@@ -35,7 +35,7 @@ function getColorForId(id) {
 
 // --- Manager Dashboard Widgets ---
 
-function renderManagerKPIs(props) {
+function renderManagerKPIs(props, onKpiClick) {
     const { projects, workLogs, teamMembers, attendanceRecords } = props;
     const container = document.createElement('div');
     container.className = 'dashboard-kpis';
@@ -46,30 +46,44 @@ function renderManagerKPIs(props) {
         .reduce((sum, log) => sum + (log.timeSpentMinutes || 0), 0);
     
     const activeProjects = projects.filter(p => p.status !== ProjectStatus.Done).length;
-    const overdueProjects = projects.filter(p => p.status !== ProjectStatus.Done && new Date(p.dueDate) < new Date()).length;
+    const overdueProjects = projects.filter(p => p.status !== ProjectStatus.Done && new Date(p.dueDate) < new Date());
     
     const today = new Date().toISOString().split('T')[0];
-    const onLeaveToday = attendanceRecords.filter(r => r.date === today && r.status === 'Leave').length;
+    const onLeaveRecords = attendanceRecords.filter(r => r.date === today && r.status === 'Leave');
+    const membersOnLeave = onLeaveRecords.map(record => {
+        const member = teamMembers.find(tm => tm.id === record.memberId);
+        return {
+            name: member ? member.name : 'Unknown Member',
+            leaveType: record.leaveType || 'Not specified'
+        };
+    });
 
     const kpis = [
-        { value: formatMinutes(hoursThisWeek), label: 'Hours This Week', icon: 'fa-clock' },
-        { value: activeProjects, label: 'Active Projects', icon: 'fa-tasks' },
-        { value: overdueProjects, label: 'Overdue', icon: 'fa-exclamation-triangle' },
-        { value: onLeaveToday, label: 'On Leave Today', icon: 'fa-user-slash' }
+        { value: formatMinutes(hoursThisWeek), label: 'Hours This Week', icon: 'fa-clock', type: 'hours' },
+        { value: activeProjects, label: 'Active Projects', icon: 'fa-tasks', type: 'active' },
+        { value: overdueProjects.length, label: 'Overdue', icon: 'fa-exclamation-triangle', type: 'overdue', data: overdueProjects },
+        { value: membersOnLeave.length, label: 'On Leave Today', icon: 'fa-user-slash', type: 'leave', data: membersOnLeave }
     ];
 
     kpis.forEach(kpi => {
-        container.innerHTML += `
-            <div class="kpi-card">
-                <div class="kpi-icon">
-                    <i class="fas ${kpi.icon}"></i>
-                </div>
-                <div>
-                    <div class="kpi-value">${kpi.value}</div>
-                    <div class="kpi-label">${kpi.label}</div>
-                </div>
+        const card = document.createElement('div');
+        card.className = 'kpi-card';
+        card.innerHTML = `
+            <div class="kpi-icon">
+                <i class="fas ${kpi.icon}"></i>
+            </div>
+            <div>
+                <div class="kpi-value">${kpi.value}</div>
+                <div class="kpi-label">${kpi.label}</div>
             </div>
         `;
+        
+        if ((kpi.type === 'overdue' || kpi.type === 'leave') && kpi.data.length > 0) {
+            card.classList.add('clickable');
+            card.addEventListener('click', () => onKpiClick(kpi));
+        }
+        
+        container.appendChild(card);
     });
     return container;
 }
@@ -553,7 +567,47 @@ function openModal(type, props) {
 
 
 function renderManagerDashboard(container, props) {
-    container.appendChild(renderManagerKPIs(props));
+    const onKpiClick = (kpi) => {
+        let title;
+        
+        const list = document.createElement('ul');
+        list.className = 'kpi-modal-list';
+
+        if (kpi.type === 'overdue') {
+            title = 'Overdue Projects';
+            kpi.data.forEach(project => {
+                const li = document.createElement('li');
+                li.className = 'kpi-modal-list-item';
+                li.innerHTML = `<strong>${project.name}</strong> <span>Due: ${new Date(project.dueDate).toLocaleDateString()}</span>`;
+                list.appendChild(li);
+            });
+        } else if (kpi.type === 'leave') {
+            title = 'Members on Leave Today';
+            kpi.data.forEach(member => {
+                const li = document.createElement('li');
+                li.className = 'kpi-modal-list-item';
+                li.innerHTML = `<strong>${member.name}</strong> <span>Type: ${member.leaveType}</span>`;
+                list.appendChild(li);
+            });
+        } else {
+            return;
+        }
+        
+        if (kpi.data.length === 0) {
+            list.innerHTML = `<p class="no-data-placeholder" style="box-shadow: none; padding: 1rem 0;">Nothing to show.</p>`;
+        }
+
+        currentModalInstance = Modal({
+            isOpen: true,
+            onClose: () => { closeGlobalModal(); currentModalInstance = null; },
+            title: `${title} (${kpi.data.length})`,
+            children: list,
+            footer: [Button({ children: 'Close', variant: 'secondary', onClick: () => { closeGlobalModal(); currentModalInstance = null; } })],
+            size: 'md'
+        });
+    };
+
+    container.appendChild(renderManagerKPIs(props, onKpiClick));
     
     const layout = document.createElement('div');
     layout.className = 'dashboard-layout';
