@@ -35,70 +35,6 @@ function getColorForId(id) {
 
 // --- Manager Dashboard Widgets ---
 
-function openDetailsModal(type, data, props) {
-    const { teamMembers } = props;
-    const closeModal = () => { closeGlobalModal(); currentModalInstance = null; };
-    
-    let title = '';
-    const content = document.createElement('div');
-    content.className = 'dashboard-modal-list-container';
-    const ul = document.createElement('ul');
-    ul.className = 'dashboard-modal-list';
-
-    if (type === 'overdue') {
-        title = `Overdue Projects (${data.length})`;
-        data.sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate)); // Sort by oldest
-        data.forEach(project => {
-            const li = document.createElement('li');
-            li.className = 'dashboard-modal-list-item project-item';
-            const assignees = (project.assignees || []).map(id => teamMembers.find(m => m.id === id)?.name || 'Unknown').join(', ');
-            li.innerHTML = `
-                <div class="item-main">
-                    <span class="item-title">${project.name}</span>
-                    <span class="item-subtitle">Due: ${new Date(project.dueDate).toLocaleDateString()}</span>
-                </div>
-                <div class="item-meta">
-                    <span>Assignees:</span>
-                    <span class="truncate" title="${assignees}">${assignees || 'Unassigned'}</span>
-                </div>
-            `;
-            ul.appendChild(li);
-        });
-    } else { // on-leave
-        title = `On Leave Today (${data.length})`;
-        data.forEach(member => {
-            const li = document.createElement('li');
-            li.className = 'dashboard-modal-list-item member-item';
-            li.innerHTML = `
-                 <div class="item-main">
-                    <span class="item-title">${member.name}</span>
-                    <span class="item-subtitle">${member.designation || 'Team Member'}</span>
-                </div>
-                <div class="item-meta">
-                    <span>${member.leaveType || 'Leave'}</span>
-                </div>
-            `;
-            ul.appendChild(li);
-        });
-    }
-    
-    if (data.length === 0) {
-        ul.innerHTML = `<li class="dashboard-modal-list-empty">No items to display.</li>`;
-    }
-
-    content.appendChild(ul);
-    
-    currentModalInstance = Modal({
-        isOpen: true,
-        onClose: closeModal,
-        title: title,
-        children: content,
-        footer: [Button({ children: 'Close', variant: 'secondary', onClick: closeModal })],
-        size: 'md'
-    });
-}
-
-
 function renderManagerKPIs(props) {
     const { projects, workLogs, teamMembers, attendanceRecords } = props;
     const container = document.createElement('div');
@@ -110,66 +46,30 @@ function renderManagerKPIs(props) {
         .reduce((sum, log) => sum + (log.timeSpentMinutes || 0), 0);
     
     const activeProjects = projects.filter(p => p.status !== ProjectStatus.Done).length;
+    const overdueProjects = projects.filter(p => p.status !== ProjectStatus.Done && new Date(p.dueDate) < new Date()).length;
     
     const today = new Date().toISOString().split('T')[0];
-    const overdueProjects = projects.filter(p => p.status !== ProjectStatus.Done && new Date(p.dueDate) < new Date());
-    
-    const onLeaveRecords = attendanceRecords.filter(r => r.date === today && r.status === 'Leave');
-    const membersOnLeave = onLeaveRecords.map(record => {
-        const member = teamMembers.find(m => m.id === record.memberId);
-        return { ...(member || {}), leaveType: record.leaveType };
-    });
+    const onLeaveToday = attendanceRecords.filter(r => r.date === today && r.status === 'Leave').length;
 
     const kpis = [
         { value: formatMinutes(hoursThisWeek), label: 'Hours This Week', icon: 'fa-clock' },
         { value: activeProjects, label: 'Active Projects', icon: 'fa-tasks' },
-        { 
-            value: overdueProjects.length, 
-            label: 'Overdue', 
-            icon: 'fa-exclamation-triangle',
-            isWarning: overdueProjects.length > 0,
-            onClick: overdueProjects.length > 0 ? () => openDetailsModal('overdue', overdueProjects, props) : null
-        },
-        { 
-            value: membersOnLeave.length, 
-            label: 'On Leave Today', 
-            icon: 'fa-user-slash',
-            onClick: membersOnLeave.length > 0 ? () => openDetailsModal('on-leave', membersOnLeave, props) : null
-        }
+        { value: overdueProjects, label: 'Overdue', icon: 'fa-exclamation-triangle' },
+        { value: onLeaveToday, label: 'On Leave Today', icon: 'fa-user-slash' }
     ];
 
     kpis.forEach(kpi => {
-        const card = document.createElement('div');
-        card.className = 'kpi-card';
-        if (kpi.isWarning) {
-            card.classList.add('warning');
-        }
-
-        const iconDiv = document.createElement('div');
-        iconDiv.className = 'kpi-icon';
-        iconDiv.innerHTML = `<i class="fas ${kpi.icon}"></i>`;
-        
-        const textDiv = document.createElement('div');
-        textDiv.innerHTML = `
-            <div class="kpi-value">${kpi.value}</div>
-            <div class="kpi-label">${kpi.label}</div>
+        container.innerHTML += `
+            <div class="kpi-card">
+                <div class="kpi-icon">
+                    <i class="fas ${kpi.icon}"></i>
+                </div>
+                <div>
+                    <div class="kpi-value">${kpi.value}</div>
+                    <div class="kpi-label">${kpi.label}</div>
+                </div>
+            </div>
         `;
-        
-        card.append(iconDiv, textDiv);
-
-        if (kpi.onClick) {
-            card.classList.add('clickable');
-            card.setAttribute('role', 'button');
-            card.setAttribute('tabindex', '0');
-            card.onclick = kpi.onClick;
-            card.onkeydown = (e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    kpi.onClick();
-                }
-            };
-        }
-        
-        container.appendChild(card);
     });
     return container;
 }
@@ -536,7 +436,7 @@ function renderMemberStats(props) {
         label: 'Overdue Projects',
         value: overdueProjectsCount,
         detail: overdueProjectsCount > 0 ? 'Action required' : 'All caught up!'
-    }));
+    });
     if (overdueProjectsCount > 0) overdueCard.classList.add('warning');
     container.appendChild(overdueCard);
 
