@@ -548,7 +548,8 @@ function buildMainLayout() {
         onNavChange: handleNavChange, 
         onThemeToggle: handleThemeToggle,
         currentUser,
-        onLogout: handleLogout
+        onLogout: handleLogout,
+        notificationCount: 0 // Initial count
     });
     rootElement.appendChild(navbar);
 
@@ -594,6 +595,31 @@ function renderApp() {
       pageAttendance = attendance.filter(a => a.memberId === currentUser.id);
       // A member can see notes they created. Old notes without a userId will not be visible to them.
       pageNotes = notes.filter(n => n.userId === currentUser.id);
+  }
+
+  // --- Notification Calculation ---
+  let notificationCount = 0;
+  if (currentUser) {
+      const now = new Date();
+      now.setHours(0, 0, 0, 0); // Normalize to start of day for accurate comparison
+
+      // Use the already-filtered pageProjects and pageNotes
+      const overdueProjectsCount = pageProjects.filter(p =>
+          p.status !== ProjectStatus.Done && new Date(p.dueDate) < now
+      ).length;
+
+      const threeDaysFromNow = new Date();
+      threeDaysFromNow.setDate(now.getDate() + 3);
+      const upcomingProjectsCount = pageProjects.filter(p => {
+          const dueDate = new Date(p.dueDate);
+          return p.status !== ProjectStatus.Done && dueDate >= now && dueDate <= threeDaysFromNow;
+      }).length;
+
+      const overdueNotesCount = pageNotes.filter(n =>
+          n.status !== 'Completed' && n.dueDate && new Date(n.dueDate) < now
+      ).length;
+
+      notificationCount = overdueProjectsCount + upcomingProjectsCount + overdueNotesCount;
   }
 
 
@@ -676,7 +702,8 @@ function renderApp() {
           onNavChange: handleNavChange, 
           onThemeToggle: handleThemeToggle,
           currentUser,
-          onLogout: handleLogout
+          onLogout: handleLogout,
+          notificationCount
       });
       navbarElement.replaceWith(newNavbar);
   }
