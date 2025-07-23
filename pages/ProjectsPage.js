@@ -10,7 +10,7 @@ let currentModalInstance = null;
 
 // Helper to get status/priority classes, can be moved if needed elsewhere
 const getStatusClass = (status) => {
-  const statusMap = { 'To Do': 'status-todo', 'In Progress': 'status-inprogress', 'QA': 'status-qa', 'Blocked': 'status-blocked', 'Done': 'status-done' };
+  const statusMap = { 'To Do': 'status-todo', 'In Progress': 'status-inprogress', 'QC': 'status-qa', 'Blocked': 'status-blocked', 'Done': 'status-done' };
   return statusMap[status] || 'status-default';
 };
 const getPriorityClass = (priority) => {
@@ -263,6 +263,7 @@ export function renderProjectsPage(container, props) {
     teamMembers,
     currentUser,
     projectStatuses,
+    priorities,
     onAddProject,
     onUpdateProject,
     onDeleteProject,
@@ -501,7 +502,8 @@ export function renderProjectsPage(container, props) {
     const formElement = ProjectForm({ 
         project: null, 
         teamMembers, 
-        projectStatuses, 
+        projectStatuses,
+        priorities,
         onSave: (projectData) => {
             onAddProject(projectData);
             closeModal();
@@ -721,7 +723,7 @@ export function renderProjectsPage(container, props) {
 
         if (isEditing) {
             const formElement = ProjectForm({
-                project, teamMembers, projectStatuses,
+                project, teamMembers, projectStatuses, priorities,
                 onSave: (projectData) => {
                     onUpdateProject(projectData);
                     closeModal();
