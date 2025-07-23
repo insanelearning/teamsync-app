@@ -10,7 +10,7 @@ import { Navbar } from './components/Navbar.js';
 import { INITIAL_TEAM_MEMBERS } from './constants.js';
 import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery } from './services/firebaseService.js';
 import { exportToCSV, importFromCSV } from './services/csvService.js';
-import { ProjectStatus, AttendanceStatus, LeaveType, NoteStatus, TeamMemberRole } from './types.js'; // Enums
+import { ProjectStatus, AttendanceStatus, LeaveType, NoteStatus, TeamMemberRole, NotificationType } from './types.js';
 
 let rootElement;
 let mainContentElement;
@@ -22,14 +22,14 @@ let attendance = [];
 let notes = [];
 let teamMembers = [];
 let workLogs = [];
-let currentUser = null; // Start as null, will be set on login
+let notifications = [];
+let currentUser = null;
 
 // --- Login/Logout Handlers ---
 
 const handleLogin = (member) => {
     currentUser = member;
     sessionStorage.setItem('currentUserId', member.id);
-    // After login, always go to dashboard
     currentView = 'dashboard';
     sessionStorage.setItem('currentView', 'dashboard');
     renderApp();
@@ -38,14 +38,92 @@ const handleLogin = (member) => {
 const handleLogout = () => {
     currentUser = null;
     sessionStorage.removeItem('currentUserId');
-    sessionStorage.removeItem('currentView'); // Also clear view preference
+    sessionStorage.removeItem('currentView');
     renderApp();
 };
 
 
-// --- Handler Functions ---
+// --- Notification Handlers ---
 
-// Project handlers
+const createNotification = async (notificationData) => {
+  try {
+    const newNotification = {
+      id: crypto.randomUUID(),
+      isRead: false,
+      readAt: null,
+      createdAt: new Date().toISOString(),
+      ...notificationData,
+    };
+    const { id, ...data } = newNotification;
+    await setDocument('notifications', id, data);
+    notifications.push(newNotification);
+    renderApp(); 
+  } catch (error) {
+    console.error("Failed to create notification:", error);
+  }
+};
+
+const markNotificationRead = async (notificationId) => {
+    const notification = notifications.find(n => n.id === notificationId);
+    if (notification && !notification.isRead) {
+        notification.isRead = true;
+        notification.readAt = new Date().toISOString();
+        await updateDocument('notifications', notificationId, { isRead: true, readAt: notification.readAt });
+        renderApp();
+    }
+};
+
+const markAllNotificationsRead = async () => {
+    const unread = notifications.filter(n => n.userId === currentUser.id && !n.isRead);
+    if (unread.length === 0) return;
+    
+    const batch = writeBatch(getCollection('notifications').firestore);
+    const now = new Date().toISOString();
+
+    unread.forEach(n => {
+        n.isRead = true;
+        n.readAt = now;
+        const docRef = doc(getCollection('notifications').firestore, 'notifications', n.id);
+        batch.update(docRef, { isRead: true, readAt: now });
+    });
+    await batch.commit();
+    renderApp();
+};
+
+const checkDeadlines = async () => {
+    const now = new Date();
+    const threeDaysFromNow = new Date();
+    threeDaysFromNow.setDate(now.getDate() + 3);
+
+    for (const project of projects) {
+        if (project.status === ProjectStatus.Done) continue;
+
+        const assignees = project.assignees || [];
+        if (assignees.length === 0) continue;
+        
+        const dueDate = new Date(project.dueDate + 'T00:00:00');
+
+        if (dueDate < now) { // Overdue
+            for (const userId of assignees) {
+                const existing = notifications.find(n => n.userId === userId && n.relatedId === project.id && n.type === NotificationType.PROJECT_OVERDUE && !n.isRead);
+                if (!existing) {
+                    await createNotification({ userId, type: NotificationType.PROJECT_OVERDUE, message: `Project "${project.name}" is overdue!`, relatedId: project.id });
+                }
+            }
+        } else if (dueDate <= threeDaysFromNow) { // Due Soon
+            for (const userId of assignees) {
+                const existing = notifications.find(n => n.userId === userId && n.relatedId === project.id && n.type === NotificationType.PROJECT_DUE_SOON && !n.isRead);
+                if (!existing) {
+                    await createNotification({ userId, type: NotificationType.PROJECT_DUE_SOON, message: `Project "${project.name}" is due on ${dueDate.toLocaleDateString()}.`, relatedId: project.id });
+                }
+            }
+        }
+    }
+};
+
+
+// --- Data Handlers ---
+
 const addProject = async (project) => {
   try {
     const { id, ...data } = project;
@@ -61,6 +139,23 @@ const addProject = async (project) => {
 const updateProject = async (updatedProject) => {
   try {
     const originalProject = projects.find(p => p.id === updatedProject.id);
+    
+    if (originalProject) {
+        // Status change notification
+        if (originalProject.status !== updatedProject.status) {
+            (updatedProject.assignees || []).forEach(assigneeId => {
+                createNotification({ userId: assigneeId, type: NotificationType.PROJECT_STATUS_CHANGE, message: `Status of project "${updatedProject.name}" changed to ${updatedProject.status}.`, relatedId: updatedProject.id });
+            });
+        }
+        // New assignment notification
+        const oldAssignees = new Set(originalProject.assignees || []);
+        (updatedProject.assignees || []).forEach(assigneeId => {
+            if (!oldAssignees.has(assigneeId)) {
+                createNotification({ userId: assigneeId, type: NotificationType.NEW_ASSIGNMENT, message: `You have been assigned to project "${updatedProject.name}".`, relatedId: updatedProject.id });
+            }
+        });
+    }
+
     if (originalProject && originalProject.status !== ProjectStatus.Done && updatedProject.status === ProjectStatus.Done) {
         updatedProject.completionDate = new Date().toISOString();
     }
@@ -79,9 +174,11 @@ const deleteProject = async (projectId) => {
   try {
     await deleteDocument('projects', projectId);
     projects = projects.filter(p => p.id !== projectId);
-    // Also delete associated work logs
-    workLogs.filter(wl => wl.projectId === projectId).forEach(wl => deleteDocument('worklogs', wl.id));
+    // Also delete associated work logs and notifications
+    await deleteByQuery('worklogs', 'projectId', projectId);
     workLogs = workLogs.filter(wl => wl.projectId !== projectId);
+    await deleteByQuery('notifications', 'relatedId', projectId);
+    notifications = notifications.filter(n => n.relatedId !== projectId);
     renderApp();
   } catch (error) {
     console.error("Failed to delete project:", error);
@@ -89,7 +186,7 @@ const deleteProject = async (projectId) => {
   }
 };
 
-// Attendance handlers
+// ... (other handlers remain the same)
 const upsertAttendanceRecord = async (record) => {
   try {
     const { id, ...data } = record;
@@ -118,10 +215,8 @@ const deleteAttendanceRecord = async (recordId) => {
   }
 };
 
-// Note handlers
 const addNote = async (note) => {
   try {
-    // Add the current user's ID to the note for ownership
     const noteWithOwner = { ...note, userId: currentUser.id };
     const { id, ...data } = noteWithOwner;
     await setDocument('notes', id, data);
@@ -156,21 +251,10 @@ const deleteNote = async (noteId) => {
   }
 };
 
-// Work Log Handlers
 const addMultipleWorkLogs = async (workLogsToAdd) => {
     try {
         const now = new Date().toISOString();
-        // Prepare logs for batch write, ensuring each has a unique ID and timestamps.
-        const processedLogs = workLogsToAdd.map(log => {
-            const { id, ...data } = log;
-            return {
-                ...data,
-                id: crypto.randomUUID(),
-                createdAt: now,
-                updatedAt: now,
-            };
-        });
-        
+        const processedLogs = workLogsToAdd.map(log => ({ ...log, id: crypto.randomUUID(), createdAt: now, updatedAt: now }));
         await batchWrite('worklogs', processedLogs);
         workLogs.push(...processedLogs);
         renderApp();
@@ -203,8 +287,6 @@ const deleteWorkLog = async (workLogId) => {
     }
 };
 
-
-// Team Member handlers
 const addTeamMember = async (member) => {
   if (teamMembers.length >= 20) {
     alert("Team size cannot exceed 20 members.");
@@ -225,15 +307,9 @@ const updateTeamMember = async (updatedMember) => {
   try {
     const { id, ...data } = updatedMember;
     await updateDocument('teamMembers', id, data);
-    
-    // To update local state, we need to merge the changes with the existing member object
-    // to preserve fields that weren't changed (like the password if left blank).
     const oldMember = teamMembers.find(m => m.id === id);
     const locallyUpdatedMember = { ...oldMember, ...updatedMember };
-    
     teamMembers = teamMembers.map(m => m.id === id ? locallyUpdatedMember : m);
-    
-    // If the currently logged in user was updated, update the currentUser object
     if (currentUser && currentUser.id === id) {
         currentUser = locallyUpdatedMember;
     }
@@ -245,133 +321,58 @@ const updateTeamMember = async (updatedMember) => {
 };
 
 const deleteTeamMember = async (memberId) => {
-  // This is a complex transaction. A Cloud Function would be better for atomicity.
-  // Here we perform the steps sequentially.
   try {
     const projectsToUpdate = [];
     const currentProjects = projects.map(p => {
-        const needsUpdate = p.assignees.includes(memberId) || 
-                            p.teamLeadId === memberId || 
-                            (p.goals || []).some(g => (g.metrics || []).some(m => m.memberId === memberId));
-        
+        const needsUpdate = p.assignees.includes(memberId) || p.teamLeadId === memberId || (p.goals || []).some(g => (g.metrics || []).some(m => m.memberId === memberId));
         if (!needsUpdate) return p;
-
-        const updatedProject = {
-            ...p,
-            assignees: p.assignees.filter(assigneeId => assigneeId !== memberId),
-            teamLeadId: p.teamLeadId === memberId ? '' : p.teamLeadId,
-            goals: (p.goals || []).map(g => ({
-                ...g,
-                metrics: (g.metrics || []).map(m => m.memberId === memberId ? { ...m, memberId: undefined } : m)
-            }))
-        };
+        const updatedProject = { ...p, assignees: p.assignees.filter(assigneeId => assigneeId !== memberId), teamLeadId: p.teamLeadId === memberId ? '' : p.teamLeadId, goals: (p.goals || []).map(g => ({ ...g, metrics: (g.metrics || []).map(m => m.memberId === memberId ? { ...m, memberId: undefined } : m) })) };
         projectsToUpdate.push(updatedProject);
         return updatedProject;
     });
 
-    // 1. Update all affected projects
-    const projectUpdatePromises = projectsToUpdate.map(p => {
-        const { id, ...data } = p;
-        return updateDocument('projects', id, data);
-    });
-    await Promise.all(projectUpdatePromises);
-
-    // 2. Delete all attendance records for the member
+    await Promise.all(projectsToUpdate.map(p => updateDocument('projects', p.id, p)));
     await deleteByQuery('attendance', 'memberId', memberId);
-    
-    // 3. Delete all work logs for the member
     await deleteByQuery('worklogs', 'memberId', memberId);
-
-    // 4. Delete the team member itself
+    await deleteByQuery('notifications', 'userId', memberId);
     await deleteDocument('teamMembers', memberId);
     
-    // 5. Update local state and re-render
     projects = currentProjects;
     attendance = attendance.filter(a => a.memberId !== memberId);
     workLogs = workLogs.filter(wl => wl.memberId !== memberId);
+    notifications = notifications.filter(n => n.userId !== memberId);
     teamMembers = teamMembers.filter(m => m.id !== memberId);
 
-    // 6. Logout if the current user was deleted
     if (currentUser && currentUser.id === memberId) {
         handleLogout();
     } else {
         renderApp();
     }
-
   } catch (error) {
     console.error("Error deleting team member:", error);
     alert("Failed to delete member and all associated data. The data may be in an inconsistent state. Please reload the page.");
-    // Refetch data to get back to a consistent state
     await loadInitialData(false);
     renderApp();
   }
 };
 
-// CSV Handlers
 const handleExport = (dataType) => {
+  // This function body remains unchanged
   if (dataType === 'projects') {
     const projectsToExport = projects.map(p => ({
-      id: p.id,
-      name: p.name,
-      description: p.description,
-      status: p.status,
-      assignees: p.assignees.join(';'),
-      dueDate: p.dueDate,
-      priority: p.priority,
-      tags: p.tags ? p.tags.join(';') : '',
-      createdAt: p.createdAt,
-      updatedAt: p.updatedAt,
-      stakeholderName: p.stakeholderName || '',
-      teamLeadId: p.teamLeadId || '',
-      projectType: p.projectType || '',
-      projectCategory: p.projectCategory || '',
-      goals: p.goals ? JSON.stringify(p.goals) : '[]',
-      mediaProduct: p.mediaProduct || '',
-      pilotScope: p.pilotScope || '',
-      clientNames: p.clientNames || '',
-      projectApproach: p.projectApproach || '',
-      deliverables: p.deliverables || '',
-      resultsAchieved: p.resultsAchieved || '',
-      completionDate: p.completionDate || '',
-      completionPercentage: p.completionPercentage || 0,
+      id: p.id, name: p.name, description: p.description, status: p.status, assignees: p.assignees.join(';'), dueDate: p.dueDate, priority: p.priority, tags: p.tags ? p.tags.join(';') : '', createdAt: p.createdAt, updatedAt: p.updatedAt, stakeholderName: p.stakeholderName || '', teamLeadId: p.teamLeadId || '', projectType: p.projectType || '', projectCategory: p.projectCategory || '', goals: p.goals ? JSON.stringify(p.goals) : '[]', mediaProduct: p.mediaProduct || '', pilotScope: p.pilotScope || '', clientNames: p.clientNames || '', projectApproach: p.projectApproach || '', deliverables: p.deliverables || '', resultsAchieved: p.resultsAchieved || '', completionDate: p.completionDate || '', completionPercentage: p.completionPercentage || 0,
     }));
     exportToCSV(projectsToExport, 'projects.csv');
   } else if (dataType === 'attendance') {
-    const attendanceToExport = attendance.map(rec => {
-        const member = teamMembers.find(m => m.id === rec.memberId);
-        return {
-            id: rec.id,
-            date: rec.date,
-            memberName: member?.name || 'Unknown',
-            status: rec.status,
-            leaveType: rec.leaveType || '',
-            notes: rec.notes || '',
-        };
-    });
+    const attendanceToExport = attendance.map(rec => ({ id: rec.id, date: rec.date, memberName: teamMembers.find(m => m.id === rec.memberId)?.name || 'Unknown', status: rec.status, leaveType: rec.leaveType || '', notes: rec.notes || '' }));
     exportToCSV(attendanceToExport, 'attendance.csv');
   } else if (dataType === 'team') {
     exportToCSV(teamMembers, 'team_members.csv');
   } else if (dataType === 'notes') {
-    const notesToExport = notes.map(n => ({
-        ...n,
-        tags: n.tags ? n.tags.join(';') : '',
-    }));
+    const notesToExport = notes.map(n => ({ ...n, tags: n.tags ? n.tags.join(';') : '' }));
     exportToCSV(notesToExport, 'notes.csv');
   } else if (dataType === 'worklogs') {
-    const logsToExport = workLogs.map(log => {
-        const member = teamMembers.find(m => m.id === log.memberId);
-        const project = projects.find(p => p.id === log.projectId);
-        return {
-            id: log.id,
-            date: log.date,
-            memberName: member?.name || 'Unknown',
-            projectName: project?.name || 'Unknown',
-            taskName: log.taskName,
-            requestedFrom: log.requestedFrom,
-            timeSpentMinutes: log.timeSpentMinutes,
-            comments: log.comments || '',
-        };
-    });
+    const logsToExport = workLogs.map(log => ({ id: log.id, date: log.date, memberName: teamMembers.find(m => m.id === log.memberId)?.name || 'Unknown', projectName: projects.find(p => p.id === log.projectId)?.name || 'Unknown', taskName: log.taskName, requestedFrom: log.requestedFrom, timeSpentMinutes: log.timeSpentMinutes, comments: log.comments || '' }));
     exportToCSV(logsToExport, 'work_logs.csv');
   }
 };
@@ -386,128 +387,60 @@ const handleImport = async (file, dataType) => {
     
     let collectionName = '';
     let processedData = [];
-    let importErrors = []; // For detailed error feedback
+    let importErrors = [];
 
     if (dataType === 'projects') {
         collectionName = 'projects';
         processedData = data.map(item => {
             if (!item.id || !item.name || !item.status || !item.dueDate) return null;
-            
             const goals = Array.isArray(item.goals) ? item.goals : JSON.parse(item.goals || '[]');
             const totalGoals = goals.length;
             const completedGoals = goals.filter(g => g.completed).length;
             const completionPercentage = totalGoals > 0 ? (completedGoals / totalGoals) * 100 : 0;
-
-            return {
-              ...item,
-              assignees: Array.isArray(item.assignees) ? item.assignees : (item.assignees || '').split(';').map(s=>s.trim()).filter(Boolean),
-              tags: Array.isArray(item.tags) ? item.tags : (item.tags || '').split(';').map(s=>s.trim()).filter(Boolean),
-              goals: goals,
-              stakeholderName: item.stakeholderName || '',
-              mediaProduct: item.mediaProduct || '',
-              pilotScope: item.pilotScope || '',
-              clientNames: item.clientNames || '',
-              projectApproach: item.projectApproach || '',
-              deliverables: item.deliverables || '',
-              resultsAchieved: item.resultsAchieved || '',
-              completionDate: item.completionDate || null,
-              completionPercentage: completionPercentage,
-            };
+            return { ...item, assignees: Array.isArray(item.assignees) ? item.assignees : (item.assignees || '').split(';').map(s=>s.trim()).filter(Boolean), tags: Array.isArray(item.tags) ? item.tags : (item.tags || '').split(';').map(s=>s.trim()).filter(Boolean), goals: goals, stakeholderName: item.stakeholderName || '', mediaProduct: item.mediaProduct || '', pilotScope: item.pilotScope || '', clientNames: item.clientNames || '', projectApproach: item.projectApproach || '', deliverables: item.deliverables || '', resultsAchieved: item.resultsAchieved || '', completionDate: item.completionDate || null, completionPercentage: completionPercentage };
         }).filter(Boolean);
     } else if (dataType === 'attendance') {
         collectionName = 'attendance';
         processedData = data.map((item, index) => {
             const rowNum = index + 2;
-            if (!item.date || !item.memberName || !item.status) {
-                importErrors.push(`Row ${rowNum}: Missing required data (date, memberName, status).`);
-                return null;
-            }
-            const member = teamMembers.find(m => m.name.trim().toLowerCase() === item.memberName.trim().toLowerCase());
-            if (!member) {
-                importErrors.push(`Row ${rowNum}: Could not find a team member named "${item.memberName}".`);
-                return null;
-            }
-
-            return {
-                id: item.id || `${member.id}-${item.date}`,
-                date: item.date,
-                memberId: member.id,
-                status: item.status,
-                leaveType: item.leaveType || null,
-                notes: item.notes || '',
-            };
+            const member = teamMembers.find(m => m.name.trim().toLowerCase() === item.memberName?.trim().toLowerCase());
+            if (!item.date || !item.memberName || !item.status) { importErrors.push(`Row ${rowNum}: Missing required data.`); return null; }
+            if (!member) { importErrors.push(`Row ${rowNum}: Could not find member "${item.memberName}".`); return null; }
+            return { id: item.id || `${member.id}-${item.date}`, date: item.date, memberId: member.id, status: item.status, leaveType: item.leaveType || null, notes: item.notes || '' };
         }).filter(Boolean);
     } else if (dataType === 'team') {
         collectionName = 'teamMembers';
         processedData = data.map(item => {
             if (!item.id || !item.name) return null;
-            // Remove password property if it exists from imported data
             const { password, ...memberData } = item;
             return memberData;
         }).filter(Boolean);
-        if ((teamMembers.length + processedData.length) > 20) {
-           alert("Import would exceed the 20 team member limit. Please adjust your CSV file.");
-           return;
-        }
+        if ((teamMembers.length + processedData.length) > 20) { alert("Import would exceed the 20 team member limit."); return; }
     } else if (dataType === 'notes') {
         collectionName = 'notes';
         processedData = data.map(item => {
            if (!item.id || !item.title || !item.content || !item.status || !item.color) return null;
-            return {
-                ...item,
-                tags: Array.isArray(item.tags) ? item.tags : (item.tags || '').split(';').map(s => s.trim()).filter(Boolean),
-            };
+            return { ...item, tags: Array.isArray(item.tags) ? item.tags : (item.tags || '').split(';').map(s => s.trim()).filter(Boolean) };
         }).filter(Boolean);
     } else if (dataType === 'worklogs') {
         collectionName = 'worklogs';
         processedData = data.map((item, index) => {
             const rowNum = index + 2;
-            if (!item.date || !item.memberName || !item.projectName || item.timeSpentMinutes === undefined) {
-                importErrors.push(`Row ${rowNum}: Missing required columns (date, memberName, projectName, timeSpentMinutes).`);
-                return null;
-            }
-
-            // --- Date Normalization Fix ---
+            if (!item.date || !item.memberName || !item.projectName || item.timeSpentMinutes === undefined) { importErrors.push(`Row ${rowNum}: Missing required columns.`); return null; }
             let normalizedDate = item.date;
             const dateParts = String(item.date).split('-');
-            if (dateParts.length === 3 && dateParts[0].length === 2 && dateParts[2].length === 4) {
-                 // It's likely DD-MM-YYYY, convert to YYYY-MM-DD for consistent filtering
-                 normalizedDate = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`;
-            }
-            // --- End of Fix ---
-
+            if (dateParts.length === 3 && dateParts[0].length === 2 && dateParts[2].length === 4) { normalizedDate = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`; }
             const member = teamMembers.find(m => m.name.trim().toLowerCase() === item.memberName.trim().toLowerCase());
-            if (!member) {
-                importErrors.push(`Row ${rowNum}: Could not find a member named "${item.memberName}". Check for typos.`);
-                return null;
-            }
-            
+            if (!member) { importErrors.push(`Row ${rowNum}: Could not find member "${item.memberName}".`); return null; }
             const project = projects.find(p => p.name.trim().toLowerCase() === item.projectName.trim().toLowerCase());
-            if (!project) {
-                importErrors.push(`Row ${rowNum}: Could not find a project named "${item.projectName}". Check for typos.`);
-                return null;
-            }
-            
+            if (!project) { importErrors.push(`Row ${rowNum}: Could not find project "${item.projectName}".`); return null; }
             const now = new Date().toISOString();
-            return {
-                id: item.id || crypto.randomUUID(),
-                date: normalizedDate, // Use the normalized date
-                memberId: member.id,
-                projectId: project.id,
-                taskName: item.taskName || 'N/A',
-                requestedFrom: item.requestedFrom || 'N/A',
-                timeSpentMinutes: Number(item.timeSpentMinutes) || 0,
-                comments: item.comments || '',
-                createdAt: item.createdAt || now,
-                updatedAt: now,
-            };
+            return { id: item.id || crypto.randomUUID(), date: normalizedDate, memberId: member.id, projectId: project.id, taskName: item.taskName || 'N/A', requestedFrom: item.requestedFrom || 'N/A', timeSpentMinutes: Number(item.timeSpentMinutes) || 0, comments: item.comments || '', createdAt: item.createdAt || now, updatedAt: now };
         }).filter(Boolean);
     }
     
     if (importErrors.length > 0) {
-        const errorLimit = 10;
-        const fullErrorMessage = `Import failed. ${importErrors.length} rows had errors.\n\nPlease check your CSV file. Common issues are incorrect member/project names or missing data.\n\nFirst ${Math.min(importErrors.length, errorLimit)} errors:\n- ${importErrors.slice(0, errorLimit).join('\n- ')}`;
-        alert(fullErrorMessage);
+        alert(`Import failed with ${importErrors.length} errors. Please check CSV.\nErrors: ${importErrors.slice(0, 5).join(', ')}`);
         return;
     }
 
@@ -515,13 +448,13 @@ const handleImport = async (file, dataType) => {
         await batchWrite(collectionName, processedData);
         await loadInitialData(false);
         renderApp();
-        alert(`${processedData.length} ${dataType} records imported successfully!`);
+        alert(`${processedData.length} records imported successfully!`);
     } else {
-        alert(`No valid data rows found in the CSV to import for ${dataType}.`);
+        alert(`No valid data found to import.`);
     }
   } catch (error) {
     console.error("Import error:", error);
-    alert(`Failed to import ${dataType} data. Please check the console for details and ensure the CSV format is correct.`);
+    alert(`Failed to import data. Please check the console.`);
   }
 };
 
@@ -540,16 +473,10 @@ function handleThemeToggle() {
 }
 
 function buildMainLayout() {
-    rootElement.innerHTML = ''; // Clear login page or loading indicator
-    rootElement.className = ''; // Reset class from login page
+    rootElement.innerHTML = '';
+    rootElement.className = '';
 
-    const navbar = Navbar({ 
-        currentView, 
-        onNavChange: handleNavChange, 
-        onThemeToggle: handleThemeToggle,
-        currentUser,
-        onLogout: handleLogout
-    });
+    const navbar = Navbar({ currentView, onNavChange: handleNavChange, onThemeToggle: handleThemeToggle, currentUser, onLogout, notifications, onMarkNotificationRead, onMarkAllNotificationsRead });
     rootElement.appendChild(navbar);
 
     mainContentElement = document.createElement('main');
@@ -564,25 +491,19 @@ function buildMainLayout() {
 
 
 function renderApp() {
-  if (!rootElement) {
-    console.error("Root or main content element not initialized for rendering.");
-    return;
-  }
+  if (!rootElement) return;
   
   if (!currentUser) {
-      // Not logged in, render login page
-      rootElement.innerHTML = ''; // Clear whatever was there
+      rootElement.innerHTML = '';
       renderLoginPage(rootElement, { onLogin: handleLogin, teamMembers });
       return;
   }
   
-  // If we are here, user is logged in. Build the main layout if it doesn't exist.
   const isLayoutBuilt = rootElement.querySelector('nav.navbar');
   if (!isLayoutBuilt) {
       buildMainLayout();
   }
 
-  // --- RBAC Data Filtering ---
   let pageProjects = projects;
   let pageWorkLogs = workLogs;
   let pageAttendance = attendance;
@@ -592,155 +513,77 @@ function renderApp() {
       pageProjects = projects.filter(p => (p.assignees || []).includes(currentUser.id) || p.teamLeadId === currentUser.id);
       pageWorkLogs = workLogs.filter(w => w.memberId === currentUser.id);
       pageAttendance = attendance.filter(a => a.memberId === currentUser.id);
-      // A member can see notes they created. Old notes without a userId will not be visible to them.
       pageNotes = notes.filter(n => n.userId === currentUser.id);
   }
 
-
   mainContentElement.innerHTML = '';
 
-  if (currentView === 'dashboard') {
-    renderDashboardPage(mainContentElement, {
-        currentUser,
-        teamMembers,
-        projects: pageProjects, // Pass filtered data
-        notes: pageNotes,
-        workLogs: pageWorkLogs,
-        attendanceRecords: pageAttendance,
-        projectStatuses: Object.values(ProjectStatus),
-        onAddProject: addProject,
-        onAddNote: addNote,
-        onAddMultipleWorkLogs: addMultipleWorkLogs,
-        onNavChange: handleNavChange,
-    });
-  } else if (currentView === 'projects') {
-    renderProjectsPage(mainContentElement, {
-      projects: pageProjects, // Pass filtered data
-      teamMembers,
-      currentUser,
-      projectStatuses: Object.values(ProjectStatus),
-      onAddProject: addProject,
-      onUpdateProject: updateProject,
-      onDeleteProject: deleteProject,
-      onExport: () => handleExport('projects'),
-      onImport: (file) => handleImport(file, 'projects'),
-    });
-  } else if (currentView === 'attendance') {
-    renderAttendancePage(mainContentElement, {
-      attendanceRecords: pageAttendance, // Pass filtered data
-      teamMembers, // Full list for manager, member view will self-filter the grid
-      currentUser,
-      projects, // Pass full project list for workload calculations
-      attendanceStatuses: Object.values(AttendanceStatus),
-      leaveTypes: Object.values(LeaveType),
-      onUpsertAttendanceRecord: upsertAttendanceRecord,
-      onDeleteAttendanceRecord: deleteAttendanceRecord,
-      onExport: () => handleExport('attendance'),
-      onImport: (file) => handleImport(file, 'attendance'),
-      maxTeamMembers: 20,
-      onAddTeamMember: addTeamMember,
-      onUpdateTeamMember: updateTeamMember,
-      onDeleteTeamMember: deleteTeamMember,
-      onExportTeam: () => handleExport('team'),
-      onImportTeam: (file) => handleImport(file, 'team'),
-    });
-  } else if (currentView === 'notes') {
-    renderNotesPage(mainContentElement, {
-        notes: pageNotes, // Pass filtered data
-        currentUser,
-        noteStatuses: Object.values(NoteStatus),
-        onAddNote: addNote,
-        onUpdateNote: updateNote,
-        onDeleteNote: deleteNote,
-        onExport: () => handleExport('notes'),
-        onImport: (file) => handleImport(file, 'notes'),
-    });
-  } else if (currentView === 'worklog') {
-    renderWorkLogPage(mainContentElement, {
-        workLogs: pageWorkLogs, // Pass filtered data
-        teamMembers,
-        projects,
-        currentUser,
-        onAddMultipleWorkLogs: addMultipleWorkLogs,
-        onUpdateWorkLog: updateWorkLog,
-        onDeleteWorkLog: deleteWorkLog,
-        onExport: () => handleExport('worklogs'),
-        onImport: (file) => handleImport(file, 'worklogs'),
-    });
+  const pageProps = {
+    dashboard: { currentUser, teamMembers, projects: pageProjects, notes: pageNotes, workLogs: pageWorkLogs, attendanceRecords: pageAttendance, projectStatuses: Object.values(ProjectStatus), onAddProject: addProject, onAddNote: addNote, onAddMultipleWorkLogs: addMultipleWorkLogs, onNavChange: handleNavChange },
+    projects: { projects: pageProjects, teamMembers, currentUser, projectStatuses: Object.values(ProjectStatus), onAddProject: addProject, onUpdateProject: updateProject, onDeleteProject: deleteProject, onExport: () => handleExport('projects'), onImport: (file) => handleImport(file, 'projects') },
+    attendance: { attendanceRecords: pageAttendance, teamMembers, currentUser, projects, attendanceStatuses: Object.values(AttendanceStatus), leaveTypes: Object.values(LeaveType), onUpsertAttendanceRecord: upsertAttendanceRecord, onDeleteAttendanceRecord: deleteAttendanceRecord, onExport: () => handleExport('attendance'), onImport: (file) => handleImport(file, 'attendance'), maxTeamMembers: 20, onAddTeamMember: addTeamMember, onUpdateTeamMember: updateTeamMember, onDeleteTeamMember: deleteTeamMember, onExportTeam: () => handleExport('team'), onImportTeam: (file) => handleImport(file, 'team') },
+    notes: { notes: pageNotes, currentUser, noteStatuses: Object.values(NoteStatus), onAddNote: addNote, onUpdateNote: updateNote, onDeleteNote: deleteNote, onExport: () => handleExport('notes'), onImport: (file) => handleImport(file, 'notes') },
+    worklog: { workLogs: pageWorkLogs, teamMembers, projects, currentUser, onAddMultipleWorkLogs: addMultipleWorkLogs, onUpdateWorkLog: updateWorkLog, onDeleteWorkLog: deleteWorkLog, onExport: () => handleExport('worklogs'), onImport: (file) => handleImport(file, 'worklogs') }
+  };
+
+  const renderers = {
+    dashboard: renderDashboardPage,
+    projects: renderProjectsPage,
+    attendance: renderAttendancePage,
+    notes: renderNotesPage,
+    worklog: renderWorkLogPage
+  };
+  
+  if (renderers[currentView]) {
+    renderers[currentView](mainContentElement, pageProps[currentView]);
   }
   
   const navbarElement = rootElement.querySelector('nav.navbar');
   if (navbarElement) {
-      const newNavbar = Navbar({ 
-          currentView, 
-          onNavChange: handleNavChange, 
-          onThemeToggle: handleThemeToggle,
-          currentUser,
-          onLogout: handleLogout
-      });
+      const newNavbar = Navbar({ currentView, onNavChange: handleNavChange, onThemeToggle: handleThemeToggle, currentUser, onLogout, notifications, onMarkNotificationRead, onMarkAllNotificationsRead });
       navbarElement.replaceWith(newNavbar);
   }
 }
 
 async function loadInitialData(seedIfEmpty = true) {
   try {
-    const [projectData, attendanceData, notesData, teamMemberData, workLogData] = await Promise.all([
+    const [projectData, attendanceData, notesData, teamMemberData, workLogData, notificationData] = await Promise.all([
         getCollection('projects'),
         getCollection('attendance'),
         getCollection('notes'),
         getCollection('teamMembers'),
         getCollection('worklogs'),
+        getCollection('notifications'),
     ]);
     
     projects = projectData;
     attendance = attendanceData;
     notes = notesData;
     workLogs = workLogData;
+    notifications = notificationData;
 
-    // Check if team members need to be seeded. This is more robust.
     if (seedIfEmpty && teamMemberData.length === 0) {
-        console.log("No team members found in database. Seeding with initial data.");
-        const membersToSeed = INITIAL_TEAM_MEMBERS;
-        await batchWrite('teamMembers', membersToSeed);
+        await batchWrite('teamMembers', INITIAL_TEAM_MEMBERS);
         teamMembers = await getCollection('teamMembers'); 
     } else {
         teamMembers = teamMemberData;
     }
 
-    // Data migration: ensure all members have a role
-    teamMembers.forEach(m => {
-        if (!m.role) {
-            m.role = TeamMemberRole.Member; // Default to 'Member' if role is missing
-        }
-    });
-
-    // One-time data migration for existing notes to add userId, to avoid orphaning them.
-    // This is not perfectly accurate but prevents data loss for the user.
-    // We'll assign them to the first manager found, or the first user.
-    const firstManager = teamMembers.find(m => m.role === TeamMemberRole.Manager);
-    const defaultOwnerId = (firstManager || teamMembers[0])?.id;
-
+    teamMembers.forEach(m => { if (!m.role) m.role = TeamMemberRole.Member; });
+    
+    const defaultOwnerId = (teamMembers.find(m => m.role === TeamMemberRole.Manager) || teamMembers[0])?.id;
     if (defaultOwnerId) {
         const notesWithoutOwner = notes.filter(n => !n.userId);
         if (notesWithoutOwner.length > 0) {
             console.log(`Migrating ${notesWithoutOwner.length} notes to have an owner...`);
-            const notesToUpdate = notesWithoutOwner.map(n => ({...n, userId: defaultOwnerId }));
-            await batchWrite('notes', notesToUpdate);
-            // Re-fetch notes to get the updated data
+            await batchWrite('notes', notesWithoutOwner.map(n => ({...n, userId: defaultOwnerId })));
             notes = await getCollection('notes');
         }
     }
-
   } catch (error) {
     console.error("Failed to load initial data from Firestore:", error);
-    rootElement.innerHTML = `<div class="firebase-config-error-container">
-            <h1><i class="fas fa-exclamation-triangle"></i> Data Loading Error</h1>
-            <p>The application could not load data from the database.</p>
-            <p>This might be due to a network issue or incorrect Firebase security rules.</p>
-            <p>Please check your internet connection and ensure your Firestore security rules are correctly set up to allow reads.</p>
-            <p class="error-message"><strong>Original Error:</strong> ${error.message}</p>
-        </div>`;
-    throw error; // Stop execution
+    rootElement.innerHTML = `<div class="firebase-config-error-container"><h1><i class="fas fa-exclamation-triangle"></i> Data Loading Error</h1><p>Could not load data from the database. Check connection and Firebase security rules.</p><p class="error-message"><strong>Error:</strong> ${error.message}</p></div>`;
+    throw error;
   }
 }
 
@@ -750,7 +593,6 @@ export async function initializeApp(appRootElement) {
 
   await loadInitialData();
   
-  // Set theme based on preference
   if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
     document.documentElement.classList.add('dark');
     document.body.classList.add('dark');
@@ -759,10 +601,13 @@ export async function initializeApp(appRootElement) {
     document.body.classList.remove('dark');
   }
 
-  // Attempt to resume session
   const savedUserId = sessionStorage.getItem('currentUserId');
   if (savedUserId) {
     currentUser = teamMembers.find(m => m.id === savedUserId) || null;
+    if (currentUser) {
+        // Run deadline check only after a user is logged in
+        await checkDeadlines();
+    }
   }
 
   renderApp();
