@@ -6,6 +6,7 @@ export const INITIAL_TEAM_MEMBERS = Array.from({ length: 5 }, (_, i) => ({
   id: crypto.randomUUID(),
   name: `Team Member ${i + 1}`,
   email: `member${i+1}@example.com`,
+  password: 'password123', // Default password for initial login
   employeeId: `EMP00${i + 1}`,
   joinDate: new Date(new Date().setFullYear(new Date().getFullYear() - i)).toISOString().split('T')[0],
   birthDate: new Date(1990 + i, i % 12, (i*5 % 28) + 1).toISOString().split('T')[0],
@@ -15,10 +16,8 @@ export const INITIAL_TEAM_MEMBERS = Array.from({ length: 5 }, (_, i) => ({
   role: i === 0 ? TeamMemberRole.Manager : TeamMemberRole.Member,
 }));
 
-export const PROJECT_STATUSES = Object.values(ProjectStatus);
 export const ATTENDANCE_STATUSES = Object.values(AttendanceStatus);
 export const LEAVE_TYPES = Object.values(LeaveType);
-export const PRIORITIES = ['Low', 'Medium', 'High'];
 
 export const NOTE_STATUSES = Object.values(NoteStatus);
 export const NOTE_COLORS = [
@@ -30,7 +29,11 @@ export const NOTE_COLORS = [
   '#e1bee7', // Light Purple
 ];
 
-export const WORK_LOG_TASKS = [
+// PRIORITIES and WORK_LOG_TASKS are now stored in Firestore and managed via the Settings page.
+// These are the default values that will be seeded into the database on first load.
+export const DEFAULT_SETTINGS = {
+  priorities: ['Low', 'Medium', 'High'],
+  workLogTasks: [
     'Development',
     'Meeting',
     'Code Review',
@@ -41,4 +44,5 @@ export const WORK_LOG_TASKS = [
     'Support',
     'Training',
     'Other',
-];
+  ]
+};
