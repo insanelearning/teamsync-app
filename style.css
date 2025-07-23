@@ -3125,6 +3125,15 @@ footer.app-footer {
     word-break: break-word;
     max-width: 250px;
 }
+.work-log-table th:nth-child(1) { width: 3%; }
+.work-log-table th:nth-child(2) { width: 10%; }
+.work-log-table th:nth-child(3) { width: 15%; }
+.work-log-table th:nth-child(4) { width: 20%; }
+.work-log-table th:nth-child(5) { width: 15%; }
+.work-log-table th:nth-child(6) { width: 20%; }
+.work-log-table th:nth-child(7) { width: 10%; }
+.work-log-table th:nth-child(8) { width: 7%; }
+
 
 .worklog-filters-grid {
     display: grid;
@@ -3250,6 +3259,25 @@ footer.app-footer {
 
 .project-form-actions {
     justify-content: space-between;
+}
+
+.bulk-actions-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    background-color: #eef2ff;
+    border: 1px solid #c7d2fe;
+    border-radius: 0.375rem;
+    margin-bottom: 1rem;
+}
+.dark .bulk-actions-container {
+    background-color: #3730a3;
+    border-color: #4f46e5;
+}
+.bulk-actions-text {
+    font-size: 0.875rem;
+    font-weight: 500;
 }
 
 /* Login Page */
