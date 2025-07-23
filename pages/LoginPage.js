@@ -1,6 +1,5 @@
 
-
-export function renderLoginPage(container, { onLogin, teamMembers }) {
+export function renderLoginPage(container, { onLogin, teamMembers, error }) {
     container.innerHTML = '';
     container.className = 'login-page-container';
 
@@ -21,7 +20,14 @@ export function renderLoginPage(container, { onLogin, teamMembers }) {
     
     const errorMsg = document.createElement('p');
     errorMsg.className = 'login-error-message';
-    errorMsg.style.display = 'none';
+    
+    // Display error message if one is passed from the main app
+    if (error) {
+        errorMsg.textContent = error;
+        errorMsg.style.display = 'block';
+    } else {
+        errorMsg.style.display = 'none';
+    }
 
     const emailGroup = document.createElement('div');
     emailGroup.innerHTML = `<label for="email" class="form-label">Email</label>`;
@@ -60,18 +66,9 @@ export function renderLoginPage(container, { onLogin, teamMembers }) {
         const email = emailInput.value.trim().toLowerCase();
         const password = passwordInput.value;
         if (!email || !password) return;
-
-        // Find member by email and check password.
-        const member = teamMembers.find(m => m.email && m.email.toLowerCase() === email);
         
-        if (member && member.password === password) {
-            onLogin(member);
-        } else {
-            errorMsg.textContent = 'Invalid email or password.';
-            errorMsg.style.display = 'block';
-            passwordInput.value = ''; // Clear password field on error
-            emailInput.focus();
-        }
+        // Pass credentials up to the main app controller
+        onLogin(email, password);
     };
 
     loginBox.appendChild(form);
