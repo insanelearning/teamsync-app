@@ -2,7 +2,7 @@
 import { Button } from './Button.js';
 import { TeamMemberRole } from '../types.js';
 
-export function WorkLogForm({ log, currentUser, teamMembers, projects, workLogTasks, onSave, onSaveAll, onCancel }) {
+export function WorkLogForm({ log, currentUser, teamMembers, projects, workLogTasks = [], onSave, onSaveAll, onCancel }) {
     // Mode determination: 'edit' for a single log, 'add' for multiple new logs.
     const isEditMode = !!log;
     
@@ -11,9 +11,6 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, workLogTa
         memberId: isEditMode ? log.memberId : currentUser.id,
     };
     
-    // Defensively handle missing workLogTasks prop
-    const safeWorkLogTasks = workLogTasks || [];
-
     let formEntries;
     if (isEditMode) {
         // In edit mode, there's only one entry to work with.
@@ -25,14 +22,14 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, workLogTa
             formEntries = activeProjectsForMember.map(p => ({
                 _id: crypto.randomUUID(),
                 projectId: p.id,
-                taskName: safeWorkLogTasks[0] || '', // Use the safe version
+                taskName: workLogTasks[0] || '',
                 timeSpentMinutes: '', // Use empty string to prompt user input
                 requestedFrom: '',
                 comments: ''
             }));
         } else {
              // If no active projects, provide one blank row to start.
-             formEntries = [{ _id: crypto.randomUUID(), projectId: '', taskName: safeWorkLogTasks[0] || '', timeSpentMinutes: 0, requestedFrom: '', comments: '' }];
+             formEntries = [{ _id: crypto.randomUUID(), projectId: '', taskName: workLogTasks[0] || '', timeSpentMinutes: 0, requestedFrom: '', comments: '' }];
         }
     }
 
@@ -62,7 +59,7 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, workLogTa
     };
     
     const addEntryRow = () => {
-        formEntries.push({ _id: crypto.randomUUID(), projectId: '', taskName: safeWorkLogTasks[0], timeSpentMinutes: 0, requestedFrom: '', comments: '' });
+        formEntries.push({ _id: crypto.randomUUID(), projectId: '', taskName: workLogTasks[0], timeSpentMinutes: 0, requestedFrom: '', comments: '' });
         rerender();
     };
 
@@ -151,7 +148,7 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, workLogTa
             const taskCell = document.createElement('td');
             const taskSelect = document.createElement('select');
             taskSelect.className = 'form-select';
-            taskSelect.innerHTML = safeWorkLogTasks.map(t => `<option value="${t}" ${entry.taskName === t ? 'selected' : ''}>${t}</option>`).join('');
+            taskSelect.innerHTML = workLogTasks.map(t => `<option value="${t}" ${entry.taskName === t ? 'selected' : ''}>${t}</option>`).join('');
             taskSelect.onchange = (e) => handleEntryChange(entry._id, 'taskName', e.target.value);
             taskCell.appendChild(taskSelect);
             tr.appendChild(taskCell);
@@ -211,7 +208,7 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, workLogTa
                 variant: 'secondary',
                 size: 'sm',
                 leftIcon: '<i class="fas fa-plus"></i>',
-                onClick: addEntryRow
+                onClick: addRowButton
             });
             footerActions.appendChild(addRowButton);
         } else {
