@@ -124,24 +124,6 @@ export async function batchWrite(collectionName, dataArray) {
 }
 
 /**
- * Deletes multiple documents from a collection in a single batch.
- * @param {string} collectionName The name of the collection.
- * @param {Array<string>} docIds An array of document IDs to delete.
- */
-export async function batchDelete(collectionName, docIds) {
-    if (!docIds || docIds.length === 0) return;
-
-    const batch = writeBatch(db);
-    docIds.forEach(id => {
-        const docRef = doc(db, collectionName, id);
-        batch.delete(docRef);
-    });
-
-    await batch.commit();
-}
-
-
-/**
  * Deletes multiple documents based on a query.
  * @param {string} collectionName The name of the collection.
  * @param {string} field The field to query on.
@@ -156,3 +138,4 @@ export async function deleteByQuery(collectionName, field, value) {
     });
     await batch.commit();
 }
+
