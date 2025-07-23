@@ -2,7 +2,7 @@
 
 import { Button } from './Button.js';
 
-export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, onLogout }) {
+export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, onLogout, notificationCount }) {
   const navItems = [
     { view: 'dashboard', label: 'Dashboard', icon: 'fas fa-home' },
     { view: 'projects', label: 'Projects', icon: 'fas fa-tasks' },
@@ -72,6 +72,23 @@ export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, o
     logoutContainer.appendChild(logoutButton);
     rightSection.appendChild(logoutContainer);
   }
+
+  // --- Notification Bell ---
+  const notificationButton = document.createElement('button');
+  notificationButton.className = 'notification-button';
+  notificationButton.setAttribute('aria-label', `View notifications`);
+  // Clicking the bell navigates to the projects page, where most actionable items are.
+  notificationButton.onclick = () => onNavChange('projects');
+  notificationButton.innerHTML = '<i class="fas fa-bell"></i>';
+
+  if (notificationCount > 0) {
+      const badge = document.createElement('span');
+      badge.className = 'notification-badge';
+      badge.textContent = notificationCount > 9 ? '9+' : notificationCount;
+      notificationButton.appendChild(badge);
+      notificationButton.classList.add('has-notifications');
+  }
+  rightSection.appendChild(notificationButton);
 
   // Theme Toggle Button
   const themeToggleButton = document.createElement('button');
