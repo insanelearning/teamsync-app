@@ -1,8 +1,35 @@
 
 
 import { Button } from './Button.js';
+import { NotificationType } from '../types.js';
 
-export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, onLogout }) {
+function timeSince(dateString) {
+    const seconds = Math.floor((new Date() - new Date(dateString)) / 1000);
+    let interval = seconds / 31536000;
+    if (interval > 1) return Math.floor(interval) + "y ago";
+    interval = seconds / 2592000;
+    if (interval > 1) return Math.floor(interval) + "mo ago";
+    interval = seconds / 86400;
+    if (interval > 1) return Math.floor(interval) + "d ago";
+    interval = seconds / 3600;
+    if (interval > 1) return Math.floor(interval) + "h ago";
+    interval = seconds / 60;
+    if (interval > 1) return Math.floor(interval) + "m ago";
+    return Math.floor(seconds) + "s ago";
+}
+
+function getNotificationIcon(type) {
+    switch (type) {
+        case NotificationType.NEW_ASSIGNMENT: return 'fa-user-plus';
+        case NotificationType.PROJECT_STATUS_CHANGE: return 'fa-tasks';
+        case NotificationType.PROJECT_DUE_SOON: return 'fa-clock';
+        case NotificationType.PROJECT_OVERDUE: return 'fa-exclamation-triangle';
+        default: return 'fa-bell';
+    }
+}
+
+
+export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, onLogout, notifications, onMarkNotificationRead, onMarkAllNotificationsRead }) {
   const navItems = [
     { view: 'dashboard', label: 'Dashboard', icon: 'fas fa-home' },
     { view: 'projects', label: 'Projects', icon: 'fas fa-tasks' },
@@ -38,7 +65,7 @@ export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, o
   leftSection.appendChild(logoDiv);
   flexDiv.appendChild(leftSection);
   
-  // --- Right Section (Menu, Logout, Theme Toggle, Mobile Button) ---
+  // --- Right Section (Menu, Notifications, Logout, Theme Toggle, Mobile Button) ---
   const rightSection = document.createElement('div');
   rightSection.className = 'navbar-right-section';
 
@@ -56,8 +83,98 @@ export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, o
   });
   desktopMenuDiv.appendChild(desktopMenuItemsDiv);
   rightSection.appendChild(desktopMenuDiv);
+
+  // --- Notifications ---
+  if (currentUser) {
+      const notificationContainer = document.createElement('div');
+      notificationContainer.className = 'notification-container';
+
+      const bellButton = document.createElement('button');
+      bellButton.className = 'notification-bell-btn';
+      bellButton.innerHTML = '<i class="fas fa-bell"></i>';
+      
+      const userNotifications = (notifications || []).filter(n => n.userId === currentUser.id);
+      const unreadCount = userNotifications.filter(n => !n.isRead).length;
+
+      if (unreadCount > 0) {
+          const badge = document.createElement('span');
+          badge.className = 'notification-badge';
+          badge.textContent = unreadCount > 9 ? '9+' : unreadCount;
+          bellButton.appendChild(badge);
+      }
+      
+      const notificationPanel = document.createElement('div');
+      notificationPanel.className = 'notification-panel';
+
+      const panelHeader = document.createElement('div');
+      panelHeader.className = 'notification-panel-header';
+      panelHeader.innerHTML = `<h3>Notifications</h3>`;
+      const markAllReadBtn = Button({
+          children: 'Mark all as read',
+          variant: 'ghost',
+          size: 'sm',
+          onClick: (e) => {
+              e.stopPropagation();
+              onMarkAllNotificationsRead();
+          },
+          disabled: unreadCount === 0
+      });
+      panelHeader.appendChild(markAllReadBtn);
+      
+      const notificationList = document.createElement('div');
+      notificationList.className = 'notification-panel-list';
+
+      if (userNotifications.length > 0) {
+          userNotifications
+            .sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt))
+            .slice(0, 10) // Show latest 10
+            .forEach(notification => {
+                const item = document.createElement('div');
+                item.className = `notification-item ${notification.isRead ? 'is-read' : ''}`;
+                item.innerHTML = `
+                    <div class="notification-item-icon">
+                        <i class="fas ${getNotificationIcon(notification.type)}"></i>
+                    </div>
+                    <div class="notification-item-content">
+                        <p class="notification-item-message">${notification.message}</p>
+                        <span class="notification-item-time">${timeSince(notification.createdAt)}</span>
+                    </div>
+                `;
+                if (!notification.isRead) {
+                    const readButton = document.createElement('button');
+                    readButton.className = 'notification-item-read-btn';
+                    readButton.setAttribute('aria-label', 'Mark as read');
+                    readButton.title = 'Mark as read';
+                    readButton.onclick = (e) => {
+                        e.stopPropagation();
+                        onMarkNotificationRead(notification.id);
+                    };
+                    item.appendChild(readButton);
+                }
+                notificationList.appendChild(item);
+            });
+      } else {
+          notificationList.innerHTML = `<div class="notification-panel-empty">You're all caught up!</div>`;
+      }
+
+      notificationPanel.append(panelHeader, notificationList);
+      
+      bellButton.onclick = (e) => {
+          e.stopPropagation();
+          notificationPanel.classList.toggle('show');
+      };
+      
+      document.addEventListener('click', (e) => {
+          if (!notificationContainer.contains(e.target)) {
+              notificationPanel.classList.remove('show');
+          }
+      });
+      
+      notificationContainer.append(bellButton, notificationPanel);
+      rightSection.appendChild(notificationContainer);
+  }
   
-  // Logout Button (replaces user profile menu)
+  // Logout Button
   if (currentUser) {
     const logoutContainer = document.createElement('div');
     logoutContainer.className = 'navbar-logout-container';
@@ -81,7 +198,6 @@ export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, o
   themeToggleButton.innerHTML = isCurrentlyDark ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
   themeToggleButton.onclick = () => {
     onThemeToggle();
-    // The icon will be updated on the next render pass which is triggered by onThemeToggle
   };
   rightSection.appendChild(themeToggleButton);
 
@@ -104,7 +220,7 @@ export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, o
   mobileMenuButtonDiv.appendChild(mobileButton);
   rightSection.appendChild(mobileMenuButtonDiv);
   
-  flexDiv.appendChild(rightSection); // Add the entire right section to the flex container
+  flexDiv.appendChild(rightSection);
   
   // Mobile Menu
   const mobileMenuItemsDiv = document.createElement('div');
@@ -113,7 +229,7 @@ export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, o
     const button = document.createElement('button');
     button.onclick = () => {
         onNavChange(item.view);
-        mobileMenuOpen = false; // Close menu on selection
+        mobileMenuOpen = false;
         mobileMenuContainer.style.display = 'none';
     }
     button.className = `nav-item-mobile ${currentView === item.view ? 'nav-item-mobile-active' : ''}`;
@@ -121,7 +237,6 @@ export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, o
     mobileMenuItemsDiv.appendChild(button);
   });
   
-  // Add mobile logout button if logged in
   if (currentUser) {
       const separator = document.createElement('hr');
       separator.className = 'navbar-mobile-menu-separator';
@@ -130,7 +245,7 @@ export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, o
       const logoutButtonMobile = document.createElement('button');
       logoutButtonMobile.onclick = () => {
           onLogout();
-          mobileMenuOpen = false; // Close menu
+          mobileMenuOpen = false;
           mobileMenuContainer.style.display = 'none';
       }
       logoutButtonMobile.className = 'nav-item-mobile';
