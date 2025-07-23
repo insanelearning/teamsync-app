@@ -244,4 +244,20 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, onSave, o
         });
 
         if (logsToSave.length === 0) {
-            alert('Please fill out at least one valid task row
+            alert('Please fill out at least one valid task row. Each entry must have a project selected and time spent greater than 0.');
+            return;
+        }
+
+        if (isEditMode) {
+            const logToSave = logsToSave[0];
+            // When editing, the original `log` object (which has the ID) must be merged
+            // with the updated data from the form.
+            onSave({ ...log, ...logToSave });
+        } else {
+            onSaveAll(logsToSave);
+        }
+    });
+
+    buildForm();
+    return form;
+}
