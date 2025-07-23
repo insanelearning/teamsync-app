@@ -1,5 +1,4 @@
 
-
 import { Button } from './Button.js';
 import { TeamMemberRole } from '../types.js';
 
@@ -11,6 +10,9 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, workLogTa
         date: isEditMode ? log.date : new Date().toISOString().split('T')[0],
         memberId: isEditMode ? log.memberId : currentUser.id,
     };
+    
+    // Defensively handle missing workLogTasks prop
+    const safeWorkLogTasks = workLogTasks || [];
 
     let formEntries;
     if (isEditMode) {
@@ -23,14 +25,14 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, workLogTa
             formEntries = activeProjectsForMember.map(p => ({
                 _id: crypto.randomUUID(),
                 projectId: p.id,
-                taskName: workLogTasks[0] || '',
+                taskName: safeWorkLogTasks[0] || '', // Use the safe version
                 timeSpentMinutes: '', // Use empty string to prompt user input
                 requestedFrom: '',
                 comments: ''
             }));
         } else {
              // If no active projects, provide one blank row to start.
-             formEntries = [{ _id: crypto.randomUUID(), projectId: '', taskName: workLogTasks[0] || '', timeSpentMinutes: 0, requestedFrom: '', comments: '' }];
+             formEntries = [{ _id: crypto.randomUUID(), projectId: '', taskName: safeWorkLogTasks[0] || '', timeSpentMinutes: 0, requestedFrom: '', comments: '' }];
         }
     }
 
@@ -60,7 +62,7 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, workLogTa
     };
     
     const addEntryRow = () => {
-        formEntries.push({ _id: crypto.randomUUID(), projectId: '', taskName: workLogTasks[0], timeSpentMinutes: 0, requestedFrom: '', comments: '' });
+        formEntries.push({ _id: crypto.randomUUID(), projectId: '', taskName: safeWorkLogTasks[0], timeSpentMinutes: 0, requestedFrom: '', comments: '' });
         rerender();
     };
 
@@ -149,7 +151,7 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, workLogTa
             const taskCell = document.createElement('td');
             const taskSelect = document.createElement('select');
             taskSelect.className = 'form-select';
-            taskSelect.innerHTML = (workLogTasks || []).map(t => `<option value="${t}" ${entry.taskName === t ? 'selected' : ''}>${t}</option>`).join('');
+            taskSelect.innerHTML = safeWorkLogTasks.map(t => `<option value="${t}" ${entry.taskName === t ? 'selected' : ''}>${t}</option>`).join('');
             taskSelect.onchange = (e) => handleEntryChange(entry._id, 'taskName', e.target.value);
             taskCell.appendChild(taskSelect);
             tr.appendChild(taskCell);
