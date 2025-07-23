@@ -1,113 +1,132 @@
-
 import { Button } from '../components/Button.js';
 
 export function renderSettingsPage(container, props) {
-    const { appSettings, onUpdateAppSettings } = props;
-    
-    let isSaving = false;
-    let localSettings = {
-        priorities: appSettings.priorities || [],
-        workLogTasks: appSettings.workLogTasks || [],
-    };
+    const { settings, onUpdateSettings } = props;
+    let localSettings = JSON.parse(JSON.stringify(settings)); // Deep copy to edit locally
+    let newWorkLogTask = '';
 
     container.innerHTML = '';
     const pageWrapper = document.createElement('div');
     pageWrapper.className = 'page-container';
 
-    // --- Header ---
+    // Header
     const headerDiv = document.createElement('div');
     headerDiv.className = "page-header";
-    headerDiv.innerHTML = `<h1 class="page-header-title">Application Settings</h1>`;
+    const headerTitle = document.createElement('h1');
+    headerTitle.className = 'page-header-title';
+    headerTitle.textContent = 'Application Settings';
+    headerDiv.appendChild(headerTitle);
     pageWrapper.appendChild(headerDiv);
 
-    const form = document.createElement('form');
-    form.className = 'settings-form';
+    // Settings Grid
+    const settingsGrid = document.createElement('div');
+    settingsGrid.className = 'settings-page-grid';
 
-    const createTextAreaList = (id, label, description, valueArray) => {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'settings-field';
-        
-        const labelEl = document.createElement('label');
-        labelEl.htmlFor = id;
-        labelEl.className = 'form-label';
-        labelEl.textContent = label;
-        wrapper.appendChild(labelEl);
-        
-        const descEl = document.createElement('p');
-        descEl.className = 'settings-field-description';
-        descEl.textContent = description;
-        wrapper.appendChild(descEl);
+    // --- Work Log Tasks Card ---
+    const workLogCard = document.createElement('div');
+    workLogCard.className = 'settings-card';
+    
+    // Card Header
+    const wlHeader = document.createElement('div');
+    wlHeader.className = 'settings-card-header';
+    wlHeader.innerHTML = '<h3>Work Log Tasks</h3>';
+    workLogCard.appendChild(wlHeader);
 
-        const textarea = document.createElement('textarea');
-        textarea.id = id;
-        textarea.className = 'form-input';
-        textarea.rows = 8;
-        textarea.value = valueArray.join('\n');
-        
-        textarea.addEventListener('input', (e) => {
-            const items = e.target.value.split('\n').map(item => item.trim()).filter(Boolean);
-            localSettings[id] = items;
+    // Card Body
+    const wlBody = document.createElement('div');
+    wlBody.className = 'settings-card-body';
+    
+    const taskList = document.createElement('ul');
+    taskList.className = 'settings-list';
+    
+    const renderTaskList = () => {
+        taskList.innerHTML = '';
+        if (localSettings.workLogTasks.length === 0) {
+            taskList.innerHTML = `<li class="settings-list-item" style="justify-content: center;">No tasks defined.</li>`;
+        }
+        localSettings.workLogTasks.forEach((task, index) => {
+            const item = document.createElement('li');
+            item.className = 'settings-list-item';
+            
+            const taskName = document.createElement('span');
+            taskName.textContent = task;
+            
+            const deleteBtn = Button({
+                children: '<i class="fas fa-trash-alt"></i>',
+                variant: 'danger',
+                size: 'sm',
+                onClick: () => {
+                    localSettings.workLogTasks.splice(index, 1);
+                    renderTaskList();
+                }
+            });
+            
+            item.append(taskName, deleteBtn);
+            taskList.appendChild(item);
         });
-        
-        wrapper.appendChild(textarea);
-        return wrapper;
     };
     
-    const settingsGrid = document.createElement('div');
-    settingsGrid.className = 'settings-grid';
+    const addTaskForm = document.createElement('div');
+    addTaskForm.className = 'settings-add-item-form';
+    const taskInput = document.createElement('input');
+    taskInput.type = 'text';
+    taskInput.className = 'form-input';
+    taskInput.placeholder = 'New task name...';
+    taskInput.oninput = (e) => newWorkLogTask = e.target.value;
+    taskInput.onkeydown = (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            addBtn.click();
+        }
+    };
+    const addBtn = Button({
+        children: 'Add Task',
+        variant: 'secondary',
+        onClick: () => {
+            if (newWorkLogTask.trim()) {
+                localSettings.workLogTasks.push(newWorkLogTask.trim());
+                newWorkLogTask = '';
+                taskInput.value = '';
+                renderTaskList();
+            }
+        }
+    });
+    addTaskForm.append(taskInput, addBtn);
     
-    settingsGrid.appendChild(createTextAreaList(
-        'priorities', 
-        'Project Priorities', 
-        'List of available priorities for projects. Enter one item per line.',
-        localSettings.priorities
-    ));
+    wlBody.append(taskList, addTaskForm);
+    workLogCard.appendChild(wlBody);
 
-    settingsGrid.appendChild(createTextAreaList(
-        'workLogTasks',
-        'Work Log Tasks',
-        'List of available tasks for work logs. Enter one item per line.',
-        localSettings.workLogTasks
-    ));
-
-    form.appendChild(settingsGrid);
-
-    const actionsDiv = document.createElement('div');
-    actionsDiv.className = 'settings-form-actions';
-    const saveButton = Button({
-        children: 'Save Settings',
+    // Card Footer
+    const wlFooter = document.createElement('div');
+    wlFooter.className = 'settings-card-footer';
+    const saveBtn = Button({
+        children: 'Save Changes',
         variant: 'primary',
-        type: 'submit',
-        leftIcon: '<i class="fas fa-save"></i>',
-        isLoading: isSaving
+        onClick: () => {
+            onUpdateSettings(localSettings);
+            alert('Settings saved successfully!');
+        }
     });
-    actionsDiv.appendChild(saveButton);
-    form.appendChild(actionsDiv);
+    wlFooter.appendChild(saveBtn);
+    workLogCard.appendChild(wlFooter);
 
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        isSaving = true;
-        // Re-render the button in a loading state
-        const newSaveButton = Button({
-            children: 'Save Settings', variant: 'primary', type: 'submit',
-            leftIcon: '<i class="fas fa-save"></i>', isLoading: true
-        });
-        saveButton.replaceWith(newSaveButton);
-
-        await onUpdateAppSettings(localSettings);
-        isSaving = false;
-        
-        // After saving, re-enable the button
-        const finalSaveButton = Button({
-            children: 'Save Settings', variant: 'primary', type: 'submit',
-            leftIcon: '<i class="fas fa-save"></i>', isLoading: false
-        });
-        newSaveButton.replaceWith(finalSaveButton);
-
-        alert('Settings saved successfully!');
-    });
+    settingsGrid.appendChild(workLogCard);
+    
+    // Placeholder for more settings cards
+    const placeholderCard = document.createElement('div');
+    placeholderCard.className = 'settings-card';
+    placeholderCard.innerHTML = `
+        <div class="settings-card-header"><h3>More Settings</h3></div>
+        <div class="settings-card-body">
+            <p class="no-data-placeholder" style="box-shadow: none; padding: 1rem;">More configurable options will be available here in the future.</p>
+        </div>
+    `;
+    settingsGrid.appendChild(placeholderCard);
 
 
-    pageWrapper.appendChild(form);
+    pageWrapper.appendChild(settingsGrid);
     container.appendChild(pageWrapper);
+    
+    // Initial render of the list
+    renderTaskList();
 }
