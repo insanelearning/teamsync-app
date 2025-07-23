@@ -1,11 +1,13 @@
 
+
 import { Button } from './Button.js';
 import { TeamMemberRole } from '../types.js';
-import { WORK_LOG_TASKS } from '../constants.js';
 
-export function WorkLogForm({ log, currentUser, teamMembers, projects, onSave, onSaveAll, onCancel }) {
+export function WorkLogForm({ log, currentUser, teamMembers, projects, appSettings, onSave, onSaveAll, onCancel }) {
     // Mode determination: 'edit' for a single log, 'add' for multiple new logs.
     const isEditMode = !!log;
+    
+    const WORK_LOG_TASKS = appSettings?.workLogTasks || [];
     
     let commonData = {
         date: isEditMode ? log.date : new Date().toISOString().split('T')[0],
@@ -14,7 +16,7 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, onSave, o
 
     let formEntries = isEditMode 
         ? [{ ...log, _id: crypto.randomUUID() }] // Add a temporary client-side ID for editing
-        : [{ _id: crypto.randomUUID(), projectId: '', taskName: WORK_LOG_TASKS[0], timeSpentMinutes: 0, requestedFrom: '', comments: '' }];
+        : [{ _id: crypto.randomUUID(), projectId: '', taskName: WORK_LOG_TASKS[0] || '', timeSpentMinutes: 0, requestedFrom: '', comments: '' }];
 
     const form = document.createElement('form');
     form.className = 'project-form'; // Reuse styles
@@ -42,7 +44,7 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, onSave, o
     };
     
     const addEntryRow = () => {
-        formEntries.push({ _id: crypto.randomUUID(), projectId: '', taskName: WORK_LOG_TASKS[0], timeSpentMinutes: 0, requestedFrom: '', comments: '' });
+        formEntries.push({ _id: crypto.randomUUID(), projectId: '', taskName: WORK_LOG_TASKS[0] || '', timeSpentMinutes: 0, requestedFrom: '', comments: '' });
         rerender();
     };
 
