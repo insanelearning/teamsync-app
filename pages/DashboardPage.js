@@ -525,7 +525,7 @@ function renderMyNotes(props) {
 // --- Main Page Render Logic ---
 
 function openModal(type, props) {
-    const { onAddNote, onAddMultipleWorkLogs, projects, teamMembers, currentUser, workLogTasks } = props;
+    const { onAddNote, onAddMultipleWorkLogs, projects, teamMembers, currentUser } = props;
     const closeModal = () => { closeGlobalModal(); currentModalInstance = null; };
     
     let form, title, size;
@@ -541,7 +541,6 @@ function openModal(type, props) {
     } else { // worklog
         form = WorkLogForm({
             log: null, currentUser, teamMembers, projects,
-            workLogTasks, // Pass the tasks array directly
             onSaveAll: (logsData) => { onAddMultipleWorkLogs(logsData); closeModal(); },
             onCancel: closeModal,
         });

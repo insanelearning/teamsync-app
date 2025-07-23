@@ -1,5 +1,6 @@
 
-export function renderLoginPage(container, { onLogin, teamMembers, error }) {
+
+export function renderLoginPage(container, { onLogin, teamMembers }) {
     container.innerHTML = '';
     container.className = 'login-page-container';
 
@@ -12,7 +13,7 @@ export function renderLoginPage(container, { onLogin, teamMembers, error }) {
             <span>TeamSync</span>
         </div>
         <h2 class="login-title">Sign in to your account</h2>
-        <p class="login-subtitle">Enter your email and password to continue.</p>
+        <p class="login-subtitle">Enter your email address to continue.</p>
     `;
 
     const form = document.createElement('form');
@@ -20,14 +21,7 @@ export function renderLoginPage(container, { onLogin, teamMembers, error }) {
     
     const errorMsg = document.createElement('p');
     errorMsg.className = 'login-error-message';
-    
-    // Display error message if one is passed from the main app
-    if (error) {
-        errorMsg.textContent = error;
-        errorMsg.style.display = 'block';
-    } else {
-        errorMsg.style.display = 'none';
-    }
+    errorMsg.style.display = 'none';
 
     const emailGroup = document.createElement('div');
     emailGroup.innerHTML = `<label for="email" class="form-label">Email</label>`;
@@ -38,20 +32,7 @@ export function renderLoginPage(container, { onLogin, teamMembers, error }) {
     emailInput.className = 'form-input';
     emailInput.placeholder = 'you@example.com';
     emailInput.required = true;
-    emailInput.autocomplete = 'email';
     emailGroup.appendChild(emailInput);
-
-    const passwordGroup = document.createElement('div');
-    passwordGroup.innerHTML = `<label for="password" class="form-label">Password</label>`;
-    const passwordInput = document.createElement('input');
-    passwordInput.type = 'password';
-    passwordInput.id = 'password';
-    passwordInput.name = 'password';
-    passwordInput.className = 'form-input';
-    passwordInput.placeholder = '••••••••';
-    passwordInput.required = true;
-    passwordInput.autocomplete = 'current-password';
-    passwordGroup.appendChild(passwordInput);
     
     const submitButton = document.createElement('button');
     submitButton.type = 'submit';
@@ -59,16 +40,22 @@ export function renderLoginPage(container, { onLogin, teamMembers, error }) {
     submitButton.style.width = '100%';
     submitButton.textContent = 'Login';
 
-    form.append(errorMsg, emailGroup, passwordGroup, submitButton);
+    form.append(errorMsg, emailGroup, submitButton);
 
     form.onsubmit = (e) => {
         e.preventDefault();
         const email = emailInput.value.trim().toLowerCase();
-        const password = passwordInput.value;
-        if (!email || !password) return;
+        if (!email) return;
+
+        const member = teamMembers.find(m => m.email && m.email.toLowerCase() === email);
         
-        // Pass credentials up to the main app controller
-        onLogin(email, password);
+        if (member) {
+            onLogin(member);
+        } else {
+            errorMsg.textContent = 'Invalid email address.';
+            errorMsg.style.display = 'block';
+            emailInput.focus();
+        }
     };
 
     loginBox.appendChild(form);
