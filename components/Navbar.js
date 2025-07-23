@@ -1,14 +1,26 @@
 
 
 import { Button } from './Button.js';
+import { TeamMemberRole } from '../types.js';
+import { NotificationPanel } from './NotificationPanel.js';
 
-export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, onLogout }) {
+let isNotificationPanelOpen = false;
+
+export function Navbar(props) {
+  const { 
+    currentView, onNavChange, onThemeToggle, currentUser, onLogout,
+    notifications, onMarkNotificationRead, onMarkAllNotificationsRead, onClearAllNotifications
+  } = props;
+
+  const isManager = currentUser?.role === TeamMemberRole.Manager;
+
   const navItems = [
-    { view: 'dashboard', label: 'Dashboard', icon: 'fas fa-home' },
-    { view: 'projects', label: 'Projects', icon: 'fas fa-tasks' },
-    { view: 'attendance', label: 'Attendance', icon: 'fas fa-user-check' },
-    { view: 'worklog', label: 'Work Log', icon: 'fas fa-clock' },
-    { view: 'notes', label: 'Notes', icon: 'fas fa-sticky-note' },
+    { view: 'dashboard', label: 'Dashboard', icon: 'fas fa-home', managerOnly: false },
+    { view: 'projects', label: 'Projects', icon: 'fas fa-tasks', managerOnly: false },
+    { view: 'attendance', label: 'Attendance', icon: 'fas fa-user-check', managerOnly: false },
+    { view: 'worklog', label: 'Work Log', icon: 'fas fa-clock', managerOnly: false },
+    { view: 'notes', label: 'Notes', icon: 'fas fa-sticky-note', managerOnly: false },
+    { view: 'settings', label: 'Settings', icon: 'fas fa-cog', managerOnly: true },
   ];
 
   const navElement = document.createElement('nav');
@@ -38,7 +50,7 @@ export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, o
   leftSection.appendChild(logoDiv);
   flexDiv.appendChild(leftSection);
   
-  // --- Right Section (Menu, Logout, Theme Toggle, Mobile Button) ---
+  // --- Right Section (Menu, Notifications, Logout, Theme Toggle, Mobile Button) ---
   const rightSection = document.createElement('div');
   rightSection.className = 'navbar-right-section';
 
@@ -48,6 +60,7 @@ export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, o
   const desktopMenuItemsDiv = document.createElement('div');
   desktopMenuItemsDiv.className = 'navbar-desktop-items';
   navItems.forEach(item => {
+    if (item.managerOnly && !isManager) return;
     const button = document.createElement('button');
     button.onclick = () => onNavChange(item.view);
     button.className = `nav-item ${currentView === item.view ? 'nav-item-active' : ''}`;
@@ -57,17 +70,65 @@ export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, o
   desktopMenuDiv.appendChild(desktopMenuItemsDiv);
   rightSection.appendChild(desktopMenuDiv);
   
-  // Logout Button (replaces user profile menu)
+  // --- Notifications Button and Panel ---
+  if (currentUser) {
+    const notificationContainer = document.createElement('div');
+    notificationContainer.className = 'notification-container';
+
+    const unreadCount = notifications.filter(n => !n.isRead).length;
+
+    const notificationButton = document.createElement('button');
+    notificationButton.className = 'notification-button';
+    notificationButton.setAttribute('aria-label', `Notifications (${unreadCount} unread)`);
+    notificationButton.innerHTML = `<i class="fas fa-bell"></i>`;
+    if (unreadCount > 0) {
+        const badge = document.createElement('span');
+        badge.className = 'notification-badge';
+        notificationButton.appendChild(badge);
+    }
+    notificationButton.onclick = (e) => {
+        e.stopPropagation();
+        isNotificationPanelOpen = !isNotificationPanelOpen;
+        const panel = navElement.querySelector('.notification-panel');
+        if (panel) {
+            panel.style.display = isNotificationPanelOpen ? 'block' : 'none';
+        }
+    };
+    notificationContainer.appendChild(notificationButton);
+
+    const notificationPanel = NotificationPanel({
+      notifications,
+      isOpen: isNotificationPanelOpen,
+      onMarkRead: onMarkNotificationRead,
+      onMarkAllRead: onMarkAllNotificationsRead,
+      onClearAll: onClearAllNotifications,
+      onNotificationClick: (link) => {
+          // Parse link like "view=projects&projectId=xyz"
+          const params = new URLSearchParams(link);
+          const view = params.get('view');
+          const projectId = params.get('projectId');
+          // For now, only handle project links
+          if (view) {
+              onNavChange(view, { projectId });
+          }
+          // Close panel on click
+          isNotificationPanelOpen = false;
+          const panel = navElement.querySelector('.notification-panel');
+          if (panel) panel.style.display = 'none';
+      }
+    });
+    notificationPanel.style.display = isNotificationPanelOpen ? 'block' : 'none';
+    notificationContainer.appendChild(notificationPanel);
+    rightSection.appendChild(notificationContainer);
+  }
+
+  // Logout Button
   if (currentUser) {
     const logoutContainer = document.createElement('div');
     logoutContainer.className = 'navbar-logout-container';
-
     const logoutButton = Button({
-      variant: 'secondary',
-      size: 'sm',
-      onClick: onLogout,
-      leftIcon: '<i class="fas fa-sign-out-alt"></i>',
-      children: 'Logout'
+      variant: 'secondary', size: 'sm', onClick: onLogout,
+      leftIcon: '<i class="fas fa-sign-out-alt"></i>', children: 'Logout'
     });
     logoutContainer.appendChild(logoutButton);
     rightSection.appendChild(logoutContainer);
@@ -110,6 +171,7 @@ export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, o
   const mobileMenuItemsDiv = document.createElement('div');
   mobileMenuItemsDiv.className = 'navbar-mobile-items';
   navItems.forEach(item => {
+    if (item.managerOnly && !isManager) return;
     const button = document.createElement('button');
     button.onclick = () => {
         onNavChange(item.view);
@@ -140,6 +202,15 @@ export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, o
 
   mobileMenuContainer.appendChild(mobileMenuItemsDiv);
   navElement.appendChild(mobileMenuContainer);
+
+  document.body.addEventListener('click', (e) => {
+      const panel = navElement.querySelector('.notification-panel');
+      const container = navElement.querySelector('.notification-container');
+      if (isNotificationPanelOpen && panel && container && !container.contains(e.target)) {
+          isNotificationPanelOpen = false;
+          panel.style.display = 'none';
+      }
+  });
 
   return navElement;
 }
