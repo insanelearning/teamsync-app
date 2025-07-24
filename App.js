@@ -8,8 +8,8 @@ import { renderWorkLogPage } from './pages/WorkLogPage.js';
 import { renderLoginPage } from './pages/LoginPage.js';
 import { renderAdminPage } from './pages/AdminPage.js';
 import { Navbar } from './components/Navbar.js';
-import { INITIAL_TEAM_MEMBERS, WORK_LOG_TASKS, PRIORITIES, INITIAL_INTERNAL_TEAMS } from './constants.js';
-import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery } from './services/firebaseService.js';
+import { INITIAL_TEAM_MEMBERS, WORK_LOG_TASKS, PRIORITIES, INITIAL_INTERNAL_TEAMS, INITIAL_HOLIDAYS } from './constants.js';
+import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery, addDocument } from './services/firebaseService.js';
 import { exportToCSV as exportDataToCSV, importFromCSV } from './services/csvService.js';
 import { ProjectStatus, AttendanceStatus, LeaveType, NoteStatus, TeamMemberRole } from './types.js'; // Enums
 
@@ -23,14 +23,34 @@ let attendance = [];
 let notes = [];
 let teamMembers = [];
 let workLogs = [];
+let activities = []; // New state for activities like login
 let currentUser = null; // Start as null, will be set on login
 let appSettings = {}; // For dynamic app name, logo, etc.
 
 // --- Login/Logout Handlers ---
 
-const handleLogin = (member) => {
+const handleLogin = async (member) => {
     currentUser = member;
     sessionStorage.setItem('currentUserId', member.id);
+    
+    // Track login activity
+    try {
+        const activityId = await addDocument('activities', {
+            type: 'login',
+            userId: member.id,
+            timestamp: new Date().toISOString(),
+        });
+        // Add to local state to avoid a full reload
+        activities.push({
+            id: activityId,
+            type: 'login',
+            userId: member.id,
+            timestamp: new Date().toISOString(),
+        });
+    } catch (error) {
+        console.error("Failed to log login activity:", error);
+    }
+
     // After login, always go to dashboard
     currentView = 'dashboard';
     sessionStorage.setItem('currentView', 'dashboard');
@@ -461,7 +481,7 @@ const renderApp = () => {
   const userNotes = notes.filter(note => note.userId === currentUser.id);
   
   const props = {
-    projects, teamMembers, attendanceRecords: attendance, notes: userNotes, workLogs, currentUser, appSettings,
+    projects, teamMembers, attendanceRecords: attendance, notes: userNotes, workLogs, currentUser, appSettings, activities,
     projectStatuses: Object.values(ProjectStatus),
     attendanceStatuses: Object.values(AttendanceStatus),
     leaveTypes: Object.values(LeaveType),
@@ -469,6 +489,7 @@ const renderApp = () => {
     maxTeamMembers: appSettings.maxTeamMembers || 20,
     workLogTasks: appSettings.workLogTasks || [],
     internalTeams: appSettings.internalTeams || [],
+    holidays: appSettings.holidays || [],
     onAddProject: addProject, onUpdateProject: updateProject, onDeleteProject: deleteProject,
     onUpsertAttendanceRecord: upsertAttendanceRecord, onDeleteAttendanceRecord: deleteAttendanceRecord,
     onAddNote: addNote, onUpdateNote: updateNote, onDeleteNote: deleteNote,
@@ -518,13 +539,14 @@ const loadInitialData = async (seedDataIfEmpty = true) => {
   if (loadingContainer) loadingContainer.style.display = 'flex';
 
   try {
-    const [fetchedProjects, fetchedAttendance, fetchedNotes, fetchedMembers, fetchedWorkLogs, fetchedSettings] = await Promise.all([
+    const [fetchedProjects, fetchedAttendance, fetchedNotes, fetchedMembers, fetchedWorkLogs, fetchedSettings, fetchedActivities] = await Promise.all([
       getCollection('projects'),
       getCollection('attendance'),
       getCollection('notes'),
       getCollection('teamMembers'),
       getCollection('worklogs'),
       getCollection('appSettings'),
+      getCollection('activities'),
     ]);
 
     projects = fetchedProjects;
@@ -532,6 +554,7 @@ const loadInitialData = async (seedDataIfEmpty = true) => {
     notes = fetchedNotes;
     teamMembers = fetchedMembers;
     workLogs = fetchedWorkLogs;
+    activities = fetchedActivities;
 
     // --- Data Migration & Defaulting Logic ---
     if (fetchedSettings.length > 0) {
@@ -544,6 +567,7 @@ const loadInitialData = async (seedDataIfEmpty = true) => {
         appLogoUrl: '',
         workLogTasks: WORK_LOG_TASKS,
         internalTeams: INITIAL_INTERNAL_TEAMS,
+        holidays: INITIAL_HOLIDAYS,
         maxTeamMembers: 20,
         welcomeMessage: 'Welcome back,',
         defaultProjectPriority: 'Medium',
