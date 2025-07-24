@@ -13,14 +13,6 @@ export const AttendanceStatus = {
   Leave: 'Leave',
 };
 
-export const LeaveType = {
-  Sick: 'Sick Leave',
-  Vacation: 'Vacation',
-  Personal: 'Personal Day',
-  Unpaid: 'Unpaid Leave',
-  Other: 'Other',
-};
-
 export const NoteStatus = {
     Pending: 'Pending',
     Completed: 'Completed',
@@ -93,7 +85,7 @@ export const TeamMemberRole = {
 //   date: string; // ISO date string YYYY-MM-DD
 //   memberId: string; // TeamMember ID
 //   status: AttendanceStatus value;
-//   leaveType?: LeaveType value;
+//   leaveType?: string; // Now a string, not an enum value
 //   notes?: string;
 // }
 
