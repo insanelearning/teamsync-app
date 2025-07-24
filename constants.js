@@ -1,6 +1,6 @@
 
 
-import { ProjectStatus, AttendanceStatus, LeaveType, NoteStatus, TeamMemberRole } from './types.js';
+import { ProjectStatus, AttendanceStatus, NoteStatus, TeamMemberRole } from './types.js';
 
 export const INITIAL_INTERNAL_TEAMS = [
     'Engineering',
@@ -8,6 +8,14 @@ export const INITIAL_INTERNAL_TEAMS = [
     'Design',
     'Product Management',
     'Marketing'
+];
+
+export const INITIAL_LEAVE_TYPES = [
+    'Sick Leave',
+    'Vacation',
+    'Personal Day',
+    'Unpaid Leave',
+    'Other',
 ];
 
 export const INITIAL_TEAM_MEMBERS = [
@@ -40,4 +48,10 @@ export const NOTE_COLORS = [
   '#ffcdd2', // Red
   '#e1bee7', // Purple
   '#ffffff', // White
+];
+
+// Expanded color palette for consistent member colors across charts
+export const MEMBER_COLORS = [
+  '#4f46e5', '#db2777', '#16a34a', '#f97316', '#0891b2', '#6d28d9', '#ca8a04',
+  '#dc2626', '#059669', '#2563eb', '#c026d3', '#7c2d12', '#1e40af', '#b91c1c'
 ];
