@@ -464,6 +464,13 @@ const handleResetApp = async () => {
             deleteAllFromCollection('appSettings'),
         ]);
         alert("Application has been reset. It will now reload with default data.");
+        // Clear local state before reloading data
+        projects = [];
+        attendance = [];
+        notes = [];
+        teamMembers = [];
+        workLogs = [];
+        appSettings = {};
         await loadInitialData(true); // Re-seed the data
         renderApp();
     } catch (error) {
@@ -569,33 +576,52 @@ const loadInitialData = async (seedDataIfEmpty = true) => {
     notes = fetchedNotes;
     teamMembers = fetchedMembers;
     workLogs = fetchedWorkLogs;
-    
+
+    // --- Data Migration & Defaulting Logic ---
     if (fetchedSettings.length > 0) {
         appSettings = fetchedSettings.find(s => s.id === 'main_config') || {};
     }
 
-    if (seedDataIfEmpty) {
-        if (teamMembers.length === 0) {
-            console.log("No team members found. Seeding initial data...");
-            await batchWrite('teamMembers', INITIAL_TEAM_MEMBERS);
-            teamMembers = await getCollection('teamMembers');
-        }
-        if (Object.keys(appSettings).length === 0) {
-            console.log("No app settings found. Seeding defaults...");
-            const defaultSettings = {
-                appName: 'TeamSync',
-                appLogoUrl: '',
-                workLogTasks: WORK_LOG_TASKS,
-                internalTeams: INITIAL_INTERNAL_TEAMS,
-                maxTeamMembers: 20,
-                welcomeMessage: 'Welcome back,',
-                defaultProjectPriority: 'Medium',
-                defaultTheme: 'User Choice'
-            };
-            await setDocument('appSettings', 'main_config', defaultSettings);
-            appSettings = defaultSettings;
+    let settingsModified = false;
+    const defaultSettings = {
+        appName: 'TeamSync',
+        appLogoUrl: '',
+        workLogTasks: WORK_LOG_TASKS,
+        internalTeams: INITIAL_INTERNAL_TEAMS,
+        maxTeamMembers: 20,
+        welcomeMessage: 'Welcome back,',
+        defaultProjectPriority: 'Medium',
+        defaultTheme: 'User Choice'
+    };
+
+    // Check for missing keys and add defaults
+    for (const key in defaultSettings) {
+        if (appSettings[key] === undefined) {
+            appSettings[key] = defaultSettings[key];
+            settingsModified = true;
         }
     }
+    
+    // Special check to migrate old string-based workLogTasks
+    if (Array.isArray(appSettings.workLogTasks) && appSettings.workLogTasks.length > 0 && typeof appSettings.workLogTasks[0] === 'string') {
+        appSettings.workLogTasks = defaultSettings.workLogTasks; // Reset to default object structure
+        settingsModified = true;
+    }
+    
+    // If settings were ever missing or outdated, save them back. This covers both seeding and migration.
+    if (settingsModified) {
+        console.log("App settings were missing or outdated. Applying defaults/migrations and saving...");
+        await setDocument('appSettings', 'main_config', appSettings);
+    }
+    
+    // Seed team members only if the collection is empty AND we are allowed to seed.
+    if (seedDataIfEmpty && teamMembers.length === 0) {
+        console.log("No team members found. Seeding initial data...");
+        await batchWrite('teamMembers', INITIAL_TEAM_MEMBERS);
+        teamMembers = await getCollection('teamMembers');
+    }
+    
+    // --- End of Data Migration ---
 
     const currentUserId = sessionStorage.getItem('currentUserId');
     if (currentUserId) {
