@@ -1,247 +1,431 @@
+
 import { Button } from '../components/Button.js';
+import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
+import { FileUploadButton } from '../components/FileUploadButton.js';
+import { importFromCSV } from '../services/csvService.js';
 import { PRIORITIES } from '../constants.js';
 
-export function renderAdminPage(container, { appSettings, onUpdateSettings }) {
-    container.innerHTML = '';
-    const pageWrapper = document.createElement('div');
-    pageWrapper.className = 'page-container';
+let currentModalInstance = null;
+let localSettings = {};
 
-    // Local state for the form, clone to avoid direct mutation
-    let localSettings = JSON.parse(JSON.stringify(appSettings));
+function closeModal() {
+    closeGlobalModal();
+    currentModalInstance = null;
+}
 
-    // --- Helper Functions ---
+// --- Helper Functions ---
+const createFieldset = (legendText, subtext = '') => {
+    const fieldset = document.createElement('fieldset');
+    fieldset.className = 'admin-fieldset';
+    const legend = document.createElement('legend');
+    legend.className = 'admin-legend';
+    legend.textContent = legendText;
+    fieldset.appendChild(legend);
+    if (subtext) {
+        const p = document.createElement('p');
+        p.className = 'admin-fieldset-subtext';
+        p.textContent = subtext;
+        fieldset.appendChild(p);
+    }
+    return fieldset;
+};
 
-    const createFieldset = (legendText) => {
-        const fieldset = document.createElement('fieldset');
-        fieldset.className = 'pilot-details-fieldset';
-        fieldset.innerHTML = `<legend class="pilot-details-legend">${legendText}</legend>`;
-        return fieldset;
+const createTextField = (labelText, value, onChange) => {
+    const div = document.createElement('div');
+    const label = document.createElement('label');
+    label.className = 'form-label';
+    label.textContent = labelText;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'form-input';
+    input.value = value;
+    input.oninput = (e) => onChange(e.target.value);
+    div.append(label, input);
+    return div;
+};
+
+const createNumberField = (labelText, value, onChange) => {
+    const div = document.createElement('div');
+    const label = document.createElement('label');
+    label.className = 'form-label';
+    label.textContent = labelText;
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.className = 'form-input';
+    input.value = value;
+    input.min = 1;
+    input.oninput = (e) => onChange(Number(e.target.value));
+    div.append(label, input);
+    return div;
+};
+
+const createSelectField = (labelText, value, options, onChange) => {
+    const div = document.createElement('div');
+    const label = document.createElement('label');
+    label.className = 'form-label';
+    label.textContent = labelText;
+    const select = document.createElement('select');
+    select.className = 'form-select';
+    select.innerHTML = options.map(opt => `<option value="${opt}" ${value === opt ? 'selected' : ''}>${opt}</option>`).join('');
+    select.onchange = (e) => onChange(e.target.value);
+    div.append(label, select);
+    return div;
+};
+
+const createImageUploader = (currentLogoUrl, onImageSelect) => {
+    const container = document.createElement('div');
+    container.className = 'admin-image-uploader';
+
+    const preview = document.createElement('div');
+    preview.className = 'admin-image-preview';
+
+    const updatePreviewImage = (url) => {
+        preview.innerHTML = url ? `<img src="${url}" alt="Logo preview">` : `<i class="fas fa-image placeholder-icon"></i>`;
     };
 
-    const createTextField = (labelText, value, onChange) => {
-        const div = document.createElement('div');
-        const label = document.createElement('label');
-        label.className = 'form-label';
-        label.textContent = labelText;
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.className = 'form-input';
-        input.value = value;
-        input.oninput = (e) => onChange(e.target.value);
-        div.append(label, input);
-        return div;
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/png, image/jpeg, image/gif, image/svg+xml';
+    fileInput.style.display = 'none';
+    fileInput.onchange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (loadEvent) => {
+                const dataUrl = loadEvent.target.result;
+                onImageSelect(dataUrl);
+                updatePreviewImage(dataUrl);
+            };
+            reader.readAsDataURL(file);
+        }
     };
 
-    const createNumberField = (labelText, value, onChange) => {
-        const div = document.createElement('div');
-        const label = document.createElement('label');
-        label.className = 'form-label';
-        label.textContent = labelText;
-        const input = document.createElement('input');
-        input.type = 'number';
-        input.className = 'form-input';
-        input.value = value;
-        input.min = 1;
-        input.oninput = (e) => onChange(Number(e.target.value));
-        div.append(label, input);
-        return div;
-    };
-    
-    const createSelectField = (labelText, value, options, onChange) => {
-        const div = document.createElement('div');
-        const label = document.createElement('label');
-        label.className = 'form-label';
-        label.textContent = labelText;
-        const select = document.createElement('select');
-        select.className = 'form-select';
-        select.innerHTML = options.map(opt => `<option value="${opt}" ${value === opt ? 'selected' : ''}>${opt}</option>`).join('');
-        select.onchange = (e) => onChange(e.target.value);
-        div.append(label, select);
-        return div;
-    };
+    const infoContainer = document.createElement('div');
+    infoContainer.className = 'admin-image-uploader-info';
+    infoContainer.innerHTML = `<p>Recommended size: 128x128 pixels. PNG, JPG, GIF, SVG are supported.</p>`;
+    const buttonGroup = document.createElement('div');
+    buttonGroup.className = 'button-group';
+    buttonGroup.append(
+        Button({ children: 'Upload Image', variant: 'secondary', size: 'sm', onClick: () => fileInput.click() }),
+        Button({ children: 'Remove', variant: 'danger', size: 'sm', onClick: () => { onImageSelect(''); updatePreviewImage(''); } })
+    );
+    infoContainer.appendChild(buttonGroup);
 
-    const createImageUploader = (currentLogoUrl, onImageSelect) => {
-        const container = document.createElement('div');
-        container.className = 'admin-image-uploader';
+    container.append(preview, infoContainer);
+    updatePreviewImage(currentLogoUrl);
+    return container;
+};
 
-        const preview = document.createElement('div');
-        preview.className = 'admin-image-preview';
-        
-        const updatePreviewImage = (url) => {
-            preview.innerHTML = ''; // Clear previous content
-            if (url) {
-                const img = document.createElement('img');
-                img.src = url;
-                img.alt = 'Logo preview';
-                preview.appendChild(img);
+// --- Modal Forms ---
+function openTaskFormModal(task, onSave) {
+    const isEditMode = !!task;
+    let formData = isEditMode ? { ...task } : { name: '', category: '', teams: [] };
+
+    const form = document.createElement('form');
+    form.className = 'project-form';
+
+    const nameInput = createTextField('Task Name', formData.name, (val) => { formData.name = val; });
+    const categoryInput = createTextField('Category', formData.category, (val) => { formData.category = val; });
+
+    // Multi-select for teams
+    const teamsContainer = document.createElement('div');
+    teamsContainer.innerHTML = `<label class="form-label">Assign to Teams</label>`;
+    const teamsGrid = document.createElement('div');
+    teamsGrid.className = 'admin-checkbox-grid';
+    (localSettings.internalTeams || []).forEach(teamName => {
+        const checkboxWrapper = document.createElement('div');
+        checkboxWrapper.className = 'checkbox-wrapper';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = `task-team-${teamName}`;
+        checkbox.value = teamName;
+        checkbox.checked = formData.teams.includes(teamName);
+        checkbox.onchange = (e) => {
+            if (e.target.checked) {
+                formData.teams.push(teamName);
             } else {
-                const icon = document.createElement('i');
-                icon.className = 'fas fa-image placeholder-icon';
-                preview.appendChild(icon);
+                formData.teams = formData.teams.filter(t => t !== teamName);
             }
         };
-        
-        const infoContainer = document.createElement('div');
-        infoContainer.className = 'admin-image-uploader-info';
-        infoContainer.innerHTML = `<p>Upload a company logo. Recommended size: 128x128 pixels.</p>`;
+        const label = document.createElement('label');
+        label.htmlFor = `task-team-${teamName}`;
+        label.textContent = teamName;
+        checkboxWrapper.append(checkbox, label);
+        teamsGrid.appendChild(checkboxWrapper);
+    });
+    teamsContainer.appendChild(teamsGrid);
 
-        const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.accept = 'image/png, image/jpeg, image/gif, image/svg+xml';
-        fileInput.style.display = 'none';
+    form.append(nameInput, categoryInput, teamsContainer);
 
-        fileInput.onchange = (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (loadEvent) => {
-                    const dataUrl = loadEvent.target.result;
-                    onImageSelect(dataUrl);
-                    updatePreviewImage(dataUrl);
-                };
-                reader.readAsDataURL(file);
-            }
-        };
-        
-        const buttonGroup = document.createElement('div');
-        buttonGroup.className = 'button-group';
-        
-        const uploadButton = Button({
-            children: 'Upload Image',
-            variant: 'secondary',
-            size: 'sm',
-            onClick: () => fileInput.click()
-        });
-
-        const removeButton = Button({
-            children: 'Remove',
-            variant: 'danger',
-            size: 'sm',
-            onClick: () => {
-                onImageSelect('');
-                updatePreviewImage('');
-            }
-        });
-
-        buttonGroup.append(uploadButton, removeButton);
-        infoContainer.appendChild(buttonGroup);
-
-        container.append(preview, infoContainer);
-        updatePreviewImage(currentLogoUrl); // Initial render
-        return container;
+    form.onsubmit = (e) => {
+        e.preventDefault();
+        if (!formData.name || !formData.category) {
+            alert('Task Name and Category are required.');
+            return;
+        }
+        onSave({ ...formData, id: formData.id || crypto.randomUUID() });
+        closeModal();
     };
 
-    // --- Main Build Function ---
+    const footer = [
+        Button({ children: 'Cancel', variant: 'secondary', onClick: closeModal }),
+        Button({ children: isEditMode ? 'Save Changes' : 'Add Task', variant: 'primary', onClick: () => form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })) })
+    ];
 
-    const buildPage = () => {
-        pageWrapper.innerHTML = ''; // Clear previous content before building
+    currentModalInstance = Modal({
+        isOpen: true,
+        onClose: closeModal,
+        title: isEditMode ? 'Edit Work Log Task' : 'Add New Work Log Task',
+        children: form,
+        footer: footer,
+        size: 'md'
+    });
+}
 
-        // Header
-        const headerDiv = document.createElement('div');
-        headerDiv.className = "page-header";
-        headerDiv.innerHTML = `<h1 class="page-header-title">Admin Panel</h1>`;
-        pageWrapper.appendChild(headerDiv);
+async function handleTaskImport(file, rerenderCallback) {
+    if (!file) return;
+    try {
+        const importedTaskNames = (await importFromCSV(file)).map(row => Object.values(row)[0]);
+        if (importedTaskNames.length === 0) {
+            alert('CSV is empty or could not be read.');
+            return;
+        }
 
         const form = document.createElement('form');
         form.className = 'project-form';
-        form.style.gap = '2rem';
+        const categoryInput = createTextField('Category for Imported Tasks', '', val => form.category = val);
+        
+        const teamsContainer = document.createElement('div');
+        teamsContainer.innerHTML = `<label class="form-label">Assign to Teams</label>`;
+        const teamsGrid = document.createElement('div');
+        teamsGrid.className = 'admin-checkbox-grid';
+        const selectedTeams = new Set();
+        (localSettings.internalTeams || []).forEach(teamName => {
+            const checkboxWrapper = document.createElement('div');
+            checkboxWrapper.className = 'checkbox-wrapper';
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = `import-team-${teamName}`;
+            checkbox.value = teamName;
+            checkbox.onchange = (e) => {
+                if (e.target.checked) selectedTeams.add(teamName);
+                else selectedTeams.delete(teamName);
+            };
+            const label = document.createElement('label');
+            label.htmlFor = `import-team-${teamName}`;
+            label.textContent = teamName;
+            checkboxWrapper.append(checkbox, label);
+            teamsGrid.appendChild(checkboxWrapper);
+        });
+        teamsContainer.appendChild(teamsGrid);
+        
+        form.append(categoryInput, teamsContainer);
+        
+        const onConfirm = () => {
+            const category = form.category;
+            if (!category) {
+                alert('Please enter a category for the imported tasks.');
+                return;
+            }
+            const newTasks = importedTaskNames.map(name => ({
+                id: crypto.randomUUID(),
+                name,
+                category,
+                teams: Array.from(selectedTeams)
+            }));
+            
+            localSettings.workLogTasks = [...(localSettings.workLogTasks || []), ...newTasks];
+            rerenderCallback();
+            closeModal();
+        };
+
+        const footer = [
+            Button({ children: 'Cancel', variant: 'secondary', onClick: closeModal }),
+            Button({ children: `Import ${importedTaskNames.length} Tasks`, variant: 'primary', onClick: onConfirm })
+        ];
+
+        currentModalInstance = Modal({
+            isOpen: true, onClose: closeModal, title: 'Confirm Task Import',
+            children: form, footer, size: 'md'
+        });
+
+    } catch (error) {
+        alert('Error importing tasks: ' + error.message);
+    }
+}
+
+
+export function renderAdminPage(container, { appSettings, onUpdateSettings, onClearData, onResetApp }) {
+    localSettings = JSON.parse(JSON.stringify(appSettings)); // Deep clone for local editing
+
+    const rerenderPage = () => {
+        const scrollY = window.scrollY;
+        container.innerHTML = '';
+        buildPage();
+        window.scrollTo(0, scrollY);
+    };
+
+    const buildPage = () => {
+        const pageWrapper = document.createElement('div');
+        pageWrapper.className = 'page-container';
+        pageWrapper.innerHTML = `<div class="page-header"><h1 class="page-header-title">Admin Panel</h1></div>`;
+        
+        const form = document.createElement('form');
+        form.className = 'project-form admin-page-form';
 
         // --- Branding Section ---
-        const brandingFieldset = createFieldset('Branding');
-        const appNameInput = createTextField('Application Name', localSettings.appName || '', (val) => { localSettings.appName = val; });
-        const logoUploader = createImageUploader(localSettings.appLogoUrl, (dataUrl) => { localSettings.appLogoUrl = dataUrl; });
-        brandingFieldset.append(appNameInput, logoUploader);
+        const brandingFieldset = createFieldset('Branding & Display');
+        const brandingGrid = document.createElement('div');
+        brandingGrid.className = 'admin-form-grid';
+        brandingGrid.append(
+            createTextField('Application Name', localSettings.appName || '', val => localSettings.appName = val),
+            createImageUploader(localSettings.appLogoUrl, dataUrl => localSettings.appLogoUrl = dataUrl)
+        );
+        brandingFieldset.appendChild(brandingGrid);
         form.appendChild(brandingFieldset);
 
-        // --- General Settings Section ---
+        // --- General Settings ---
         const generalFieldset = createFieldset('General Settings');
-        const welcomeMessageInput = createTextField('Dashboard Welcome Message', localSettings.welcomeMessage || '', (val) => { localSettings.welcomeMessage = val; });
-        const maxTeamMembersInput = createNumberField('Maximum Team Size', localSettings.maxTeamMembers || 20, (val) => { localSettings.maxTeamMembers = val; });
-        const defaultPriorityInput = createSelectField('Default Project Priority', localSettings.defaultProjectPriority || 'Medium', PRIORITIES, (val) => { localSettings.defaultProjectPriority = val; });
-        generalFieldset.append(welcomeMessageInput, maxTeamMembersInput, defaultPriorityInput);
+        const generalGrid = document.createElement('div');
+        generalGrid.className = 'admin-form-grid';
+        generalGrid.append(
+            createTextField('Dashboard Welcome Message', localSettings.welcomeMessage || '', val => localSettings.welcomeMessage = val),
+            createNumberField('Maximum Team Size', localSettings.maxTeamMembers || 20, val => localSettings.maxTeamMembers = val),
+            createSelectField('Default Project Priority', localSettings.defaultProjectPriority || 'Medium', PRIORITIES, val => localSettings.defaultProjectPriority = val),
+            createSelectField('Default Theme', localSettings.defaultTheme || 'User Choice', ['User Choice', 'Light', 'Dark'], val => localSettings.defaultTheme = val)
+        );
+        generalFieldset.appendChild(generalGrid);
         form.appendChild(generalFieldset);
-        
-        // --- Work Log Tasks Section ---
-        const tasksFieldset = createFieldset('Work Log Task Types');
-        const tasksList = document.createElement('div');
-        tasksList.style.display = 'flex';
-        tasksList.style.flexDirection = 'column';
-        tasksList.style.gap = '0.5rem';
-        tasksList.style.marginBottom = '1rem';
 
-        if (!localSettings.workLogTasks || localSettings.workLogTasks.length === 0) {
-            tasksList.innerHTML = `<p class="no-data-placeholder" style="padding: 1rem 0; box-shadow: none;">No tasks defined. Add one below.</p>`;
+        // --- Internal Teams ---
+        const teamsFieldset = createFieldset('Internal Teams', 'Define teams to categorize members and tasks.');
+        const teamsList = document.createElement('div');
+        teamsList.className = 'admin-item-list';
+        if (!localSettings.internalTeams || localSettings.internalTeams.length === 0) {
+            teamsList.innerHTML = `<p class="admin-list-empty">No teams defined.</p>`;
         } else {
-            (localSettings.workLogTasks || []).forEach((task, index) => {
-                const taskItem = document.createElement('div');
-                taskItem.style.display = 'flex';
-                taskItem.style.alignItems = 'center';
-                taskItem.style.gap = '0.5rem';
-                taskItem.style.padding = '0.5rem';
-                taskItem.style.backgroundColor = '#f9fafb';
-                taskItem.style.borderRadius = '0.375rem';
-                const taskText = document.createElement('span');
-                taskText.textContent = task;
-                taskText.style.flexGrow = '1';
-                const deleteBtn = Button({
-                    children: '<i class="fas fa-trash"></i>', variant: 'danger', size: 'sm',
-                    onClick: () => {
-                        localSettings.workLogTasks.splice(index, 1);
-                        buildPage(); // Re-render the whole form
-                    }
-                });
-                taskItem.append(taskText, deleteBtn);
-                tasksList.appendChild(taskItem);
+            (localSettings.internalTeams || []).forEach((team, index) => {
+                const item = document.createElement('div');
+                item.className = 'admin-list-item';
+                item.innerHTML = `<span>${team}</span>`;
+                item.appendChild(Button({
+                    children: '<i class="fas fa-trash"></i>', variant: 'ghost', size: 'sm',
+                    onClick: () => { localSettings.internalTeams.splice(index, 1); rerenderPage(); }
+                }));
+                teamsList.appendChild(item);
             });
         }
-        tasksFieldset.appendChild(tasksList);
-
-        let newTask = '';
-        const addTaskContainer = document.createElement('div');
-        addTaskContainer.className = 'project-form-tags-input-container';
-        const addTaskInput = document.createElement('input');
-        addTaskInput.type = 'text';
-        addTaskInput.className = 'form-input';
-        addTaskInput.placeholder = 'Add new task type...';
-        addTaskInput.oninput = (e) => { newTask = e.target.value; };
-        addTaskInput.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); addTaskBtn.click(); }};
-        const addTaskBtn = Button({
-            children: 'Add Task', size: 'sm',
+        teamsFieldset.appendChild(teamsList);
+        
+        let newTeamName = '';
+        const addTeamContainer = document.createElement('div');
+        addTeamContainer.className = 'admin-add-item-container';
+        const addTeamInput = document.createElement('input');
+        addTeamInput.type = 'text'; addTeamInput.className = 'form-input'; addTeamInput.placeholder = 'New team name...';
+        addTeamInput.oninput = (e) => newTeamName = e.target.value;
+        addTeamInput.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); addTeamBtn.click(); }};
+        const addTeamBtn = Button({
+            children: 'Add Team', size: 'sm',
             onClick: () => {
-                if (newTask.trim()) {
-                    if (!localSettings.workLogTasks) {
-                        localSettings.workLogTasks = [];
-                    }
-                    localSettings.workLogTasks.push(newTask.trim());
-                    newTask = '';
-                    buildPage(); // Re-render the whole form
+                if (newTeamName.trim() && !(localSettings.internalTeams || []).includes(newTeamName.trim())) {
+                    if (!localSettings.internalTeams) localSettings.internalTeams = [];
+                    localSettings.internalTeams.push(newTeamName.trim());
+                    rerenderPage();
                 }
             }
         });
-        addTaskContainer.append(addTaskInput, addTaskBtn);
-        tasksFieldset.appendChild(addTaskContainer);
+        addTeamContainer.append(addTeamInput, addTeamBtn);
+        teamsFieldset.appendChild(addTeamContainer);
+        form.appendChild(teamsFieldset);
+
+        // --- Work Log Tasks ---
+        const tasksFieldset = createFieldset('Work Log Tasks', 'Manage tasks available for selection in work logs.');
+        const taskActions = document.createElement('div');
+        taskActions.className = 'admin-item-actions';
+        taskActions.append(
+            Button({ children: 'Add New Task', size: 'sm', leftIcon: '<i class="fas fa-plus"></i>', onClick: () => {
+                openTaskFormModal(null, (newTask) => {
+                    if (!localSettings.workLogTasks) localSettings.workLogTasks = [];
+                    localSettings.workLogTasks.push(newTask);
+                    rerenderPage();
+                });
+            }}),
+            FileUploadButton({
+                children: 'Import Tasks', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-import"></i>', accept: '.csv',
+                onFileSelect: (file) => handleTaskImport(file, rerenderPage)
+            })
+        );
+        tasksFieldset.appendChild(taskActions);
+
+        const tasksTableContainer = document.createElement('div');
+        tasksTableContainer.className = 'data-table-container';
+        if (!localSettings.workLogTasks || localSettings.workLogTasks.length === 0) {
+            tasksTableContainer.innerHTML = `<p class="admin-list-empty">No tasks defined.</p>`;
+        } else {
+            const table = document.createElement('table');
+            table.className = 'data-table';
+            table.innerHTML = `<thead><tr><th>Task Name</th><th>Category</th><th>Assigned Teams</th><th class="action-cell">Actions</th></tr></thead>`;
+            const tbody = document.createElement('tbody');
+            (localSettings.workLogTasks || []).forEach((task, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${task.name}</td><td>${task.category}</td><td>${(task.teams || []).join(', ') || 'None'}</td>`;
+                const actionCell = document.createElement('td');
+                actionCell.className = 'action-cell';
+                actionCell.append(
+                    Button({ variant: 'ghost', size: 'sm', onClick: () => {
+                        openTaskFormModal(task, (updatedTask) => {
+                            localSettings.workLogTasks[index] = updatedTask;
+                            rerenderPage();
+                        });
+                    }, children: '<i class="fas fa-edit"></i>'}),
+                    Button({ variant: 'danger', size: 'sm', onClick: () => {
+                        localSettings.workLogTasks.splice(index, 1);
+                        rerenderPage();
+                    }, children: '<i class="fas fa-trash"></i>'})
+                );
+                tr.appendChild(actionCell);
+                tbody.appendChild(tr);
+            });
+            table.appendChild(tbody);
+            tasksTableContainer.appendChild(table);
+        }
+        tasksFieldset.appendChild(tasksTableContainer);
         form.appendChild(tasksFieldset);
 
-        // --- Save Action ---
-        const actionsDiv = document.createElement('div');
-        actionsDiv.className = 'project-form-actions';
-        actionsDiv.style.justifyContent = 'flex-end';
-        const saveButton = Button({
-            children: 'Save All Changes',
-            variant: 'primary',
-            type: 'submit'
-        });
-        actionsDiv.append(saveButton);
-        form.appendChild(actionsDiv);
+        // --- Danger Zone ---
+        const dangerFieldset = createFieldset('Danger Zone');
+        dangerFieldset.classList.add('danger-zone');
+        const dangerActions = document.createElement('div');
+        dangerActions.className = 'danger-zone-actions';
+        dangerActions.append(
+            Button({ children: 'Clear All Work Logs', variant: 'danger', onClick: () => {
+                if (confirm('ARE YOU SURE? This will permanently delete all work log entries.')) onClearData('worklogs');
+            }}),
+            Button({ children: 'Clear All Attendance', variant: 'danger', onClick: () => {
+                if (confirm('ARE YOU SURE? This will permanently delete all attendance records.')) onClearData('attendance');
+            }}),
+            Button({ children: 'Reset Application', variant: 'danger', onClick: () => {
+                if (confirm('ARE YOU SURE? This will delete ALL data (projects, team, logs, etc.) and restore the application to its default state.')) onResetApp();
+            }})
+        );
+        dangerFieldset.appendChild(dangerActions);
+        form.appendChild(dangerFieldset);
+
+        // --- Save Form ---
+        const formActions = document.createElement('div');
+        formActions.className = 'project-form-actions';
+        formActions.style.justifyContent = 'flex-end';
+        formActions.appendChild(Button({ children: 'Save All Settings', variant: 'primary', type: 'submit' }));
+        form.appendChild(formActions);
 
         form.onsubmit = (e) => {
             e.preventDefault();
             onUpdateSettings(localSettings);
         };
-        
+
         pageWrapper.appendChild(form);
+        container.appendChild(pageWrapper);
     };
 
     buildPage();
-    container.appendChild(pageWrapper);
 }
