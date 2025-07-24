@@ -1,4 +1,5 @@
 
+
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { TeamMemberForm } from '../components/TeamMemberForm.js';
@@ -16,7 +17,7 @@ export function renderAttendancePage(container, props) {
     attendanceRecords, teamMembers, projects, currentUser,
     attendanceStatuses, leaveTypes, onUpsertAttendanceRecord, onDeleteAttendanceRecord,
     onExport, onImport, maxTeamMembers, onAddTeamMember, onUpdateTeamMember,
-    onDeleteTeamMember, onExportTeam, onImportTeam
+    onDeleteTeamMember, onExportTeam, onImportTeam, internalTeams
   } = props;
 
   const isManager = currentUser.role === TeamMemberRole.Manager;
@@ -55,7 +56,7 @@ export function renderAttendancePage(container, props) {
       selectedDate = e.target.value; 
       renderDailyLogGrid(); 
       updateDailyLogTitle(); 
-      renderTeamList();
+      renderTeamList(); 
   };
   datePickerDiv.appendChild(dateInput);
   headerDiv.appendChild(datePickerDiv);
@@ -227,7 +228,7 @@ export function renderAttendancePage(container, props) {
 
           const table = document.createElement('table');
           table.className = 'data-table team-members-table';
-          table.innerHTML = `<thead><tr><th>Name</th><th>Designation</th><th>Department</th><th>Active Projects</th><th>Attendance Status</th></tr></thead>`;
+          table.innerHTML = `<thead><tr><th>Name</th><th>Internal Team</th><th>Designation</th><th>Active Projects</th><th>Attendance Status</th></tr></thead>`;
           const tbody = document.createElement('tbody');
           members.forEach(member => {
             const tr = document.createElement('tr');
@@ -238,8 +239,8 @@ export function renderAttendancePage(container, props) {
 
             tr.innerHTML = `
                 <td>${member.name}</td>
+                <td>${member.internalTeam || 'N/A'}</td>
                 <td>${member.designation || 'N/A'}</td>
-                <td>${member.department || 'N/A'}</td>
                 <td>${activeProjectsCount}</td>
                 <td>${getAttendanceStatusBadge(record?.status)}</td>
             `;
@@ -310,6 +311,7 @@ export function renderAttendancePage(container, props) {
         <div class="detail-item"><h4 class="detail-label">Employee ID</h4><p class="detail-value">${member.employeeId || 'N/A'}</p></div>
         <div class="detail-item"><h4 class="detail-label">Designation</h4><p class="detail-value">${member.designation || 'N/A'}</p></div>
         <div class="detail-item"><h4 class="detail-label">Department</h4><p class="detail-value">${member.department || 'N/A'}</p></div>
+        <div class="detail-item"><h4 class="detail-label">Internal Team</h4><p class="detail-value">${member.internalTeam || 'N/A'}</p></div>
         <div class="detail-item"><h4 class="detail-label">Join Date</h4><p class="detail-value">${member.joinDate ? new Date(member.joinDate + 'T00:00').toLocaleDateString() : 'N/A'}</p></div>
         <div class="detail-item"><h4 class="detail-label">Birth Date</h4><p class="detail-value">${member.birthDate ? new Date(member.birthDate + 'T00:00').toLocaleDateString() : 'N/A'}</p></div>
         <div class="detail-item"><h4 class="detail-label">Company</h4><p class="detail-value">${member.company || 'N/A'}</p></div>
@@ -385,6 +387,7 @@ export function renderAttendancePage(container, props) {
         // This block will only be reachable by managers
         const formElement = TeamMemberForm({
           member,
+          internalTeams,
           onSave: handleSaveTeamMember,
           onCancel: member ? () => { isEditing = false; renderContent(); } : closeTeamModal
         });
