@@ -387,7 +387,7 @@ export function renderAdminPage(container, { appSettings, onUpdateSettings }) {
             tasksTableContainer.innerHTML = `<p class="admin-list-empty">No tasks defined.</p>`;
         } else {
             const table = document.createElement('table');
-            table.className = 'data-table';
+            table.className = 'data-table admin-tasks-table';
             table.innerHTML = `<thead><tr><th>Task Name</th><th>Category</th><th>Assigned Teams</th><th class="action-cell">Actions</th></tr></thead>`;
             const tbody = document.createElement('tbody');
             (localSettings.workLogTasks || []).forEach((task, index) => {
