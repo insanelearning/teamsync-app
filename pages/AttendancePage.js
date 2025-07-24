@@ -1,5 +1,4 @@
 
-
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { TeamMemberForm } from '../components/TeamMemberForm.js';
@@ -75,6 +74,11 @@ export function renderAttendancePage(container, props) {
 
   const tmFiltersContainer = document.createElement('div');
   tmFiltersContainer.className = 'team-management-filters';
+
+  // Filters are only visible to managers
+  if (!isManager) {
+    tmFiltersContainer.style.display = 'none';
+  }
 
   const searchInput = document.createElement('input');
   searchInput.type = 'text';
@@ -179,8 +183,11 @@ export function renderAttendancePage(container, props) {
     };
 
     const recordsForDate = attendanceRecords.filter(r => r.date === selectedDate);
+    
+    // Non-managers only see themselves. Managers see the full list.
+    const membersToDisplay = isManager ? teamMembers : [currentUser];
 
-    let filteredMembers = teamMembers.filter(member => 
+    let filteredMembers = membersToDisplay.filter(member => 
         member.name.toLowerCase().includes(teamSearchTerm.toLowerCase()) &&
         (!departmentFilter || member.department === departmentFilter)
     );
