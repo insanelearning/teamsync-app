@@ -24,20 +24,8 @@ const getPriorityClass = (priority) => {
 
 export function ProjectCard({ project, teamMembers, onEdit, onDelete }) {
   const card = document.createElement('div');
+  // Removed draggable attribute and D&D event listeners
   card.className = "project-card";
-  card.draggable = true;
-
-  card.addEventListener('dragstart', (e) => {
-    e.dataTransfer.setData('text/plain', project.id);
-    e.dataTransfer.effectAllowed = 'move';
-    setTimeout(() => {
-        card.classList.add('dragging');
-    }, 0);
-  });
-  
-  card.addEventListener('dragend', () => {
-    card.classList.remove('dragging');
-  });
 
   const getMemberName = (id) => teamMembers.find(tm => tm.id === id)?.name || 'Unknown';
   
