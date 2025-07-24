@@ -1,5 +1,4 @@
 
-
 import { TeamMemberRole, ProjectStatus } from '../types.js';
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
@@ -339,13 +338,13 @@ function renderProjectInsights(props) {
     container.className = 'dashboard-widget';
     container.innerHTML = '<h3><i class="fas fa-chart-pie widget-icon"></i>Project Insights</h3>';
 
-    const activeProjects = projects.filter(p => p.status !== ProjectStatus.Done);
+    const activeProjects = projects.filter(p => p.status !== ProjectStatus.Done && p.status !== ProjectStatus.ToDo);
     
     const content = document.createElement('div');
     content.className = 'widget-content project-insights-list';
 
     if (activeProjects.length === 0) {
-        content.innerHTML = `<div class="activity-empty">No active projects.</div>`;
+        content.innerHTML = `<div class="activity-empty">No projects in progress.</div>`;
     } else {
         activeProjects.forEach(project => {
             const projectLogs = workLogs.filter(log => log.projectId === project.id);
