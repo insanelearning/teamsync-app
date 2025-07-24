@@ -1,5 +1,4 @@
 
-
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { FileUploadButton } from '../components/FileUploadButton.js';
@@ -186,70 +185,94 @@ function openTaskFormModal(task, onSave) {
 async function handleTaskImport(file, rerenderCallback) {
     if (!file) return;
     try {
-        const importedTaskNames = (await importFromCSV(file)).map(row => Object.values(row)[0]);
-        if (importedTaskNames.length === 0) {
+        const importedData = await importFromCSV(file);
+        if (importedData.length === 0) {
             alert('CSV is empty or could not be read.');
             return;
         }
 
-        const form = document.createElement('form');
-        form.className = 'project-form';
-        const categoryInput = createTextField('Category for Imported Tasks', '', val => form.category = val);
-        
-        const teamsContainer = document.createElement('div');
-        teamsContainer.innerHTML = `<label class="form-label">Assign to Teams</label>`;
-        const teamsGrid = document.createElement('div');
-        teamsGrid.className = 'admin-checkbox-grid';
-        const selectedTeams = new Set();
-        (localSettings.internalTeams || []).forEach(teamName => {
-            const checkboxWrapper = document.createElement('div');
-            checkboxWrapper.className = 'checkbox-wrapper';
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.id = `import-team-${teamName}`;
-            checkbox.value = teamName;
-            checkbox.onchange = (e) => {
-                if (e.target.checked) selectedTeams.add(teamName);
-                else selectedTeams.delete(teamName);
-            };
-            const label = document.createElement('label');
-            label.htmlFor = `import-team-${teamName}`;
-            label.textContent = teamName;
-            checkboxWrapper.append(checkbox, label);
-            teamsGrid.appendChild(checkboxWrapper);
+        // Standardize header keys (case-insensitive, trim spaces) for easier access
+        const headerMap = {};
+        Object.keys(importedData[0]).forEach(h => {
+            headerMap[h.trim().toLowerCase()] = h;
         });
-        teamsContainer.appendChild(teamsGrid);
         
-        form.append(categoryInput, teamsContainer);
+        const nameKey = headerMap['task name'] || headerMap['taskname'];
+        const categoryKey = headerMap['category'];
+        const teamsKey = headerMap['assigned teams'] || headerMap['assignedteams'];
         
-        const onConfirm = () => {
-            const category = form.category;
-            if (!category) {
-                alert('Please enter a category for the imported tasks.');
-                return;
-            }
-            const newTasks = importedTaskNames.map(name => ({
-                id: crypto.randomUUID(),
-                name,
-                category,
-                teams: Array.from(selectedTeams)
-            }));
+        if (!nameKey || !categoryKey || !teamsKey) {
+            alert("Import failed. CSV must contain the columns: 'Task Name', 'Category', and 'Assigned Teams'.");
+            return;
+        }
+        
+        let validTasks = [];
+        let invalidTeamNames = new Set();
+        const existingTeams = new Set(localSettings.internalTeams || []);
+
+        importedData.forEach(row => {
+            const taskName = row[nameKey]?.trim();
+            const category = row[categoryKey]?.trim();
+            const teamsString = row[teamsKey] || '';
+
+            if (!taskName || !category) return; // Skip rows with missing essential data
+
+            const teams = teamsString.split(',').map(t => t.trim()).filter(Boolean);
+            const validTeams = [];
             
-            localSettings.workLogTasks = [...(localSettings.workLogTasks || []), ...newTasks];
+            teams.forEach(team => {
+                if (existingTeams.has(team)) {
+                    validTeams.push(team);
+                } else {
+                    invalidTeamNames.add(team);
+                }
+            });
+
+            validTasks.push({
+                id: crypto.randomUUID(),
+                name: taskName,
+                category: category,
+                teams: validTeams
+            });
+        });
+
+        if (invalidTeamNames.size > 0) {
+            alert(`Warning: The following teams were not found in your settings and have been ignored: ${Array.from(invalidTeamNames).join(', ')}`);
+        }
+        
+        if (validTasks.length === 0) {
+            alert('No valid tasks could be processed from the import. Please check your CSV file format.');
+            return;
+        }
+
+        // Confirmation modal
+        const modalContent = document.createElement('div');
+        modalContent.className = 'project-form';
+        modalContent.innerHTML = `<p>Found ${validTasks.length} valid tasks to import. How would you like to add them?</p>`;
+
+        const onAppend = () => {
+            localSettings.workLogTasks = [...(localSettings.workLogTasks || []), ...validTasks];
             rerenderCallback();
             closeModal();
         };
 
+        const onReplace = () => {
+            localSettings.workLogTasks = validTasks;
+            rerenderCallback();
+            closeModal();
+        };
+        
         const footer = [
             Button({ children: 'Cancel', variant: 'secondary', onClick: closeModal }),
-            Button({ children: `Import ${importedTaskNames.length} Tasks`, variant: 'primary', onClick: onConfirm })
+            Button({ children: 'Replace Existing', variant: 'danger', onClick: onReplace }),
+            Button({ children: 'Append to List', variant: 'primary', onClick: onAppend }),
         ];
-
+        
         currentModalInstance = Modal({
             isOpen: true, onClose: closeModal, title: 'Confirm Task Import',
-            children: form, footer, size: 'md'
+            children: modalContent, footer: footer, size: 'md'
         });
-
+        
     } catch (error) {
         alert('Error importing tasks: ' + error.message);
     }
@@ -340,7 +363,7 @@ export function renderAdminPage(container, { appSettings, onUpdateSettings }) {
         form.appendChild(teamsFieldset);
 
         // --- Work Log Tasks ---
-        const tasksFieldset = createFieldset('Work Log Tasks', 'Manage tasks available for selection in work logs.');
+        const tasksFieldset = createFieldset('Work Log Tasks', "Manage tasks available for selection in work logs. CSV format: 'Task Name', 'Category', 'Assigned Teams'");
         const taskActions = document.createElement('div');
         taskActions.className = 'admin-item-actions';
         taskActions.append(
