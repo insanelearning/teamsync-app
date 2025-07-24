@@ -1,10 +1,12 @@
 
+
 import { TeamMemberRole, ProjectStatus } from '../types.js';
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { WorkLogForm } from '../components/WorkLogForm.js';
 import { NoteForm } from '../components/NoteForm.js';
 import { CelebrationsWidget } from '../components/CelebrationsWidget.js';
+import { WeeklyHoursDetailModal } from '../components/WeeklyHoursDetailModal.js';
 
 
 let currentModalInstance = null;
@@ -21,8 +23,9 @@ function getStartOfWeek() {
     const now = new Date();
     const day = now.getDay();
     const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
-    return new Date(now.setDate(diff)).toISOString().split('T')[0];
+    return new Date(new Date(now.getFullYear(), now.getMonth(), diff).setHours(0, 0, 0, 0));
 }
+
 
 // Simple hash to get a consistent color for a member ID
 function getColorForId(id) {
@@ -50,7 +53,7 @@ function getTodaysCelebrations(teamMembers) {
     teamMembers.forEach(member => {
         // Check for birthday
         if (member.birthDate) {
-            const birthDate = new Date(member.birthDate);
+            const birthDate = new Date(member.birthDate + 'T00:00:00');
             const birthMonth = birthDate.getMonth() + 1;
             const birthDay = birthDate.getDate();
             const birthMMDD = `${String(birthMonth).padStart(2, '0')}-${String(birthDay).padStart(2, '0')}`;
@@ -64,7 +67,7 @@ function getTodaysCelebrations(teamMembers) {
 
         // Check for work anniversary
         if (member.joinDate) {
-            const joinDate = new Date(member.joinDate);
+            const joinDate = new Date(member.joinDate + 'T00:00:00');
             const joinMonth = joinDate.getMonth() + 1;
             const joinDay = joinDate.getDate();
             const joinYear = joinDate.getFullYear();
@@ -92,9 +95,11 @@ function renderManagerKPIs(props, onKpiClick) {
     const container = document.createElement('div');
     container.className = 'dashboard-kpis';
 
-    const startOfWeek = getStartOfWeek();
+    const startOfWeekDate = getStartOfWeek();
+    const startOfWeekString = startOfWeekDate.toISOString().split('T')[0];
+
     const hoursThisWeek = workLogs
-        .filter(log => log.date >= startOfWeek)
+        .filter(log => log.date >= startOfWeekString)
         .reduce((sum, log) => sum + (log.timeSpentMinutes || 0), 0);
     
     const activeProjects = projects.filter(p => p.status !== ProjectStatus.Done).length;
@@ -130,9 +135,9 @@ function renderManagerKPIs(props, onKpiClick) {
             </div>
         `;
         
-        if ((kpi.type === 'overdue' || kpi.type === 'leave') && kpi.data.length > 0) {
+        if (kpi.type === 'hours' || ((kpi.type === 'overdue' || kpi.type === 'leave') && kpi.data.length > 0)) {
             card.classList.add('clickable');
-            card.addEventListener('click', () => onKpiClick(kpi));
+            card.addEventListener('click', () => onKpiClick(kpi, props));
         }
         
         container.appendChild(card);
@@ -286,7 +291,7 @@ function renderDailyStandup(props) {
 
 
 function renderActivityFeed(props) {
-    const { workLogs, projects, teamMembers } = props;
+    const { workLogs, projects, teamMembers, activities } = props;
     const container = document.createElement('div');
     container.className = 'dashboard-widget';
     container.innerHTML = '<h3><i class="fas fa-stream widget-icon"></i>Team Activity</h3>';
@@ -306,9 +311,16 @@ function renderActivityFeed(props) {
         text: `<strong>${p.assignees.map(getMemberName).join(', ')}</strong> completed project <em>${p.name}</em>.`
     }));
 
-    const allEvents = [...workLogEvents, ...projectEvents]
+    const loginEvents = (activities || []).filter(a => a.type === 'login').map(a => ({
+        type: 'login',
+        date: new Date(a.timestamp),
+        text: `<strong>${getMemberName(a.userId)}</strong> logged in.`
+    }));
+
+
+    const allEvents = [...workLogEvents, ...projectEvents, ...loginEvents]
         .sort((a,b) => b.date - a.date)
-        .slice(0, 7); // Limit to latest 7 activities
+        .slice(0, 10); // Limit to latest 10 activities
 
     const list = document.createElement('ul');
     list.className = 'activity-feed';
@@ -317,10 +329,14 @@ function renderActivityFeed(props) {
     } else {
         allEvents.forEach(event => {
             const li = document.createElement('li');
-            li.className = 'activity-item';
-            const icon = event.type === 'log' ? 'fa-clock' : 'fa-check-circle';
+            li.className = `activity-item type-${event.type}`;
+            const iconMap = {
+                log: 'fa-clock',
+                completion: 'fa-check-circle',
+                login: 'fa-sign-in-alt'
+            };
             li.innerHTML = `
-                <div class="activity-icon"><i class="fas ${icon}"></i></div>
+                <div class="activity-icon"><i class="fas ${iconMap[event.type]}"></i></div>
                 <div class="activity-text">${event.text}</div>
                 <div class="activity-time">${event.date.toLocaleDateString()}</div>
             `;
@@ -443,16 +459,18 @@ function renderMemberStats(props) {
 
     // --- Stat Calculations ---
     const today = new Date();
-    const startOfWeek = getStartOfWeek();
+    const startOfWeekDate = getStartOfWeek();
+    const startOfWeekString = startOfWeekDate.toISOString().split('T')[0];
+
 
     // 1. Hours logged this week & sparkline data
-    const weeklyLogs = workLogs.filter(log => log.memberId === currentUser.id && new Date(log.date) >= new Date(startOfWeek));
+    const weeklyLogs = workLogs.filter(log => log.memberId === currentUser.id && log.date >= startOfWeekString);
     const hoursThisWeek = weeklyLogs.reduce((sum, log) => sum + (log.timeSpentMinutes || 0), 0);
     
     const dailyHours = Array(7).fill(0);
     for (let i = 0; i < 7; i++) {
-        const d = new Date();
-        d.setDate(new Date(startOfWeek).getDate() + i);
+        const d = new Date(startOfWeekDate);
+        d.setDate(startOfWeekDate.getDate() + i);
         const dateStr = d.toISOString().split('T')[0];
         dailyHours[i] = weeklyLogs.filter(l => l.date === dateStr).reduce((sum, l) => sum + (l.timeSpentMinutes || 0), 0) / 60; // in hours
     }
@@ -463,7 +481,7 @@ function renderMemberStats(props) {
         (p.assignees || []).includes(currentUser.id) &&
         p.status === ProjectStatus.Done &&
         p.completionDate &&
-        new Date(p.completionDate) >= new Date(startOfWeek)
+        p.completionDate >= startOfWeekString
     ).length;
 
     // 3. Overdue projects
@@ -591,7 +609,7 @@ function renderMyNotes(props) {
 // --- Main Page Render Logic ---
 
 function openModal(type, props) {
-    const { onAddNote, onAddMultipleWorkLogs, projects, teamMembers, currentUser } = props;
+    const { onAddNote, onAddMultipleWorkLogs, projects, teamMembers, currentUser, workLogTasks } = props;
     const closeModal = () => { closeGlobalModal(); currentModalInstance = null; };
     
     let form, title, size;
@@ -605,8 +623,24 @@ function openModal(type, props) {
         title = 'Add New Note';
         size = 'lg';
     } else { // worklog
+        const targetMember = teamMembers.find(m => m.id === currentUser.id);
+        const userTeam = targetMember ? targetMember.internalTeam : '';
+
+        const availableTasksForUser = (workLogTasks || []).filter(task => 
+            (task.teams || []).includes(userTeam)
+        );
+
+        const tasksGroupedByCategory = availableTasksForUser.reduce((acc, task) => {
+            const category = task.category || 'Uncategorized';
+            if (!acc[category]) { acc[category] = []; }
+            acc[category].push(task);
+            return acc;
+        }, {});
+
+
         form = WorkLogForm({
             log: null, currentUser, teamMembers, projects,
+            workLogTasks: tasksGroupedByCategory,
             onSaveAll: (logsData) => { onAddMultipleWorkLogs(logsData); closeModal(); },
             onCancel: closeModal,
         });
@@ -619,49 +653,66 @@ function openModal(type, props) {
 
 
 function renderManagerDashboard(container, props) {
-    const { teamMembers } = props;
+    const { teamMembers, workLogs, attendanceRecords, holidays } = props;
     
     const celebrations = getTodaysCelebrations(teamMembers);
     if (celebrations.length > 0) {
         container.appendChild(CelebrationsWidget({ celebrations }));
     }
 
-    const onKpiClick = (kpi) => {
-        let title;
+    const onKpiClick = (kpi, allProps) => {
+        const closeModal = () => { closeGlobalModal(); currentModalInstance = null; };
+        let title = '';
+        const modalContent = document.createElement('div');
+        modalContent.className = 'kpi-modal-content';
         
-        const list = document.createElement('ul');
-        list.className = 'kpi-modal-list';
+        if (kpi.type === 'hours') {
+            currentModalInstance = Modal({
+                isOpen: true,
+                onClose: closeModal,
+                title: 'Weekly Hours Breakdown',
+                children: WeeklyHoursDetailModal({
+                    workLogs: allProps.workLogs,
+                    teamMembers: allProps.teamMembers,
+                    attendanceRecords: allProps.attendanceRecords,
+                    holidays: allProps.holidays,
+                    startOfWeek: getStartOfWeek()
+                }),
+                size: 'lg',
+            });
+            return;
+        }
 
         if (kpi.type === 'overdue') {
             title = 'Overdue Projects';
-            kpi.data.forEach(project => {
+            const list = document.createElement('ul');
+            list.className = 'kpi-modal-list';
+            kpi.data.forEach(p => {
                 const li = document.createElement('li');
                 li.className = 'kpi-modal-list-item';
-                li.innerHTML = `<strong>${project.name}</strong> <span>Due: ${new Date(project.dueDate).toLocaleDateString()}</span>`;
+                li.innerHTML = `<strong>${p.name}</strong> <span>Due: ${new Date(p.dueDate).toLocaleDateString()}</span>`;
                 list.appendChild(li);
             });
+            modalContent.appendChild(list);
         } else if (kpi.type === 'leave') {
             title = 'Members on Leave Today';
-            kpi.data.forEach(member => {
+            const list = document.createElement('ul');
+            list.className = 'kpi-modal-list';
+            kpi.data.forEach(m => {
                 const li = document.createElement('li');
                 li.className = 'kpi-modal-list-item';
-                li.innerHTML = `<strong>${member.name}</strong> <span>Type: ${member.leaveType}</span>`;
+                li.innerHTML = `<strong>${m.name}</strong> <span>${m.leaveType}</span>`;
                 list.appendChild(li);
             });
-        } else {
-            return;
-        }
-        
-        if (kpi.data.length === 0) {
-            list.innerHTML = `<p class="no-data-placeholder" style="box-shadow: none; padding: 1rem 0;">Nothing to show.</p>`;
+            modalContent.appendChild(list);
         }
 
         currentModalInstance = Modal({
             isOpen: true,
-            onClose: () => { closeGlobalModal(); currentModalInstance = null; },
-            title: `${title} (${kpi.data.length})`,
-            children: list,
-            footer: [Button({ children: 'Close', variant: 'secondary', onClick: () => { closeGlobalModal(); currentModalInstance = null; } })],
+            onClose: closeModal,
+            title: title,
+            children: modalContent,
+            footer: Button({ children: 'Close', variant: 'secondary', onClick: closeModal }),
             size: 'md'
         });
     };
@@ -674,78 +725,70 @@ function renderManagerDashboard(container, props) {
     const mainCol = document.createElement('div');
     mainCol.className = 'dashboard-main-col';
     mainCol.appendChild(renderDailyStandup(props));
-    mainCol.appendChild(renderActivityFeed(props));
-
+    mainCol.appendChild(renderProjectInsights(props));
+    
     const sideCol = document.createElement('div');
     sideCol.className = 'dashboard-side-col';
-    sideCol.appendChild(renderProjectInsights(props));
+    sideCol.appendChild(renderActivityFeed(props));
 
     layout.append(mainCol, sideCol);
     container.appendChild(layout);
 }
 
 function renderMemberDashboard(container, props) {
-    const { currentUser, appSettings, teamMembers } = props;
+    const { currentUser, appSettings } = props;
 
-    const celebrations = getTodaysCelebrations(teamMembers);
+    const celebrations = getTodaysCelebrations(props.teamMembers);
     if (celebrations.length > 0) {
         container.appendChild(CelebrationsWidget({ celebrations }));
     }
-    
-    const welcomeHeader = document.createElement('div');
-    welcomeHeader.className = 'member-welcome-header';
+
+    const header = document.createElement('div');
+    header.className = 'member-welcome-header';
 
     const welcomeText = document.createElement('h2');
-    const welcomeMessage = appSettings.welcomeMessage || 'Welcome back,';
-    welcomeText.innerHTML = `${welcomeMessage} <strong>${currentUser.name.split(' ')[0]}</strong>!`;
+    welcomeText.innerHTML = `${appSettings.welcomeMessage || 'Welcome back,'} <strong>${currentUser.name.split(' ')[0]}!</strong>`;
     
-    const welcomeActions = document.createElement('div');
-    welcomeActions.className = 'member-hero-actions'; // reuse class
-    welcomeActions.append(
+    const actions = document.createElement('div');
+    actions.className = 'member-hero-actions';
+    actions.append(
         Button({
-            children: 'Log My Work',
-            leftIcon: '<i class="fas fa-plus"></i>',
+            children: 'Add Work Log',
+            leftIcon: '<i class="fas fa-clock"></i>',
             onClick: () => openModal('worklog', props)
         }),
         Button({
-            children: 'Add a Note',
+            children: 'Add Note',
             variant: 'secondary',
             leftIcon: '<i class="fas fa-sticky-note"></i>',
             onClick: () => openModal('note', props)
         })
     );
-    welcomeHeader.append(welcomeText, welcomeActions);
-    container.appendChild(welcomeHeader);
+
+    header.append(welcomeText, actions);
+    container.appendChild(header);
 
     container.appendChild(renderMemberStats(props));
     
     const layout = document.createElement('div');
     layout.className = 'dashboard-layout-member';
-    
     layout.appendChild(renderMyContributions(props));
     layout.appendChild(renderMyNotes(props));
-
+    
     container.appendChild(layout);
 }
 
+
 export function renderDashboardPage(container, props) {
-    container.innerHTML = '';
-    const pageWrapper = document.createElement('div');
-    pageWrapper.className = 'page-container dashboard-page';
+  container.innerHTML = '';
+  const pageWrapper = document.createElement('div');
+  pageWrapper.className = 'page-container dashboard-page';
 
-    if (!props.currentUser) {
-        pageWrapper.innerHTML = `<div class="no-data-placeholder"><p>Loading user data...</p></div>`;
-        container.appendChild(pageWrapper);
-        return;
-    }
-    
-    const isManager = props.currentUser.role === TeamMemberRole.Manager;
-
-    if (isManager) {
-        renderManagerDashboard(pageWrapper, props);
-    } else {
-        renderMemberDashboard(pageWrapper, props);
-    }
-    
-    container.appendChild(pageWrapper);
+  if (props.currentUser.role === TeamMemberRole.Manager) {
+    renderManagerDashboard(pageWrapper, props);
+  } else {
+    renderMemberDashboard(pageWrapper, props);
+  }
+  
+  container.appendChild(pageWrapper);
 }
