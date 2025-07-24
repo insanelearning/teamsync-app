@@ -1,4 +1,5 @@
 
+
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { WorkLogForm } from '../components/WorkLogForm.js';
@@ -311,8 +312,29 @@ export function renderWorkLogPage(container, props) {
     }
     
     function openModal(log = null) {
+        // Find the member for whom the log is being added/edited
+        const targetMemberId = log ? log.memberId : currentUser.id;
+        const targetMember = teamMembers.find(m => m.id === targetMemberId);
+        const userTeam = targetMember ? targetMember.internalTeam : '';
+
+        // Filter and group tasks for the target member's team
+        const availableTasksForUser = workLogTasks.filter(task => 
+            (task.teams || []).includes(userTeam)
+        );
+
+        const tasksGroupedByCategory = availableTasksForUser.reduce((acc, task) => {
+            const category = task.category || 'Uncategorized';
+            if (!acc[category]) {
+                acc[category] = [];
+            }
+            acc[category].push(task);
+            return acc;
+        }, {});
+
+
         const form = WorkLogForm({
-            log, currentUser, teamMembers, projects, workLogTasks,
+            log, currentUser, teamMembers, projects,
+            workLogTasks: tasksGroupedByCategory, // Pass filtered and grouped tasks
             onSave: (logData) => { // For single edits
                 onUpdateWorkLog(logData);
                 closeModal();
