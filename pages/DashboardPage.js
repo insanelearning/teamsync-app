@@ -146,7 +146,7 @@ function renderManagerKPIs(props, onKpiClick) {
 }
 
 function renderDailyStandup(props) {
-    const { teamMembers, attendanceRecords, workLogs } = props;
+    const { teamMembers, attendanceRecords, workLogs, holidays } = props;
     const container = document.createElement('div');
     container.className = 'dashboard-widget';
 
@@ -155,7 +155,28 @@ function renderDailyStandup(props) {
 
     const rerenderContent = () => {
         const contentContainer = container.querySelector('.standup-content');
-        if (!contentContainer) return;
+        const tabsContainer = container.querySelector('.standup-tabs');
+        if (!contentContainer || !tabsContainer) return;
+
+        const dateObj = new Date(selectedDate + 'T00:00:00');
+        const dayOfWeek = dateObj.getDay();
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+        const holiday = (holidays || []).find(h => h.date === selectedDate);
+        const isNonWorkingDay = isWeekend || !!holiday;
+
+        if (isNonWorkingDay) {
+            tabsContainer.style.display = 'none';
+            contentContainer.innerHTML = `
+                <div class="attendance-card-non-working-status" style="margin-top: 1rem;">
+                    ${holiday 
+                        ? `<i class="fas fa-calendar-star"></i> Holiday: ${holiday.name}` 
+                        : `<i class="fas fa-bed"></i> Week Off`}
+                </div>
+            `;
+            return;
+        }
+
+        tabsContainer.style.display = 'flex';
         contentContainer.innerHTML = '';
 
         if (activeTab === 'attendance') {
@@ -179,7 +200,6 @@ function renderDailyStandup(props) {
             const logsForDate = workLogs.filter(log => log.date === selectedDate);
             const loggedMemberIds = new Set(logsForDate.map(log => log.memberId));
             
-            // Get members who are on leave for the selected date
             const onLeaveMemberIds = new Set(
                 attendanceRecords
                     .filter(r => r.date === selectedDate && r.status === 'Leave')
@@ -193,7 +213,6 @@ function renderDailyStandup(props) {
             });
 
             const membersLogged = teamMembers.filter(m => loggedMemberIds.has(m.id));
-            // A member is pending if they haven't logged work AND they are not on leave
             const membersPending = teamMembers.filter(m => !loggedMemberIds.has(m.id) && !onLeaveMemberIds.has(m.id));
             
             const createListHTML = (title, members, icon, showTime) => {
