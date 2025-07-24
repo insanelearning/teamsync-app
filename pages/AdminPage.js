@@ -371,9 +371,12 @@ export function renderAdminPage(container, { appSettings, onUpdateSettings }) {
         holidayFieldset.appendChild(addHolidayContainer);
         form.appendChild(holidayFieldset);
 
+        // --- Two Column Layout for Teams & Leave Types ---
+        const twoColumnGrid = document.createElement('div');
+        twoColumnGrid.className = 'admin-two-column-grid';
 
         // --- Internal Teams ---
-        const teamsFieldset = createFieldset('Internal Teams', 'Define teams to categorize members and tasks.');
+        const teamsFieldset = createFieldset('Internal Teams');
         const teamsList = document.createElement('div');
         teamsList.className = 'admin-item-list';
         if (!localSettings.internalTeams || localSettings.internalTeams.length === 0) {
@@ -411,7 +414,51 @@ export function renderAdminPage(container, { appSettings, onUpdateSettings }) {
         });
         addTeamContainer.append(addTeamInput, addTeamBtn);
         teamsFieldset.appendChild(addTeamContainer);
-        form.appendChild(teamsFieldset);
+        twoColumnGrid.appendChild(teamsFieldset);
+
+        // --- Leave Types ---
+        const leaveTypesFieldset = createFieldset('Leave Types');
+        const leaveTypesList = document.createElement('div');
+        leaveTypesList.className = 'admin-item-list';
+        if (!localSettings.leaveTypes || localSettings.leaveTypes.length === 0) {
+            leaveTypesList.innerHTML = `<p class="admin-list-empty">No leave types defined.</p>`;
+        } else {
+            (localSettings.leaveTypes || []).forEach((leaveType, index) => {
+                const item = document.createElement('div');
+                item.className = 'admin-list-item';
+                item.innerHTML = `<span>${leaveType}</span>`;
+                item.appendChild(Button({
+                    children: '<i class="fas fa-trash"></i>', variant: 'ghost', size: 'sm',
+                    onClick: () => { localSettings.leaveTypes.splice(index, 1); rerenderPage(); }
+                }));
+                leaveTypesList.appendChild(item);
+            });
+        }
+        leaveTypesFieldset.appendChild(leaveTypesList);
+
+        let newLeaveTypeName = '';
+        const addLeaveTypeContainer = document.createElement('div');
+        addLeaveTypeContainer.className = 'admin-add-item-container';
+        const addLeaveTypeInput = document.createElement('input');
+        addLeaveTypeInput.type = 'text'; addLeaveTypeInput.className = 'form-input'; addLeaveTypeInput.placeholder = 'New leave type...';
+        addLeaveTypeInput.oninput = (e) => newLeaveTypeName = e.target.value;
+        addLeaveTypeInput.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); addLeaveTypeBtn.click(); }};
+        const addLeaveTypeBtn = Button({
+            children: 'Add Type', size: 'sm',
+            onClick: () => {
+                if (newLeaveTypeName.trim() && !(localSettings.leaveTypes || []).includes(newLeaveTypeName.trim())) {
+                    if (!localSettings.leaveTypes) localSettings.leaveTypes = [];
+                    localSettings.leaveTypes.push(newLeaveTypeName.trim());
+                    rerenderPage();
+                }
+            }
+        });
+        addLeaveTypeContainer.append(addLeaveTypeInput, addLeaveTypeBtn);
+        leaveTypesFieldset.appendChild(addLeaveTypeContainer);
+        twoColumnGrid.appendChild(leaveTypesFieldset);
+
+        form.appendChild(twoColumnGrid);
+
 
         // --- Work Log Tasks ---
         const tasksFieldset = createFieldset('Work Log Tasks', "Manage tasks available for selection in work logs. CSV format: 'Task Name', 'Category', 'Assigned Teams'");
