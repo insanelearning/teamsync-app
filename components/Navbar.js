@@ -1,8 +1,8 @@
 
-
 import { Button } from './Button.js';
+import { TeamMemberRole } from '../types.js';
 
-export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, onLogout }) {
+export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, onLogout, appSettings }) {
   const navItems = [
     { view: 'dashboard', label: 'Dashboard', icon: 'fas fa-home' },
     { view: 'projects', label: 'Projects', icon: 'fas fa-tasks' },
@@ -10,6 +10,10 @@ export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, o
     { view: 'worklog', label: 'Work Log', icon: 'fas fa-clock' },
     { view: 'notes', label: 'Notes', icon: 'fas fa-sticky-note' },
   ];
+
+  if (currentUser && currentUser.role === TeamMemberRole.Manager) {
+    navItems.push({ view: 'admin', label: 'Admin', icon: 'fas fa-cogs' });
+  }
 
   const navElement = document.createElement('nav');
   navElement.className = 'navbar';
@@ -32,7 +36,13 @@ export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, o
   logoShrinkDiv.className = 'navbar-logo-shrink';
   const logoSpan = document.createElement('span');
   logoSpan.className = 'navbar-logo-text';
-  logoSpan.innerHTML = '<i class="fas fa-sync-alt navbar-logo-icon"></i>TeamSync';
+
+  if (appSettings?.appLogoUrl) {
+    logoSpan.innerHTML = `<img src="${appSettings.appLogoUrl}" alt="Logo" class="navbar-logo-image"/> ${appSettings.appName || 'TeamSync'}`;
+  } else {
+    logoSpan.innerHTML = `<i class="fas fa-sync-alt navbar-logo-icon"></i>${appSettings?.appName || 'TeamSync'}`;
+  }
+
   logoShrinkDiv.appendChild(logoSpan);
   logoDiv.appendChild(logoShrinkDiv);
   leftSection.appendChild(logoDiv);
