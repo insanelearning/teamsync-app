@@ -435,11 +435,16 @@ function renderMemberDashboard(container, props) {
 
 export function renderDashboardPage(container, props) {
     container.innerHTML = '';
-    container.className = 'page-container dashboard-page';
+
+    // Create a wrapper div to ensure the consistent boxed layout
+    const pageWrapper = document.createElement('div');
+    pageWrapper.className = 'page-container dashboard-page';
 
     if (props.currentUser.role === TeamMemberRole.Manager) {
-        renderManagerDashboard(container, props);
+        renderManagerDashboard(pageWrapper, props);
     } else {
-        renderMemberDashboard(container, props);
+        renderMemberDashboard(pageWrapper, props);
     }
+
+    container.appendChild(pageWrapper);
 }
