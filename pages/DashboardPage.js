@@ -626,13 +626,14 @@ function renderManagerDashboard(container, props) {
 }
 
 function renderMemberDashboard(container, props) {
-    const { currentUser } = props;
+    const { currentUser, appSettings } = props;
     
     const welcomeHeader = document.createElement('div');
     welcomeHeader.className = 'member-welcome-header';
 
     const welcomeText = document.createElement('h2');
-    welcomeText.innerHTML = `Welcome back, <strong>${currentUser.name.split(' ')[0]}</strong>!`;
+    const welcomeMessage = appSettings.welcomeMessage || 'Welcome back,';
+    welcomeText.innerHTML = `${welcomeMessage} <strong>${currentUser.name.split(' ')[0]}</strong>!`;
     
     const welcomeActions = document.createElement('div');
     welcomeActions.className = 'member-hero-actions'; // reuse class
