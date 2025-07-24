@@ -478,8 +478,10 @@ export function renderProjectsPage(container, props) {
             projects: displayProjects,
             projectStatuses,
             teamMembers,
+            currentUser,
             onUpdateProject,
-            onEditProject: openModalWithProject
+            onEditProject: openModalWithProject,
+            onDeleteProject,
         });
         mainContentContainer.appendChild(kanbanContainer);
     }
