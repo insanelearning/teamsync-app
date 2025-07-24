@@ -3404,3 +3404,7 @@ footer.app-footer {
 .dark .admin-image-uploader-info p {
     color: #9ca3af;
 }
+.admin-image-uploader-info .button-group {
+    display: flex;
+    gap: 0.5rem;
+}
