@@ -3,47 +3,49 @@ import { Button } from './Button.js';
 import { TeamMemberRole } from '../types.js';
 
 export function WorkLogForm({ log, currentUser, teamMembers, projects, workLogTasks, onSave, onSaveAll, onCancel }) {
-    // Mode determination: 'edit' for a single log, 'add' for multiple new logs.
     const isEditMode = !!log;
-    
+
     let commonData = {
         date: isEditMode ? log.date : new Date().toISOString().split('T')[0],
         memberId: isEditMode ? log.memberId : currentUser.id,
     };
 
-    const defaultTask = (workLogTasks && workLogTasks.length > 0) ? workLogTasks[0] : 'Development';
+    // Determine the default task based on the new structure (object of arrays)
+    const categories = Object.keys(workLogTasks || {});
+    const defaultTaskName = (categories.length > 0 && workLogTasks[categories[0]].length > 0)
+        ? workLogTasks[categories[0]][0].name
+        : '';
 
-    let formEntries = isEditMode 
+    let formEntries = isEditMode
         ? [{ ...log, _id: crypto.randomUUID() }] // Add a temporary client-side ID for editing
-        : [{ _id: crypto.randomUUID(), projectId: '', taskName: defaultTask, timeSpentMinutes: 0, requestedFrom: '', comments: '' }];
+        : [{ _id: crypto.randomUUID(), projectId: '', taskName: defaultTaskName, timeSpentMinutes: 0, requestedFrom: '', comments: '' }];
 
     const form = document.createElement('form');
     form.className = 'project-form'; // Reuse styles
 
-    // --- Rerender function ---
     function rerender() {
         form.innerHTML = '';
         buildForm();
     }
 
-    // --- Handlers ---
     const handleCommonDataChange = (e) => {
         commonData[e.target.name] = e.target.value;
-        // If the member changes, we need to rerender to update the project list.
-        if(e.target.name === 'memberId') {
-            rerender();
+        if (e.target.name === 'memberId') {
+            // This case should not happen in the new flow as page reloads with filtered tasks,
+            // but is kept for robustness. A full re-render is needed.
+            alert("Changing member requires reloading the form. This feature is not supported in the current context.");
         }
     };
-    
+
     const handleEntryChange = (entryId, field, value) => {
         const entryIndex = formEntries.findIndex(e => e._id === entryId);
         if (entryIndex > -1) {
             formEntries[entryIndex][field] = (field === 'timeSpentMinutes') ? Number(value) : value;
         }
     };
-    
+
     const addEntryRow = () => {
-        formEntries.push({ _id: crypto.randomUUID(), projectId: '', taskName: defaultTask, timeSpentMinutes: 0, requestedFrom: '', comments: '' });
+        formEntries.push({ _id: crypto.randomUUID(), projectId: '', taskName: defaultTaskName, timeSpentMinutes: 0, requestedFrom: '', comments: '' });
         rerender();
     };
 
@@ -51,22 +53,18 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, workLogTa
         formEntries = formEntries.filter(e => e._id !== entryId);
         rerender();
     };
-    
-    // --- UI Builder ---
+
     function buildForm() {
-        // --- Top common fields for both modes ---
         const topFieldsContainer = document.createElement('div');
         topFieldsContainer.className = 'worklog-form-top-fields';
-        
-        // Member Selector (visible for managers, or in edit mode)
+
         if (currentUser.role === TeamMemberRole.Manager || isEditMode) {
             const memberSelect = document.createElement('select');
             memberSelect.className = 'form-select';
             memberSelect.name = 'memberId';
-            memberSelect.innerHTML = teamMembers.map(m => `<option value="${m.id}" ${commonData.memberId === m.id ? 'selected': ''}>${m.name}</option>`).join('');
+            memberSelect.innerHTML = teamMembers.map(m => `<option value="${m.id}" ${commonData.memberId === m.id ? 'selected' : ''}>${m.name}</option>`).join('');
             memberSelect.onchange = handleCommonDataChange;
-            // In add mode, manager can change member. In edit mode, it's locked.
-            memberSelect.disabled = isEditMode;
+            memberSelect.disabled = isEditMode || currentUser.role !== TeamMemberRole.Manager;
 
             const memberDiv = document.createElement('div');
             memberDiv.innerHTML = `<label class="form-label">Team Member</label>`;
@@ -74,30 +72,28 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, workLogTa
             topFieldsContainer.appendChild(memberDiv);
         }
 
-        // Date Picker
         const dateInput = document.createElement('input');
         dateInput.type = 'date';
         dateInput.className = 'form-input';
         dateInput.name = 'date';
         dateInput.value = commonData.date;
         dateInput.onchange = handleCommonDataChange;
-        
+
         const dateDiv = document.createElement('div');
         dateDiv.innerHTML = `<label class="form-label">Date</label>`;
         dateDiv.appendChild(dateInput);
         topFieldsContainer.appendChild(dateDiv);
-        
+
         form.appendChild(topFieldsContainer);
 
-        // --- Entry Table ---
         const sectionHeader = document.createElement('h4');
         sectionHeader.className = 'worklog-form-section-header';
         sectionHeader.textContent = 'Log Entries';
         form.appendChild(sectionHeader);
-        
+
         const tableContainer = document.createElement('div');
         tableContainer.className = 'data-table-container';
-        
+
         const table = document.createElement('table');
         table.className = 'worklog-form-entry-table';
         table.innerHTML = `<thead>
@@ -109,35 +105,44 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, workLogTa
                 <th class="action-cell"></th>
             </tr>
         </thead>`;
-        
+
         const tbody = document.createElement('tbody');
-        
-        // Filter projects based on selected member
         const projectsForMember = projects.filter(p => p.status !== 'Done' && (p.assignees || []).includes(commonData.memberId));
 
         formEntries.forEach(entry => {
             const tr = document.createElement('tr');
-            
-            // Project
+
             const projectCell = document.createElement('td');
             const projectSelect = document.createElement('select');
             projectSelect.className = 'form-select';
             projectSelect.required = true;
-            projectSelect.innerHTML = `<option value="">Select...</option>` + projectsForMember.map(p => `<option value="${p.id}" ${entry.projectId === p.id ? 'selected' : ''}>${p.name}</option>`).join('');
+            projectSelect.innerHTML = `<option value="">Select Project...</option>` + projectsForMember.map(p => `<option value="${p.id}" ${entry.projectId === p.id ? 'selected' : ''}>${p.name}</option>`).join('');
             projectSelect.onchange = (e) => handleEntryChange(entry._id, 'projectId', e.target.value);
             projectCell.appendChild(projectSelect);
             tr.appendChild(projectCell);
 
-            // Task
+            // Task dropdown with optgroup for categories
             const taskCell = document.createElement('td');
             const taskSelect = document.createElement('select');
             taskSelect.className = 'form-select';
-            taskSelect.innerHTML = (workLogTasks || []).map(t => `<option value="${t}" ${entry.taskName === t ? 'selected' : ''}>${t}</option>`).join('');
+            taskSelect.required = true;
+            
+            const taskCategories = Object.keys(workLogTasks || {});
+            if (taskCategories.length === 0) {
+                taskSelect.innerHTML = `<option value="">No tasks for this team</option>`;
+                taskSelect.disabled = true;
+            } else {
+                taskSelect.innerHTML = taskCategories.map(category => {
+                    const options = workLogTasks[category].map(task =>
+                        `<option value="${task.name}" ${entry.taskName === task.name ? 'selected' : ''}>${task.name}</option>`
+                    ).join('');
+                    return `<optgroup label="${category}">${options}</optgroup>`;
+                }).join('');
+            }
             taskSelect.onchange = (e) => handleEntryChange(entry._id, 'taskName', e.target.value);
             taskCell.appendChild(taskSelect);
             tr.appendChild(taskCell);
-            
-            // Time
+
             const timeCell = document.createElement('td');
             const timeInput = document.createElement('input');
             timeInput.type = 'number';
@@ -148,8 +153,7 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, workLogTa
             timeInput.oninput = (e) => handleEntryChange(entry._id, 'timeSpentMinutes', e.target.value);
             timeCell.appendChild(timeInput);
             tr.appendChild(timeCell);
-            
-            // Comments
+
             const commentsCell = document.createElement('td');
             const commentsInput = document.createElement('input');
             commentsInput.type = 'text';
@@ -160,11 +164,10 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, workLogTa
             commentsCell.appendChild(commentsInput);
             tr.appendChild(commentsCell);
 
-            // Actions
             const actionCell = document.createElement('td');
             actionCell.className = 'action-cell';
             if (!isEditMode) {
-                 const removeBtn = Button({
+                const removeBtn = Button({
                     variant: 'danger', size: 'sm', className: 'team-member-action-btn-delete',
                     children: '<i class="fas fa-trash-alt"></i>', ariaLabel: 'Remove Task',
                     onClick: () => removeEntryRow(entry._id),
@@ -179,23 +182,19 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, workLogTa
         table.appendChild(tbody);
         tableContainer.appendChild(table);
         form.appendChild(tableContainer);
-        
-        // --- Actions ---
+
         const footerActions = document.createElement('div');
         footerActions.className = 'project-form-actions';
         footerActions.style.justifyContent = 'space-between';
 
         if (!isEditMode) {
             const addRowButton = Button({
-                children: 'Add Another Task',
-                variant: 'secondary',
-                size: 'sm',
-                leftIcon: '<i class="fas fa-plus"></i>',
+                children: 'Add Another Task', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-plus"></i>',
                 onClick: addEntryRow
             });
             footerActions.appendChild(addRowButton);
         } else {
-            footerActions.appendChild(document.createElement('div')); // Placeholder to keep right side aligned
+            footerActions.appendChild(document.createElement('div'));
         }
 
         const rightActionButtons = document.createElement('div');
@@ -204,25 +203,19 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, workLogTa
 
         const cancelButton = Button({ children: 'Cancel', variant: 'secondary', onClick: onCancel });
         const saveButton = Button({ children: isEditMode ? 'Save Changes' : 'Add Logs', variant: 'primary', type: 'submit' });
-        
+
         rightActionButtons.append(cancelButton, saveButton);
         footerActions.appendChild(rightActionButtons);
         form.appendChild(footerActions);
     }
-    
+
     form.addEventListener('submit', (e) => {
         e.preventDefault();
-        
+
         const logsToSave = formEntries.map(entry => {
             const { _id, ...rest } = entry;
-            return {
-                ...rest,
-                ...commonData,
-            };
-        }).filter(l => {
-            // Basic validation for each entry
-            return l.projectId && l.taskName && l.timeSpentMinutes > 0;
-        });
+            return { ...rest, ...commonData };
+        }).filter(l => l.projectId && l.taskName && l.timeSpentMinutes > 0);
 
         if (logsToSave.length === 0) {
             alert('Please fill out at least one valid task row with a project selected and time spent greater than zero.');
