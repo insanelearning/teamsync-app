@@ -1,5 +1,5 @@
-
 import { Button } from '../components/Button.js';
+import { PRIORITIES } from '../constants.js';
 
 export function renderAdminPage(container, { appSettings, onUpdateSettings }) {
     container.innerHTML = '';
@@ -9,12 +9,133 @@ export function renderAdminPage(container, { appSettings, onUpdateSettings }) {
     // Local state for the form, clone to avoid direct mutation
     let localSettings = JSON.parse(JSON.stringify(appSettings));
 
-    const rerender = () => {
-        pageWrapper.innerHTML = '';
-        buildPage();
+    // --- Helper Functions ---
+
+    const createFieldset = (legendText) => {
+        const fieldset = document.createElement('fieldset');
+        fieldset.className = 'pilot-details-fieldset';
+        fieldset.innerHTML = `<legend class="pilot-details-legend">${legendText}</legend>`;
+        return fieldset;
     };
 
+    const createTextField = (labelText, value, onChange) => {
+        const div = document.createElement('div');
+        const label = document.createElement('label');
+        label.className = 'form-label';
+        label.textContent = labelText;
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'form-input';
+        input.value = value;
+        input.oninput = (e) => onChange(e.target.value);
+        div.append(label, input);
+        return div;
+    };
+
+    const createNumberField = (labelText, value, onChange) => {
+        const div = document.createElement('div');
+        const label = document.createElement('label');
+        label.className = 'form-label';
+        label.textContent = labelText;
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.className = 'form-input';
+        input.value = value;
+        input.min = 1;
+        input.oninput = (e) => onChange(Number(e.target.value));
+        div.append(label, input);
+        return div;
+    };
+    
+    const createSelectField = (labelText, value, options, onChange) => {
+        const div = document.createElement('div');
+        const label = document.createElement('label');
+        label.className = 'form-label';
+        label.textContent = labelText;
+        const select = document.createElement('select');
+        select.className = 'form-select';
+        select.innerHTML = options.map(opt => `<option value="${opt}" ${value === opt ? 'selected' : ''}>${opt}</option>`).join('');
+        select.onchange = (e) => onChange(e.target.value);
+        div.append(label, select);
+        return div;
+    };
+
+    const createImageUploader = (currentLogoUrl, onImageSelect) => {
+        const container = document.createElement('div');
+        container.className = 'admin-image-uploader';
+
+        const preview = document.createElement('div');
+        preview.className = 'admin-image-preview';
+        
+        const updatePreviewImage = (url) => {
+            preview.innerHTML = ''; // Clear previous content
+            if (url) {
+                const img = document.createElement('img');
+                img.src = url;
+                img.alt = 'Logo preview';
+                preview.appendChild(img);
+            } else {
+                const icon = document.createElement('i');
+                icon.className = 'fas fa-image placeholder-icon';
+                preview.appendChild(icon);
+            }
+        };
+        
+        const infoContainer = document.createElement('div');
+        infoContainer.className = 'admin-image-uploader-info';
+        infoContainer.innerHTML = `<p>Upload a company logo. Recommended size: 128x128 pixels.</p>`;
+
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'image/png, image/jpeg, image/gif, image/svg+xml';
+        fileInput.style.display = 'none';
+
+        fileInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (loadEvent) => {
+                    const dataUrl = loadEvent.target.result;
+                    onImageSelect(dataUrl);
+                    updatePreviewImage(dataUrl);
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+        
+        const buttonGroup = document.createElement('div');
+        buttonGroup.className = 'button-group';
+        
+        const uploadButton = Button({
+            children: 'Upload Image',
+            variant: 'secondary',
+            size: 'sm',
+            onClick: () => fileInput.click()
+        });
+
+        const removeButton = Button({
+            children: 'Remove',
+            variant: 'danger',
+            size: 'sm',
+            onClick: () => {
+                onImageSelect('');
+                updatePreviewImage('');
+            }
+        });
+
+        buttonGroup.append(uploadButton, removeButton);
+        infoContainer.appendChild(buttonGroup);
+
+        container.append(preview, infoContainer);
+        updatePreviewImage(currentLogoUrl); // Initial render
+        return container;
+    };
+
+    // --- Main Build Function ---
+
     const buildPage = () => {
+        pageWrapper.innerHTML = ''; // Clear previous content before building
+
         // Header
         const headerDiv = document.createElement('div');
         headerDiv.className = "page-header";
@@ -22,59 +143,32 @@ export function renderAdminPage(container, { appSettings, onUpdateSettings }) {
         pageWrapper.appendChild(headerDiv);
 
         const form = document.createElement('form');
-        form.className = 'project-form'; // Reuse styles for consistency
+        form.className = 'project-form';
         form.style.gap = '2rem';
 
         // --- Branding Section ---
-        const brandingFieldset = document.createElement('fieldset');
-        brandingFieldset.className = 'pilot-details-fieldset'; // Reusing style for grouped fields
-        brandingFieldset.innerHTML = `<legend class="pilot-details-legend">Branding</legend>`;
-        
-        const appNameInput = createField('Application Name', 'text', localSettings.appName || '', (val) => { localSettings.appName = val; updatePreview(); });
-        const appLogoUrlInput = createField('Application Logo URL (e.g., a data URI or public URL)', 'text', localSettings.appLogoUrl || '', (val) => { localSettings.appLogoUrl = val; updatePreview(); });
-        
-        const previewDiv = document.createElement('div');
-        previewDiv.style.marginTop = '1rem';
-        const previewLabel = document.createElement('label');
-        previewLabel.className = 'form-label';
-        previewLabel.textContent = 'Navbar Preview';
-        
-        const previewContent = document.createElement('div');
-        previewContent.id = 'admin-preview-content';
-        previewContent.style.backgroundColor = '#1f2937';
-        previewContent.style.padding = '1rem';
-        previewContent.style.borderRadius = '0.5rem';
-        previewContent.style.color = 'white';
-        previewContent.style.fontSize = '1.5rem';
-        previewContent.style.fontWeight = '700';
-        previewContent.style.display = 'flex';
-        previewContent.style.alignItems = 'center';
-        previewContent.style.gap = '0.75rem';
-
-        const updatePreview = () => {
-             if (localSettings.appLogoUrl) {
-                previewContent.innerHTML = `<img src="${localSettings.appLogoUrl}" alt="Logo Preview" class="navbar-logo-image"/> <span>${localSettings.appName || 'App'}</span>`;
-            } else {
-                previewContent.innerHTML = `<i class="fas fa-sync-alt"></i> <span>${localSettings.appName || 'App'}</span>`;
-            }
-        };
-        
-        previewDiv.append(previewLabel, previewContent);
-        
-        brandingFieldset.append(appNameInput, appLogoUrlInput, previewDiv);
+        const brandingFieldset = createFieldset('Branding');
+        const appNameInput = createTextField('Application Name', localSettings.appName || '', (val) => { localSettings.appName = val; });
+        const logoUploader = createImageUploader(localSettings.appLogoUrl, (dataUrl) => { localSettings.appLogoUrl = dataUrl; });
+        brandingFieldset.append(appNameInput, logoUploader);
         form.appendChild(brandingFieldset);
 
-        // --- Work Log Tasks Section ---
-        const tasksFieldset = document.createElement('fieldset');
-        tasksFieldset.className = 'pilot-details-fieldset';
-        tasksFieldset.innerHTML = `<legend class="pilot-details-legend">Work Log Task Types</legend>`;
+        // --- General Settings Section ---
+        const generalFieldset = createFieldset('General Settings');
+        const welcomeMessageInput = createTextField('Dashboard Welcome Message', localSettings.welcomeMessage || '', (val) => { localSettings.welcomeMessage = val; });
+        const maxTeamMembersInput = createNumberField('Maximum Team Size', localSettings.maxTeamMembers || 20, (val) => { localSettings.maxTeamMembers = val; });
+        const defaultPriorityInput = createSelectField('Default Project Priority', localSettings.defaultProjectPriority || 'Medium', PRIORITIES, (val) => { localSettings.defaultProjectPriority = val; });
+        generalFieldset.append(welcomeMessageInput, maxTeamMembersInput, defaultPriorityInput);
+        form.appendChild(generalFieldset);
         
+        // --- Work Log Tasks Section ---
+        const tasksFieldset = createFieldset('Work Log Task Types');
         const tasksList = document.createElement('div');
         tasksList.style.display = 'flex';
         tasksList.style.flexDirection = 'column';
         tasksList.style.gap = '0.5rem';
         tasksList.style.marginBottom = '1rem';
-        
+
         if (!localSettings.workLogTasks || localSettings.workLogTasks.length === 0) {
             tasksList.innerHTML = `<p class="no-data-placeholder" style="padding: 1rem 0; box-shadow: none;">No tasks defined. Add one below.</p>`;
         } else {
@@ -86,40 +180,33 @@ export function renderAdminPage(container, { appSettings, onUpdateSettings }) {
                 taskItem.style.padding = '0.5rem';
                 taskItem.style.backgroundColor = '#f9fafb';
                 taskItem.style.borderRadius = '0.375rem';
-
                 const taskText = document.createElement('span');
                 taskText.textContent = task;
                 taskText.style.flexGrow = '1';
-                
                 const deleteBtn = Button({
-                    children: '<i class="fas fa-trash"></i>',
-                    variant: 'danger',
-                    size: 'sm',
+                    children: '<i class="fas fa-trash"></i>', variant: 'danger', size: 'sm',
                     onClick: () => {
                         localSettings.workLogTasks.splice(index, 1);
-                        rerender();
+                        buildPage(); // Re-render the whole form
                     }
                 });
                 taskItem.append(taskText, deleteBtn);
                 tasksList.appendChild(taskItem);
             });
         }
-        
         tasksFieldset.appendChild(tasksList);
-        
+
         let newTask = '';
         const addTaskContainer = document.createElement('div');
-        addTaskContainer.className = 'project-form-tags-input-container'; // Reuse style
+        addTaskContainer.className = 'project-form-tags-input-container';
         const addTaskInput = document.createElement('input');
         addTaskInput.type = 'text';
         addTaskInput.className = 'form-input';
         addTaskInput.placeholder = 'Add new task type...';
         addTaskInput.oninput = (e) => { newTask = e.target.value; };
         addTaskInput.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); addTaskBtn.click(); }};
-        
         const addTaskBtn = Button({
-            children: 'Add Task',
-            size: 'sm',
+            children: 'Add Task', size: 'sm',
             onClick: () => {
                 if (newTask.trim()) {
                     if (!localSettings.workLogTasks) {
@@ -127,13 +214,12 @@ export function renderAdminPage(container, { appSettings, onUpdateSettings }) {
                     }
                     localSettings.workLogTasks.push(newTask.trim());
                     newTask = '';
-                    rerender();
+                    buildPage(); // Re-render the whole form
                 }
             }
         });
         addTaskContainer.append(addTaskInput, addTaskBtn);
         tasksFieldset.appendChild(addTaskContainer);
-        
         form.appendChild(tasksFieldset);
 
         // --- Save Action ---
@@ -154,24 +240,7 @@ export function renderAdminPage(container, { appSettings, onUpdateSettings }) {
         };
         
         pageWrapper.appendChild(form);
-        updatePreview(); // initial render of preview
-    }
-    
-    function createField(labelText, type, value, onChange) {
-        const div = document.createElement('div');
-        const label = document.createElement('label');
-        label.className = 'form-label';
-        label.textContent = labelText;
-        
-        const input = document.createElement('input');
-        input.type = type;
-        input.className = 'form-input';
-        input.value = value;
-        input.oninput = (e) => onChange(e.target.value);
-        
-        div.append(label, input);
-        return div;
-    }
+    };
 
     buildPage();
     container.appendChild(pageWrapper);
