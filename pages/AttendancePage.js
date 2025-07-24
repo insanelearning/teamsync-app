@@ -17,7 +17,7 @@ export function renderAttendancePage(container, props) {
     attendanceRecords, teamMembers, projects, currentUser,
     attendanceStatuses, leaveTypes, onUpsertAttendanceRecord, onDeleteAttendanceRecord,
     onExport, onImport, maxTeamMembers, onAddTeamMember, onUpdateTeamMember,
-    onDeleteTeamMember, onExportTeam, onImportTeam, internalTeams
+    onDeleteTeamMember, onExportTeam, onImportTeam, internalTeams, holidays
   } = props;
 
   const isManager = currentUser.role === TeamMemberRole.Manager;
@@ -282,6 +282,7 @@ export function renderAttendancePage(container, props) {
             date: selectedDate, 
             record, 
             leaveTypes, 
+            holidays,
             onUpsertRecord: onUpsertAttendanceRecord 
         }));
       });
