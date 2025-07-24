@@ -37,7 +37,8 @@ export function KanbanBoard({ projects, projectStatuses, teamMembers, currentUse
                 body.appendChild(card);
             });
         } else {
-            body.innerHTML = `<div class="kanban-empty-placeholder"></div>`;
+            column.classList.add('kanban-column-empty');
+            body.innerHTML = `<div class="kanban-empty-placeholder">Drop card here</div>`;
         }
         
         column.appendChild(body);
