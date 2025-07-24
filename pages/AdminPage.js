@@ -1,4 +1,5 @@
 
+
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { FileUploadButton } from '../components/FileUploadButton.js';
@@ -320,6 +321,56 @@ export function renderAdminPage(container, { appSettings, onUpdateSettings }) {
         );
         generalFieldset.appendChild(generalGrid);
         form.appendChild(generalFieldset);
+
+        // --- Holiday Management ---
+        const holidayFieldset = createFieldset('Holiday Management', 'Define company-wide non-working days.');
+        const holidayList = document.createElement('div');
+        holidayList.className = 'admin-item-list';
+        if (!localSettings.holidays || localSettings.holidays.length === 0) {
+            holidayList.innerHTML = `<p class="admin-list-empty">No holidays defined.</p>`;
+        } else {
+            (localSettings.holidays || []).sort((a,b) => a.date.localeCompare(b.date)).forEach((holiday) => {
+                const item = document.createElement('div');
+                item.className = 'admin-list-item';
+                item.innerHTML = `<span><strong>${holiday.name}</strong> - ${new Date(holiday.date + 'T00:00:00').toLocaleDateString()}</span>`;
+                item.appendChild(Button({
+                    children: '<i class="fas fa-trash"></i>', variant: 'ghost', size: 'sm',
+                    onClick: () => { 
+                        localSettings.holidays = localSettings.holidays.filter(h => h.id !== holiday.id);
+                        rerenderPage(); 
+                    }
+                }));
+                holidayList.appendChild(item);
+            });
+        }
+        holidayFieldset.appendChild(holidayList);
+
+        let newHoliday = { name: '', date: ''};
+        const addHolidayContainer = document.createElement('div');
+        addHolidayContainer.className = 'admin-add-item-container';
+        addHolidayContainer.style.alignItems = 'flex-end';
+        const holidayNameInput = document.createElement('input');
+        holidayNameInput.type = 'text'; holidayNameInput.className = 'form-input'; holidayNameInput.placeholder = 'Holiday name...';
+        holidayNameInput.oninput = (e) => newHoliday.name = e.target.value;
+        const holidayDateInput = document.createElement('input');
+        holidayDateInput.type = 'date'; holidayDateInput.className = 'form-input';
+        holidayDateInput.oninput = (e) => newHoliday.date = e.target.value;
+        const addHolidayBtn = Button({
+            children: 'Add Holiday', size: 'sm',
+            onClick: () => {
+                if (newHoliday.name.trim() && newHoliday.date) {
+                    if (!localSettings.holidays) localSettings.holidays = [];
+                    localSettings.holidays.push({ ...newHoliday, id: crypto.randomUUID() });
+                    rerenderPage();
+                } else {
+                    alert('Please provide both a name and a date for the holiday.');
+                }
+            }
+        });
+        addHolidayContainer.append(holidayNameInput, holidayDateInput, addHolidayBtn);
+        holidayFieldset.appendChild(addHolidayContainer);
+        form.appendChild(holidayFieldset);
+
 
         // --- Internal Teams ---
         const teamsFieldset = createFieldset('Internal Teams', 'Define teams to categorize members and tasks.');
