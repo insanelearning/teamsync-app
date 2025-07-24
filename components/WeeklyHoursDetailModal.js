@@ -72,10 +72,12 @@ export function WeeklyHoursDetailModal(props) {
         const memberItem = document.createElement('div');
         memberItem.className = 'weekly-hours-member-item';
         
-        // Calculate expected hours for this specific member
+        const memberLoggedDates = new Set(weeklyLogs.filter(log => log.memberId === member.id).map(log => log.date));
+
         let memberWorkableDays = 0;
         let memberHolidays = 0;
         const memberLeaveDays = new Set();
+        let workableDaysWithNoLogs = 0;
         
         for (let i = 0; i < 7; i++) {
             const currentDay = new Date(startOfWeek);
@@ -84,13 +86,20 @@ export function WeeklyHoursDetailModal(props) {
             const dateStr = currentDay.toISOString().split('T')[0];
 
             const attendanceRecord = weeklyAttendance.find(r => r.memberId === member.id && r.date === dateStr);
-            if (attendanceRecord && attendanceRecord.status === 'Leave') {
+            const isOnLeave = attendanceRecord && attendanceRecord.status === 'Leave';
+            if (isOnLeave) {
                 memberLeaveDays.add(dateStr);
             }
             
-            if (dayOfWeek !== 0 && dayOfWeek !== 6 && !holidayDates.has(dateStr)) {
+            const isWorkDay = dayOfWeek !== 0 && dayOfWeek !== 6;
+            const isHoliday = holidayDates.has(dateStr);
+
+            if (isWorkDay && !isHoliday) {
                 memberWorkableDays++;
-            } else if (dayOfWeek !== 0 && dayOfWeek !== 6 && holidayDates.has(dateStr)) {
+                if (!isOnLeave && !memberLoggedDates.has(dateStr)) {
+                    workableDaysWithNoLogs++;
+                }
+            } else if (isWorkDay && isHoliday) {
                 memberHolidays++;
             }
         }
@@ -100,12 +109,14 @@ export function WeeklyHoursDetailModal(props) {
             .filter(log => log.memberId === member.id)
             .reduce((sum, log) => sum + log.timeSpentMinutes, 0);
 
-        // Generate reason text
         let reasonText = '';
         if (loggedMemberMinutes < expectedMemberHours * 60) {
             const reasons = [];
             if (memberLeaveDays.size > 0) {
                 reasons.push(`${memberLeaveDays.size} day(s) on leave`);
+            }
+            if (workableDaysWithNoLogs > 0) {
+                reasons.push(`${workableDaysWithNoLogs} workable day(s) with no hours logged`);
             }
             if (memberHolidays > 0) {
                 reasons.push(`${memberHolidays} holiday(s) occurred`);
