@@ -1,5 +1,4 @@
 
-
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { WorkLogForm } from '../components/WorkLogForm.js';
@@ -17,7 +16,7 @@ function formatMinutes(minutes) {
 }
 
 export function renderWorkLogPage(container, props) {
-    const { workLogs, teamMembers, projects, currentUser, onAddMultipleWorkLogs, onUpdateWorkLog, onDeleteWorkLog, onExport, onImport } = props;
+    const { workLogs, teamMembers, projects, currentUser, onAddMultipleWorkLogs, onUpdateWorkLog, onDeleteWorkLog, onExport, onImport, workLogTasks } = props;
 
     const isManager = currentUser.role === TeamMemberRole.Manager;
     let currentPage = 1;
@@ -313,7 +312,7 @@ export function renderWorkLogPage(container, props) {
     
     function openModal(log = null) {
         const form = WorkLogForm({
-            log, currentUser, teamMembers, projects,
+            log, currentUser, teamMembers, projects, workLogTasks,
             onSave: (logData) => { // For single edits
                 onUpdateWorkLog(logData);
                 closeModal();
