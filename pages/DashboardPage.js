@@ -1,9 +1,12 @@
 
+
 import { TeamMemberRole, ProjectStatus } from '../types.js';
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { WorkLogForm } from '../components/WorkLogForm.js';
 import { NoteForm } from '../components/NoteForm.js';
+import { CelebrationsWidget } from '../components/CelebrationsWidget.js';
+
 
 let currentModalInstance = null;
 
@@ -30,6 +33,56 @@ function getColorForId(id) {
         hash = id.charCodeAt(i) + ((hash << 5) - hash);
     }
     return colors[Math.abs(hash) % colors.length];
+}
+
+/**
+ * Checks team members for any birthdays or work anniversaries occurring today.
+ * @param {Array} teamMembers - The list of all team members.
+ * @returns {Array} A list of celebration objects.
+ */
+function getTodaysCelebrations(teamMembers) {
+    const celebrations = [];
+    const today = new Date();
+    const todayMonth = today.getMonth() + 1; // getMonth() is 0-indexed
+    const todayDate = today.getDate();
+    const todayYear = today.getFullYear();
+    const todayMMDD = `${String(todayMonth).padStart(2, '0')}-${String(todayDate).padStart(2, '0')}`;
+
+    teamMembers.forEach(member => {
+        // Check for birthday
+        if (member.birthDate) {
+            const birthDate = new Date(member.birthDate);
+            const birthMonth = birthDate.getMonth() + 1;
+            const birthDay = birthDate.getDate();
+            const birthMMDD = `${String(birthMonth).padStart(2, '0')}-${String(birthDay).padStart(2, '0')}`;
+            if (birthMMDD === todayMMDD) {
+                celebrations.push({
+                    type: 'birthday',
+                    memberName: member.name
+                });
+            }
+        }
+
+        // Check for work anniversary
+        if (member.joinDate) {
+            const joinDate = new Date(member.joinDate);
+            const joinMonth = joinDate.getMonth() + 1;
+            const joinDay = joinDate.getDate();
+            const joinYear = joinDate.getFullYear();
+            const joinMMDD = `${String(joinMonth).padStart(2, '0')}-${String(joinDay).padStart(2, '0')}`;
+            
+            if (joinMMDD === todayMMDD && joinYear < todayYear) {
+                const yearsOfService = todayYear - joinYear;
+                celebrations.push({
+                    type: 'anniversary',
+                    memberName: member.name,
+                    years: yearsOfService
+                });
+            }
+        }
+    });
+
+    return celebrations;
 }
 
 
@@ -567,6 +620,13 @@ function openModal(type, props) {
 
 
 function renderManagerDashboard(container, props) {
+    const { teamMembers } = props;
+    
+    const celebrations = getTodaysCelebrations(teamMembers);
+    if (celebrations.length > 0) {
+        container.appendChild(CelebrationsWidget({ celebrations }));
+    }
+
     const onKpiClick = (kpi) => {
         let title;
         
@@ -626,7 +686,12 @@ function renderManagerDashboard(container, props) {
 }
 
 function renderMemberDashboard(container, props) {
-    const { currentUser, appSettings } = props;
+    const { currentUser, appSettings, teamMembers } = props;
+
+    const celebrations = getTodaysCelebrations(teamMembers);
+    if (celebrations.length > 0) {
+        container.appendChild(CelebrationsWidget({ celebrations }));
+    }
     
     const welcomeHeader = document.createElement('div');
     welcomeHeader.className = 'member-welcome-header';
