@@ -1426,9 +1426,17 @@ footer.app-footer {
   font-size: 1.5rem; /* text-2xl */
   font-weight: 700; /* font-bold */
   color: #4f46e5; /* text-indigo-600 */
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 .dark .navbar-logo-text { color: #818cf8; /* dark:text-indigo-400 */ }
 .navbar-logo-icon { margin-right: 0.5rem; /* mr-2 */ }
+.navbar-logo-image {
+  height: 2.5rem;
+  width: auto;
+  border-radius: 0.25rem;
+}
 
 .navbar-desktop-menu { display: none; }
 @media (min-width: 768px) { /* md */
