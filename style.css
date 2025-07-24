@@ -3525,3 +3525,13 @@ footer.app-footer {
     display: flex;
     gap: 0.5rem;
 }
+
+/* Admin Page Task Table Layout Fix */
+.admin-tasks-table td:nth-child(1), /* Task Name */
+.admin-tasks-table td:nth-child(3) { /* Assigned Teams */
+    white-space: normal;
+    word-break: break-word;
+}
+.admin-tasks-table td:nth-child(3) {
+    min-width: 200px; /* Give teams column some space */
+}
