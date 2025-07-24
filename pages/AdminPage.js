@@ -1,4 +1,5 @@
 
+
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { FileUploadButton } from '../components/FileUploadButton.js';
@@ -255,7 +256,7 @@ async function handleTaskImport(file, rerenderCallback) {
 }
 
 
-export function renderAdminPage(container, { appSettings, onUpdateSettings, onClearData, onResetApp }) {
+export function renderAdminPage(container, { appSettings, onUpdateSettings }) {
     localSettings = JSON.parse(JSON.stringify(appSettings)); // Deep clone for local editing
 
     const rerenderPage = () => {
@@ -391,25 +392,6 @@ export function renderAdminPage(container, { appSettings, onUpdateSettings, onCl
         }
         tasksFieldset.appendChild(tasksTableContainer);
         form.appendChild(tasksFieldset);
-
-        // --- Danger Zone ---
-        const dangerFieldset = createFieldset('Danger Zone');
-        dangerFieldset.classList.add('danger-zone');
-        const dangerActions = document.createElement('div');
-        dangerActions.className = 'danger-zone-actions';
-        dangerActions.append(
-            Button({ children: 'Clear All Work Logs', variant: 'danger', onClick: () => {
-                if (confirm('ARE YOU SURE? This will permanently delete all work log entries.')) onClearData('worklogs');
-            }}),
-            Button({ children: 'Clear All Attendance', variant: 'danger', onClick: () => {
-                if (confirm('ARE YOU SURE? This will permanently delete all attendance records.')) onClearData('attendance');
-            }}),
-            Button({ children: 'Reset Application', variant: 'danger', onClick: () => {
-                if (confirm('ARE YOU SURE? This will delete ALL data (projects, team, logs, etc.) and restore the application to its default state.')) onResetApp();
-            }})
-        );
-        dangerFieldset.appendChild(dangerActions);
-        form.appendChild(dangerFieldset);
 
         // --- Save Form ---
         const formActions = document.createElement('div');
