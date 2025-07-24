@@ -1,4 +1,5 @@
 
+
 import { Button } from './Button.js';
 import { TeamMemberRole } from '../types.js';
 
@@ -89,6 +90,13 @@ export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, o
   themeToggleButton.setAttribute('aria-label', 'Toggle dark mode');
   const isCurrentlyDark = document.documentElement.classList.contains('dark');
   themeToggleButton.innerHTML = isCurrentlyDark ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
+  
+  const isThemeEnforced = appSettings.defaultTheme && appSettings.defaultTheme !== 'User Choice';
+  themeToggleButton.disabled = isThemeEnforced;
+  if(isThemeEnforced) {
+    themeToggleButton.title = `Theme is set to "${appSettings.defaultTheme}" by the administrator.`;
+  }
+
   themeToggleButton.onclick = () => {
     onThemeToggle();
     // The icon will be updated on the next render pass which is triggered by onThemeToggle
