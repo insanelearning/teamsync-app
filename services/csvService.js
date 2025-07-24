@@ -1,6 +1,40 @@
 // A simple CSV parser and stringifier.
 
 /**
+ * Parses a single row of a CSV string, handling quoted fields.
+ * @param {string} rowString The string for a single CSV row.
+ * @returns {Array<string>} An array of values for the row.
+ */
+function parseCSVRow(rowString) {
+    const values = [];
+    let currentVal = '';
+    let inQuotes = false;
+    // Append a comma to ensure the last value is pushed
+    const effectiveRow = rowString + ',';
+
+    for (let i = 0; i < effectiveRow.length; i++) {
+        const char = effectiveRow[i];
+        
+        if (char === '"') {
+            // Check for escaped double quote
+            if (inQuotes && effectiveRow[i + 1] === '"') {
+                currentVal += '"';
+                i++; // Skip the next character
+            } else {
+                inQuotes = !inQuotes;
+            }
+        } else if (char === ',' && !inQuotes) {
+            values.push(currentVal);
+            currentVal = '';
+        } else {
+            currentVal += char;
+        }
+    }
+    
+    return values.map(v => v.trim());
+}
+
+/**
  * Formats a single value for a CSV field. It handles values that contain
  * commas, double quotes, or newlines by enclosing them in double quotes.
  * Existing double quotes within the value are escaped by doubling them.
@@ -12,7 +46,7 @@ function formatCSVField(value) {
         return '';
     }
 
-    // Convert the value to a string. `handleExport` is responsible for pre-stringifying objects/arrays.
+    // Convert the value to a string.
     let stringValue = String(value);
     
     // If the string contains a comma, a newline, or a double quote, enclose it in double quotes.
@@ -64,31 +98,25 @@ export const importFromCSV = (file) => {
         if (!csvString) {
           throw new Error("File is empty or could not be read.");
         }
-        const rows = csvString.split(/\r\n|\n/);
+        
+        const rows = csvString.split(/\r\n|\n/).filter(row => row.trim() !== ''); // Split rows and remove empty ones
         if (rows.length < 2) {
           throw new Error("CSV must have a header row and at least one data row.");
         }
         
-        const header = rows[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+        // Use robust parser for the header as well
+        const header = parseCSVRow(rows[0]).map(h => h.replace(/^"|"$/g, ''));
+
         const data = rows.slice(1).map(rowString => {
-          const values = rowString.split(','); // Basic split
-          if (values.length === 0 || (values.length === 1 && values[0].trim() === '')) return null;
+          if (rowString.trim() === '') return null;
+          // Use robust parser for data rows
+          const values = parseCSVRow(rowString);
+          if (values.length === 0) return null;
           
           const obj = {};
           header.forEach((key, index) => {
-            let value = values[index] ? values[index].trim() : '';
-            if (value.startsWith('"') && value.endsWith('"')) {
-              value = value.substring(1, value.length - 1);
-            }
-            try {
-              if (value === 'null') obj[key] = null;
-              else if (value === 'true') obj[key] = true;
-              else if (value === 'false') obj[key] = false;
-              else if (!isNaN(Number(value)) && value.trim() !== '') obj[key] = Number(value);
-              else obj[key] = value;
-            } catch (e) {
-              obj[key] = value;
-            }
+            let value = values[index] !== undefined ? values[index] : '';
+            obj[key] = value;
           });
           return obj;
         }).filter(item => item !== null);
