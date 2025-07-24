@@ -262,6 +262,7 @@ export function renderProjectsPage(container, props) {
     teamMembers,
     currentUser,
     projectStatuses,
+    appSettings,
     onAddProject,
     onUpdateProject,
     onDeleteProject,
@@ -436,6 +437,7 @@ export function renderProjectsPage(container, props) {
         project: null, 
         teamMembers, 
         projectStatuses, 
+        appSettings,
         onSave: (projectData) => {
             onAddProject(projectData);
             closeModal();
@@ -655,7 +657,7 @@ export function renderProjectsPage(container, props) {
 
         if (isEditing) {
             const formElement = ProjectForm({
-                project, teamMembers, projectStatuses,
+                project, teamMembers, projectStatuses, appSettings,
                 onSave: (projectData) => {
                     onUpdateProject(projectData);
                     closeModal();
