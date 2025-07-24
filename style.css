@@ -448,6 +448,13 @@ footer.app-footer {
     background-color: #1f2937;
     border-color: #374151;
 }
+.dashboard-widget .widget-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
 .dashboard-widget h3 {
     font-size: 1.125rem;
     font-weight: 600;
@@ -650,6 +657,23 @@ footer.app-footer {
 }
 
 /* Manager: Project Insights Widget */
+.project-insights-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+.project-insights-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.project-insights-controls .form-input {
+    padding: 0.375rem 0.5rem;
+    font-size: 0.8rem;
+    max-width: 140px;
+}
 .project-insights-list {
     display: flex;
     flex-direction: column;
@@ -3843,6 +3867,17 @@ footer.app-footer {
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 1.5rem;
 }
+.admin-two-column-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+}
+@media (min-width: 768px) {
+    .admin-two-column-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
 
 .admin-checkbox-grid {
     display: grid;
@@ -3869,6 +3904,9 @@ footer.app-footer {
     flex-direction: column;
     gap: 0.5rem;
     margin: 1rem 0;
+    max-height: 250px;
+    overflow-y: auto;
+    padding-right: 0.5rem;
 }
 .admin-list-item {
     display: flex;
