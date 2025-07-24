@@ -13,12 +13,13 @@ const getDefaultTeamMember = () => ({
   department: '',
   company: '',
   role: TeamMemberRole.Member,
+  internalTeam: '',
 });
 
-export function TeamMemberForm({ member, onSave, onCancel }) {
+export function TeamMemberForm({ member, onSave, onCancel, internalTeams }) {
   let formData = member 
     ? { ...getDefaultTeamMember(), ...member, joinDate: member.joinDate || new Date().toISOString().split('T')[0] } 
-    : { ...getDefaultTeamMember(), id: undefined };
+    : { ...getDefaultTeamMember(), id: undefined, internalTeam: (internalTeams && internalTeams.length > 0) ? internalTeams[0] : '' };
 
   const form = document.createElement('form');
   form.className = 'project-form'; // Re-use project form's base class for spacing etc.
@@ -80,17 +81,22 @@ export function TeamMemberForm({ member, onSave, onCancel }) {
   roleDepartmentGrid.appendChild(createField('Role', 'select', 'role', formData.role, true, {
       options: Object.values(TeamMemberRole).map(r => ({ value: r, label: r }))
   }));
-  roleDepartmentGrid.appendChild(createField('Department', 'text', 'department', formData.department));
+  roleDepartmentGrid.appendChild(createField('Internal Team', 'select', 'internalTeam', formData.internalTeam, false, {
+    options: (internalTeams || []).map(t => ({ value: t, label: t }))
+  }));
   form.appendChild(roleDepartmentGrid);
   
+  const departmentCompanyGrid = document.createElement('div');
+  departmentCompanyGrid.className = "form-grid-cols-2";
+  departmentCompanyGrid.appendChild(createField('Department', 'text', 'department', formData.department));
+  departmentCompanyGrid.appendChild(createField('Company', 'text', 'company', formData.company));
+  form.appendChild(departmentCompanyGrid);
+
   const datesGrid = document.createElement('div');
   datesGrid.className = "form-grid-cols-2";
   datesGrid.appendChild(createField('Join Date', 'date', 'joinDate', formData.joinDate));
   datesGrid.appendChild(createField('Birth Date', 'date', 'birthDate', formData.birthDate));
   form.appendChild(datesGrid);
-
-  const companyField = createField('Company', 'text', 'company', formData.company);
-  form.appendChild(companyField);
 
   const actionsDiv = document.createElement('div');
   actionsDiv.className = 'project-form-actions'; // Re-use class for consistent spacing/alignment
@@ -120,6 +126,7 @@ export function TeamMemberForm({ member, onSave, onCancel }) {
     if (formData.designation?.trim()) memberToSave.designation = formData.designation.trim();
     if (formData.department?.trim()) memberToSave.department = formData.department.trim();
     if (formData.company?.trim()) memberToSave.company = formData.company.trim();
+    if (formData.internalTeam) memberToSave.internalTeam = formData.internalTeam;
 
     onSave(memberToSave);
   });
