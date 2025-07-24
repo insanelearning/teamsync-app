@@ -1,13 +1,13 @@
 
-
 import { renderDashboardPage } from './pages/DashboardPage.js';
 import { renderProjectsPage } from './pages/ProjectsPage.js';
 import { renderAttendancePage } from './pages/AttendancePage.js';
 import { renderNotesPage } from './pages/NotesPage.js';
 import { renderWorkLogPage } from './pages/WorkLogPage.js';
 import { renderLoginPage } from './pages/LoginPage.js';
+import { renderAdminPage } from './pages/AdminPage.js';
 import { Navbar } from './components/Navbar.js';
-import { INITIAL_TEAM_MEMBERS } from './constants.js';
+import { INITIAL_TEAM_MEMBERS, WORK_LOG_TASKS } from './constants.js';
 import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery } from './services/firebaseService.js';
 import { exportToCSV, importFromCSV } from './services/csvService.js';
 import { ProjectStatus, AttendanceStatus, LeaveType, NoteStatus, TeamMemberRole } from './types.js'; // Enums
@@ -23,6 +23,7 @@ let notes = [];
 let teamMembers = [];
 let workLogs = [];
 let currentUser = null; // Start as null, will be set on login
+let appSettings = {}; // For dynamic app name, logo, etc.
 
 // --- Login/Logout Handlers ---
 
@@ -44,6 +45,18 @@ const handleLogout = () => {
 
 
 // --- Handler Functions ---
+
+const updateAppSettings = async (newSettings) => {
+  try {
+    await setDocument('appSettings', 'main_config', newSettings);
+    appSettings = newSettings;
+    renderApp();
+    alert('Settings saved successfully!');
+  } catch (error) {
+    console.error("Failed to save settings:", error);
+    alert("Error: Could not save settings to the database.");
+  }
+};
 
 // Project handlers
 const addProject = async (project) => {
@@ -548,7 +561,8 @@ function buildMainLayout() {
         onNavChange: handleNavChange, 
         onThemeToggle: handleThemeToggle,
         currentUser,
-        onLogout: handleLogout
+        onLogout: handleLogout,
+        appSettings,
     });
     rootElement.appendChild(navbar);
 
@@ -558,7 +572,7 @@ function buildMainLayout() {
 
     const footer = document.createElement('footer');
     footer.className = 'app-footer';
-    footer.innerHTML = `TeamSync &copy; ${new Date().getFullYear()}`;
+    footer.innerHTML = `${appSettings.appName || 'TeamSync'} &copy; ${new Date().getFullYear()}`;
     rootElement.appendChild(footer);
 }
 
@@ -661,12 +675,18 @@ function renderApp() {
         teamMembers,
         projects,
         currentUser,
+        workLogTasks: appSettings.workLogTasks || [],
         onAddMultipleWorkLogs: addMultipleWorkLogs,
         onUpdateWorkLog: updateWorkLog,
         onDeleteWorkLog: deleteWorkLog,
         onExport: () => handleExport('worklogs'),
         onImport: (file) => handleImport(file, 'worklogs'),
     });
+  } else if (currentView === 'admin') {
+      renderAdminPage(mainContentElement, {
+          appSettings,
+          onUpdateSettings: updateAppSettings,
+      });
   }
   
   const navbarElement = rootElement.querySelector('nav.navbar');
@@ -676,26 +696,53 @@ function renderApp() {
           onNavChange: handleNavChange, 
           onThemeToggle: handleThemeToggle,
           currentUser,
-          onLogout: handleLogout
+          onLogout: handleLogout,
+          appSettings,
       });
       navbarElement.replaceWith(newNavbar);
+  }
+  
+  // Update browser title and favicon
+  document.title = appSettings.appName || 'TeamSync';
+  const favicon = document.querySelector("link[rel~='icon']");
+  const appleIcon = document.querySelector("link[rel='apple-touch-icon']");
+  if (appSettings.appLogoUrl) {
+    if (favicon) favicon.href = appSettings.appLogoUrl;
+    if (appleIcon) appleIcon.href = appSettings.appLogoUrl;
   }
 }
 
 async function loadInitialData(seedIfEmpty = true) {
   try {
-    const [projectData, attendanceData, notesData, teamMemberData, workLogData] = await Promise.all([
+    const [projectData, attendanceData, notesData, teamMemberData, workLogData, appSettingsSnapshot] = await Promise.all([
         getCollection('projects'),
         getCollection('attendance'),
         getCollection('notes'),
         getCollection('teamMembers'),
         getCollection('worklogs'),
+        getCollection('appSettings'),
     ]);
     
     projects = projectData;
     attendance = attendanceData;
     notes = notesData;
     workLogs = workLogData;
+    
+    if (appSettingsSnapshot.length > 0) {
+        appSettings = appSettingsSnapshot[0]; // Assuming one config doc named 'main_config'
+    } else {
+        console.log("No app settings found. Seeding with default configuration.");
+        const defaultSettings = {
+            id: 'main_config', // Explicitly set ID for easy fetching
+            appName: 'TeamSync',
+            appLogoUrl: '',
+            workLogTasks: WORK_LOG_TASKS,
+        };
+        const { id, ...dataToSet } = defaultSettings;
+        await setDocument('appSettings', id, dataToSet);
+        appSettings = defaultSettings;
+    }
+
 
     // Check if team members need to be seeded. This is more robust.
     if (seedIfEmpty && teamMemberData.length === 0) {
