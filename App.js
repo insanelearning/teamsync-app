@@ -8,10 +8,10 @@ import { renderWorkLogPage } from './pages/WorkLogPage.js';
 import { renderLoginPage } from './pages/LoginPage.js';
 import { renderAdminPage } from './pages/AdminPage.js';
 import { Navbar } from './components/Navbar.js';
-import { INITIAL_TEAM_MEMBERS, WORK_LOG_TASKS, PRIORITIES, INITIAL_INTERNAL_TEAMS, INITIAL_HOLIDAYS } from './constants.js';
+import { INITIAL_TEAM_MEMBERS, WORK_LOG_TASKS, PRIORITIES, INITIAL_INTERNAL_TEAMS, INITIAL_HOLIDAYS, INITIAL_LEAVE_TYPES, MEMBER_COLORS } from './constants.js';
 import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery, addDocument } from './services/firebaseService.js';
 import { exportToCSV as exportDataToCSV, importFromCSV } from './services/csvService.js';
-import { ProjectStatus, AttendanceStatus, LeaveType, NoteStatus, TeamMemberRole } from './types.js'; // Enums
+import { ProjectStatus, AttendanceStatus, NoteStatus, TeamMemberRole } from './types.js'; // Enums
 
 let rootElement;
 let mainContentElement;
@@ -484,7 +484,7 @@ const renderApp = () => {
     projects, teamMembers, attendanceRecords: attendance, notes: userNotes, workLogs, currentUser, appSettings, activities,
     projectStatuses: Object.values(ProjectStatus),
     attendanceStatuses: Object.values(AttendanceStatus),
-    leaveTypes: Object.values(LeaveType),
+    leaveTypes: appSettings.leaveTypes || [],
     noteStatuses: Object.values(NoteStatus),
     maxTeamMembers: appSettings.maxTeamMembers || 20,
     workLogTasks: appSettings.workLogTasks || [],
@@ -568,6 +568,7 @@ const loadInitialData = async (seedDataIfEmpty = true) => {
         workLogTasks: WORK_LOG_TASKS,
         internalTeams: INITIAL_INTERNAL_TEAMS,
         holidays: INITIAL_HOLIDAYS,
+        leaveTypes: INITIAL_LEAVE_TYPES,
         maxTeamMembers: 20,
         welcomeMessage: 'Welcome back,',
         defaultProjectPriority: 'Medium',
@@ -601,7 +602,10 @@ const loadInitialData = async (seedDataIfEmpty = true) => {
         teamMembers = await getCollection('teamMembers');
     }
     
-    // --- End of Data Migration ---
+    // --- Assign consistent colors to team members ---
+    teamMembers.forEach((member, index) => {
+        member.color = MEMBER_COLORS[index % MEMBER_COLORS.length];
+    });
 
     const currentUserId = sessionStorage.getItem('currentUserId');
     if (currentUserId) {
