@@ -1,4 +1,5 @@
 
+
 /* Basic Reset & Font */
 body, html {
   margin: 0;
@@ -3523,31 +3524,4 @@ footer.app-footer {
 .admin-image-uploader-info .button-group {
     display: flex;
     gap: 0.5rem;
-}
-
-/* Danger Zone */
-.danger-zone {
-    border-color: #fca5a5;
-    background-color: #fef2f2;
-}
-.dark .danger-zone {
-    border-color: #b91c1c;
-    background-color: #450a0a;
-}
-.danger-zone .admin-legend {
-    color: #991b1b;
-}
-.dark .danger-zone .admin-legend {
-    color: #fca5a5;
-}
-.danger-zone-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1rem;
-    align-items: center;
-    justify-content: space-around;
-    padding: 1rem;
-}
-.danger-zone-actions .button-danger {
-    flex-grow: 1;
 }
