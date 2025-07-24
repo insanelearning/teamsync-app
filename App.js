@@ -7,9 +7,9 @@ import { renderWorkLogPage } from './pages/WorkLogPage.js';
 import { renderLoginPage } from './pages/LoginPage.js';
 import { renderAdminPage } from './pages/AdminPage.js';
 import { Navbar } from './components/Navbar.js';
-import { INITIAL_TEAM_MEMBERS, WORK_LOG_TASKS } from './constants.js';
+import { INITIAL_TEAM_MEMBERS, WORK_LOG_TASKS, PRIORITIES } from './constants.js';
 import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery } from './services/firebaseService.js';
-import { exportToCSV, importFromCSV } from './services/csvService.js';
+import { exportToCSV as exportDataToCSV, importFromCSV } from './services/csvService.js';
 import { ProjectStatus, AttendanceStatus, LeaveType, NoteStatus, TeamMemberRole } from './types.js'; // Enums
 
 let rootElement;
@@ -48,6 +48,7 @@ const handleLogout = () => {
 
 const updateAppSettings = async (newSettings) => {
   try {
+    // Before saving, ensure any base64 logo is handled if needed, or just save the URL/data URI
     await setDocument('appSettings', 'main_config', newSettings);
     appSettings = newSettings;
     renderApp();
@@ -219,8 +220,9 @@ const deleteWorkLog = async (workLogId) => {
 
 // Team Member handlers
 const addTeamMember = async (member) => {
-  if (teamMembers.length >= 20) {
-    alert("Team size cannot exceed 20 members.");
+  const maxMembers = appSettings.maxTeamMembers || 20;
+  if (teamMembers.length >= maxMembers) {
+    alert(`Team size cannot exceed the maximum of ${maxMembers} members.`);
     return;
   }
   try {
@@ -239,14 +241,11 @@ const updateTeamMember = async (updatedMember) => {
     const { id, ...data } = updatedMember;
     await updateDocument('teamMembers', id, data);
     
-    // To update local state, we need to merge the changes with the existing member object
-    // to preserve fields that weren't changed (like the password if left blank).
     const oldMember = teamMembers.find(m => m.id === id);
     const locallyUpdatedMember = { ...oldMember, ...updatedMember };
     
     teamMembers = teamMembers.map(m => m.id === id ? locallyUpdatedMember : m);
     
-    // If the currently logged in user was updated, update the currentUser object
     if (currentUser && currentUser.id === id) {
         currentUser = locallyUpdatedMember;
     }
@@ -258,8 +257,6 @@ const updateTeamMember = async (updatedMember) => {
 };
 
 const deleteTeamMember = async (memberId) => {
-  // This is a complex transaction. A Cloud Function would be better for atomicity.
-  // Here we perform the steps sequentially.
   try {
     const projectsToUpdate = [];
     const currentProjects = projects.map(p => {
@@ -282,29 +279,21 @@ const deleteTeamMember = async (memberId) => {
         return updatedProject;
     });
 
-    // 1. Update all affected projects
     const projectUpdatePromises = projectsToUpdate.map(p => {
         const { id, ...data } = p;
         return updateDocument('projects', id, data);
     });
     await Promise.all(projectUpdatePromises);
 
-    // 2. Delete all attendance records for the member
     await deleteByQuery('attendance', 'memberId', memberId);
-    
-    // 3. Delete all work logs for the member
     await deleteByQuery('worklogs', 'memberId', memberId);
-
-    // 4. Delete the team member itself
     await deleteDocument('teamMembers', memberId);
     
-    // 5. Update local state and re-render
     projects = currentProjects;
     attendance = attendance.filter(a => a.memberId !== memberId);
     workLogs = workLogs.filter(wl => wl.memberId !== memberId);
     teamMembers = teamMembers.filter(m => m.id !== memberId);
 
-    // 6. Logout if the current user was deleted
     if (currentUser && currentUser.id === memberId) {
         handleLogout();
     } else {
@@ -314,7 +303,6 @@ const deleteTeamMember = async (memberId) => {
   } catch (error) {
     console.error("Error deleting team member:", error);
     alert("Failed to delete member and all associated data. The data may be in an inconsistent state. Please reload the page.");
-    // Refetch data to get back to a consistent state
     await loadInitialData(false);
     renderApp();
   }
@@ -326,491 +314,280 @@ const handleExport = (dataType) => {
     const projectsToExport = projects.map(p => ({
       id: p.id,
       name: p.name,
-      description: p.description,
+      description: p.description || '',
       status: p.status,
-      assignees: p.assignees.join(';'),
+      assignees: (p.assignees || []).join(';'), // Use semicolon for multi-value fields
       dueDate: p.dueDate,
-      priority: p.priority,
-      tags: p.tags ? p.tags.join(';') : '',
+      priority: p.priority || '',
+      tags: (p.tags || []).join(';'),
       createdAt: p.createdAt,
       updatedAt: p.updatedAt,
       stakeholderName: p.stakeholderName || '',
       teamLeadId: p.teamLeadId || '',
       projectType: p.projectType || '',
       projectCategory: p.projectCategory || '',
-      goals: p.goals ? JSON.stringify(p.goals) : '[]',
-      mediaProduct: p.mediaProduct || '',
-      pilotScope: p.pilotScope || '',
-      clientNames: p.clientNames || '',
-      projectApproach: p.projectApproach || '',
-      deliverables: p.deliverables || '',
-      resultsAchieved: p.resultsAchieved || '',
-      completionDate: p.completionDate || '',
-      completionPercentage: p.completionPercentage || 0,
+      // Skipping complex fields like goals for CSV export simplicity
     }));
-    exportToCSV(projectsToExport, 'projects.csv');
+    exportDataToCSV(projectsToExport, 'projects.csv');
   } else if (dataType === 'attendance') {
-    const attendanceToExport = attendance.map(rec => {
-        const member = teamMembers.find(m => m.id === rec.memberId);
-        return {
-            id: rec.id,
-            date: rec.date,
-            memberName: member?.name || 'Unknown',
-            status: rec.status,
-            leaveType: rec.leaveType || '',
-            notes: rec.notes || '',
-        };
-    });
-    exportToCSV(attendanceToExport, 'attendance.csv');
-  } else if (dataType === 'team') {
-    exportToCSV(teamMembers, 'team_members.csv');
-  } else if (dataType === 'notes') {
-    const notesToExport = notes.map(n => ({
-        ...n,
-        tags: n.tags ? n.tags.join(';') : '',
+    const attendanceToExport = attendance.map(a => ({
+      id: a.id,
+      date: a.date,
+      memberId: a.memberId,
+      status: a.status,
+      leaveType: a.leaveType || '',
+      notes: a.notes || '',
     }));
-    exportToCSV(notesToExport, 'notes.csv');
+    exportDataToCSV(attendanceToExport, 'attendance.csv');
+  } else if (dataType === 'notes') {
+    const notesToExport = notes
+      .filter(note => note.userId === currentUser.id) // Only export current user's notes
+      .map(n => ({
+        id: n.id,
+        title: n.title,
+        content: n.content,
+        status: n.status,
+        dueDate: n.dueDate || '',
+        tags: (n.tags || []).join(';'),
+        color: n.color,
+        createdAt: n.createdAt,
+        updatedAt: n.updatedAt,
+      }));
+    exportDataToCSV(notesToExport, 'notes.csv');
   } else if (dataType === 'worklogs') {
-    const logsToExport = workLogs.map(log => {
-        const member = teamMembers.find(m => m.id === log.memberId);
-        const project = projects.find(p => p.id === log.projectId);
-        return {
-            id: log.id,
-            date: log.date,
-            memberName: member?.name || 'Unknown',
-            projectName: project?.name || 'Unknown',
-            taskName: log.taskName,
-            requestedFrom: log.requestedFrom,
-            timeSpentMinutes: log.timeSpentMinutes,
-            comments: log.comments || '',
-        };
-    });
-    exportToCSV(logsToExport, 'work_logs.csv');
+    const logsToExport = (currentUser.role === TeamMemberRole.Manager ? workLogs : workLogs.filter(wl => wl.memberId === currentUser.id))
+      .map(wl => ({
+        id: wl.id,
+        memberId: wl.memberId,
+        projectId: wl.projectId,
+        date: wl.date,
+        taskName: wl.taskName,
+        requestedFrom: wl.requestedFrom || '',
+        timeSpentMinutes: wl.timeSpentMinutes,
+        comments: wl.comments || '',
+        createdAt: wl.createdAt,
+        updatedAt: wl.updatedAt,
+      }));
+    exportDataToCSV(logsToExport, 'worklogs.csv');
+  } else if (dataType === 'team') {
+    const teamToExport = teamMembers.map(m => ({
+      id: m.id,
+      name: m.name,
+      email: m.email,
+      employeeId: m.employeeId || '',
+      joinDate: m.joinDate || '',
+      birthDate: m.birthDate || '',
+      designation: m.designation || '',
+      department: m.department || '',
+      company: m.company || '',
+      role: m.role,
+    }));
+    exportDataToCSV(teamToExport, 'team.csv');
   }
 };
 
 const handleImport = async (file, dataType) => {
+  if (!file) return;
   try {
-    const data = await importFromCSV(file);
-    if (!data || data.length === 0) {
-      alert("The selected CSV file is empty or could not be read.");
+    let importedData = await importFromCSV(file);
+    if (!importedData || importedData.length === 0) {
+      alert("CSV file is empty or invalid.");
       return;
     }
     
-    let collectionName = '';
-    let processedData = [];
-    let importErrors = []; // For detailed error feedback
-
-    if (dataType === 'projects') {
-        collectionName = 'projects';
-        processedData = data.map(item => {
-            if (!item.id || !item.name || !item.status || !item.dueDate) return null;
-            
-            const goals = Array.isArray(item.goals) ? item.goals : JSON.parse(item.goals || '[]');
-            const totalGoals = goals.length;
-            const completedGoals = goals.filter(g => g.completed).length;
-            const completionPercentage = totalGoals > 0 ? (completedGoals / totalGoals) * 100 : 0;
-
-            return {
-              ...item,
-              assignees: Array.isArray(item.assignees) ? item.assignees : (item.assignees || '').split(';').map(s=>s.trim()).filter(Boolean),
-              tags: Array.isArray(item.tags) ? item.tags : (item.tags || '').split(';').map(s=>s.trim()).filter(Boolean),
-              goals: goals,
-              stakeholderName: item.stakeholderName || '',
-              mediaProduct: item.mediaProduct || '',
-              pilotScope: item.pilotScope || '',
-              clientNames: item.clientNames || '',
-              projectApproach: item.projectApproach || '',
-              deliverables: item.deliverables || '',
-              resultsAchieved: item.resultsAchieved || '',
-              completionDate: item.completionDate || null,
-              completionPercentage: completionPercentage,
-            };
-        }).filter(Boolean);
-    } else if (dataType === 'attendance') {
-        collectionName = 'attendance';
-        processedData = data.map((item, index) => {
-            const rowNum = index + 2;
-            if (!item.date || !item.memberName || !item.status) {
-                importErrors.push(`Row ${rowNum}: Missing required data (date, memberName, status).`);
-                return null;
-            }
-            const member = teamMembers.find(m => m.name.trim().toLowerCase() === item.memberName.trim().toLowerCase());
-            if (!member) {
-                importErrors.push(`Row ${rowNum}: Could not find a team member named "${item.memberName}".`);
-                return null;
-            }
-
-            return {
-                id: item.id || `${member.id}-${item.date}`,
-                date: item.date,
-                memberId: member.id,
-                status: item.status,
-                leaveType: item.leaveType || null,
-                notes: item.notes || '',
-            };
-        }).filter(Boolean);
-    } else if (dataType === 'team') {
-        collectionName = 'teamMembers';
-        processedData = data.map(item => {
-            if (!item.id || !item.name) return null;
-            // Remove password property if it exists from imported data
-            const { password, ...memberData } = item;
-            return memberData;
-        }).filter(Boolean);
-        if ((teamMembers.length + processedData.length) > 20) {
-           alert("Import would exceed the 20 team member limit. Please adjust your CSV file.");
-           return;
-        }
-    } else if (dataType === 'notes') {
-        collectionName = 'notes';
-        processedData = data.map(item => {
-           if (!item.id || !item.title || !item.content || !item.status || !item.color) return null;
-            return {
-                ...item,
-                tags: Array.isArray(item.tags) ? item.tags : (item.tags || '').split(';').map(s => s.trim()).filter(Boolean),
-            };
-        }).filter(Boolean);
-    } else if (dataType === 'worklogs') {
-        collectionName = 'worklogs';
-        processedData = data.map((item, index) => {
-            const rowNum = index + 2;
-            if (!item.date || !item.memberName || !item.projectName || item.timeSpentMinutes === undefined) {
-                importErrors.push(`Row ${rowNum}: Missing required columns (date, memberName, projectName, timeSpentMinutes).`);
-                return null;
-            }
-
-            // --- Date Normalization Fix ---
-            let normalizedDate = item.date;
-            const dateParts = String(item.date).split('-');
-            if (dateParts.length === 3 && dateParts[0].length === 2 && dateParts[2].length === 4) {
-                 // It's likely DD-MM-YYYY, convert to YYYY-MM-DD for consistent filtering
-                 normalizedDate = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`;
-            }
-            // --- End of Fix ---
-
-            const member = teamMembers.find(m => m.name.trim().toLowerCase() === item.memberName.trim().toLowerCase());
-            if (!member) {
-                importErrors.push(`Row ${rowNum}: Could not find a member named "${item.memberName}". Check for typos.`);
-                return null;
-            }
-            
-            const project = projects.find(p => p.name.trim().toLowerCase() === item.projectName.trim().toLowerCase());
-            if (!project) {
-                importErrors.push(`Row ${rowNum}: Could not find a project named "${item.projectName}". Check for typos.`);
-                return null;
-            }
-            
-            const now = new Date().toISOString();
-            return {
-                id: item.id || crypto.randomUUID(),
-                date: normalizedDate, // Use the normalized date
-                memberId: member.id,
-                projectId: project.id,
-                taskName: item.taskName || 'N/A',
-                requestedFrom: item.requestedFrom || 'N/A',
-                timeSpentMinutes: Number(item.timeSpentMinutes) || 0,
-                comments: item.comments || '',
-                createdAt: item.createdAt || now,
-                updatedAt: now,
-            };
-        }).filter(Boolean);
-    }
-    
-    if (importErrors.length > 0) {
-        const errorLimit = 10;
-        const fullErrorMessage = `Import failed. ${importErrors.length} rows had errors.\n\nPlease check your CSV file. Common issues are incorrect member/project names or missing data.\n\nFirst ${Math.min(importErrors.length, errorLimit)} errors:\n- ${importErrors.slice(0, errorLimit).join('\n- ')}`;
-        alert(fullErrorMessage);
+    if (!importedData.every(item => item.id)) {
+        alert("Import failed: Each row in the CSV must have a unique 'id' column.");
         return;
     }
 
-    if (collectionName && processedData.length > 0) {
-        await batchWrite(collectionName, processedData);
-        await loadInitialData(false);
-        renderApp();
-        alert(`${processedData.length} ${dataType} records imported successfully!`);
-    } else {
-        alert(`No valid data rows found in the CSV to import for ${dataType}.`);
+    let collectionName = '';
+    if (dataType === 'projects') {
+        collectionName = 'projects';
+        // Convert semicolon-separated strings back to arrays
+        importedData = importedData.map(p => ({
+            ...p,
+            assignees: typeof p.assignees === 'string' ? p.assignees.split(';').filter(Boolean) : [],
+            tags: typeof p.tags === 'string' ? p.tags.split(';').filter(Boolean) : [],
+        }));
+    } else if (dataType === 'attendance') collectionName = 'attendance';
+    else if (dataType === 'notes') {
+        collectionName = 'notes';
+        importedData.forEach(note => {
+            note.userId = currentUser.id;
+            note.tags = typeof note.tags === 'string' ? note.tags.split(';').filter(Boolean) : [];
+        });
     }
+    else if (dataType === 'worklogs') collectionName = 'worklogs';
+    else if (dataType === 'team') collectionName = 'teamMembers';
+    else {
+        alert("Unknown data type for import.");
+        return;
+    }
+    
+    await batchWrite(collectionName, importedData);
+    alert(`${importedData.length} records imported successfully to ${collectionName}. The app will now reload.`);
+    
+    await loadInitialData(false); // don't seed data on import
+    renderApp();
+
   } catch (error) {
-    console.error("Import error:", error);
-    alert(`Failed to import ${dataType} data. Please check the console for details and ensure the CSV format is correct.`);
+    console.error(`Error importing ${dataType} CSV:`, error);
+    alert(`An error occurred during the CSV import: ${error.message}`);
   }
 };
 
+const renderApp = () => {
+  if (!rootElement) return;
 
-function handleNavChange(view) {
-  currentView = view;
-  sessionStorage.setItem('currentView', view);
-  renderApp();
-}
+  document.title = appSettings.appName || 'TeamSync';
+  const faviconLink = document.querySelector("link[rel~='icon']");
+  if (faviconLink) {
+    faviconLink.href = appSettings.appLogoUrl || `data:image/svg+xml,%3csvg width='64' height='64' viewBox='0 0 64 64' fill='none' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='64' height='64' rx='12' fill='%234F46E5'/%3e%3cpath d='M20.5 22H31.5' stroke='white' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/%3e%3cpath d='M26 22V42' stroke='white' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/%3e%3cpath d='M43 22C43 22 39 22 39 26C39 30 43 30 43 34C43 38 39 38 39 42' stroke='white' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/%3e%3c/svg%3e`;
+  }
+  
+  rootElement.innerHTML = '';
+  rootElement.removeAttribute('class'); 
 
-function handleThemeToggle() {
-    const isDark = document.documentElement.classList.toggle('dark');
-    document.body.classList.toggle('dark');
-    localStorage.theme = isDark ? 'dark' : 'light';
-    renderApp();
-}
-
-function buildMainLayout() {
-    rootElement.innerHTML = ''; // Clear login page or loading indicator
-    rootElement.className = ''; // Reset class from login page
-
-    const navbar = Navbar({ 
-        currentView, 
-        onNavChange: handleNavChange, 
-        onThemeToggle: handleThemeToggle,
-        currentUser,
-        onLogout: handleLogout,
-        appSettings,
-    });
-    rootElement.appendChild(navbar);
-
-    mainContentElement = document.createElement('main');
-    mainContentElement.className = 'main-content';
-    rootElement.appendChild(mainContentElement);
-
-    const footer = document.createElement('footer');
-    footer.className = 'app-footer';
-    footer.innerHTML = `${appSettings.appName || 'TeamSync'} &copy; ${new Date().getFullYear()}`;
-    rootElement.appendChild(footer);
-}
-
-
-function renderApp() {
-  if (!rootElement) {
-    console.error("Root or main content element not initialized for rendering.");
+  if (!currentUser) {
+    renderLoginPage(rootElement, { onLogin: handleLogin, teamMembers });
     return;
   }
   
-  if (!currentUser) {
-      // Not logged in, render login page
-      rootElement.innerHTML = ''; // Clear whatever was there
-      renderLoginPage(rootElement, { onLogin: handleLogin, teamMembers });
-      return;
-  }
+  mainContentElement = document.createElement('main');
+  mainContentElement.className = 'main-content';
+
+  const onNavChange = (view) => {
+    currentView = view;
+    sessionStorage.setItem('currentView', view);
+    renderApp();
+  };
+
+  const onThemeToggle = () => {
+    const isDark = document.documentElement.classList.toggle('dark');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    renderApp();
+  };
   
-  // If we are here, user is logged in. Build the main layout if it doesn't exist.
-  const isLayoutBuilt = rootElement.querySelector('nav.navbar');
-  if (!isLayoutBuilt) {
-      buildMainLayout();
-  }
+  const userNotes = notes.filter(note => note.userId === currentUser.id);
 
-  // --- RBAC Data Filtering ---
-  let pageProjects = projects;
-  let pageWorkLogs = workLogs;
-  let pageAttendance = attendance;
-  let pageNotes = notes;
+  const props = {
+    projects, teamMembers, attendanceRecords: attendance, notes: userNotes, workLogs, currentUser, appSettings,
+    projectStatuses: Object.values(ProjectStatus),
+    attendanceStatuses: Object.values(AttendanceStatus),
+    leaveTypes: Object.values(LeaveType),
+    noteStatuses: Object.values(NoteStatus),
+    maxTeamMembers: appSettings.maxTeamMembers || 20,
+    workLogTasks: appSettings.workLogTasks || WORK_LOG_TASKS,
+    onAddProject: addProject, onUpdateProject: updateProject, onDeleteProject: deleteProject,
+    onUpsertAttendanceRecord: upsertAttendanceRecord, onDeleteAttendanceRecord: deleteAttendanceRecord,
+    onAddNote: addNote, onUpdateNote: updateNote, onDeleteNote: deleteNote,
+    onAddMultipleWorkLogs: addMultipleWorkLogs, onUpdateWorkLog: updateWorkLog, onDeleteWorkLog: deleteWorkLog,
+    onAddTeamMember: addTeamMember, onUpdateTeamMember: updateTeamMember, onDeleteTeamMember: deleteTeamMember,
+    onUpdateSettings: updateAppSettings,
+    onExport: handleExport, onImport: handleImport,
+    onExportTeam: () => handleExport('team'), onImportTeam: (file) => handleImport(file, 'team'),
+  };
+
+  rootElement.appendChild(Navbar({ currentView, onNavChange, onThemeToggle, currentUser, onLogout: handleLogout, appSettings }));
+  rootElement.appendChild(mainContentElement);
   
-  if (currentUser && currentUser.role === TeamMemberRole.Member) {
-      pageProjects = projects.filter(p => (p.assignees || []).includes(currentUser.id) || p.teamLeadId === currentUser.id);
-      pageWorkLogs = workLogs.filter(w => w.memberId === currentUser.id);
-      pageAttendance = attendance.filter(a => a.memberId === currentUser.id);
-      // A member can see notes they created. Old notes without a userId will not be visible to them.
-      pageNotes = notes.filter(n => n.userId === currentUser.id);
+  switch (currentView) {
+    case 'dashboard': renderDashboardPage(mainContentElement, props); break;
+    case 'projects': renderProjectsPage(mainContentElement, props); break;
+    case 'attendance': renderAttendancePage(mainContentElement, props); break;
+    case 'notes': renderNotesPage(mainContentElement, props); break;
+    case 'worklog': renderWorkLogPage(mainContentElement, props); break;
+    case 'admin': 
+        if (currentUser.role === TeamMemberRole.Manager) {
+            renderAdminPage(mainContentElement, props);
+        } else {
+            currentView = 'dashboard';
+            sessionStorage.setItem('currentView', 'dashboard');
+            renderDashboardPage(mainContentElement, props);
+        }
+        break;
+    default: renderDashboardPage(mainContentElement, props); break;
   }
+};
 
+const loadInitialData = async (seedDataIfEmpty = true) => {
+  const loadingContainer = document.querySelector('.loading-container');
+  if (loadingContainer) loadingContainer.style.display = 'flex';
 
-  mainContentElement.innerHTML = '';
-
-  if (currentView === 'dashboard') {
-    renderDashboardPage(mainContentElement, {
-        currentUser,
-        teamMembers,
-        projects: pageProjects, // Pass filtered data
-        notes: pageNotes,
-        workLogs: pageWorkLogs,
-        attendanceRecords: pageAttendance,
-        projectStatuses: Object.values(ProjectStatus),
-        onAddProject: addProject,
-        onAddNote: addNote,
-        onAddMultipleWorkLogs: addMultipleWorkLogs,
-        onNavChange: handleNavChange,
-    });
-  } else if (currentView === 'projects') {
-    renderProjectsPage(mainContentElement, {
-      projects: pageProjects, // Pass filtered data
-      teamMembers,
-      currentUser,
-      projectStatuses: Object.values(ProjectStatus),
-      onAddProject: addProject,
-      onUpdateProject: updateProject,
-      onDeleteProject: deleteProject,
-      onExport: () => handleExport('projects'),
-      onImport: (file) => handleImport(file, 'projects'),
-    });
-  } else if (currentView === 'attendance') {
-    renderAttendancePage(mainContentElement, {
-      attendanceRecords: pageAttendance, // Pass filtered data
-      teamMembers, // Full list for manager, member view will self-filter the grid
-      currentUser,
-      projects, // Pass full project list for workload calculations
-      attendanceStatuses: Object.values(AttendanceStatus),
-      leaveTypes: Object.values(LeaveType),
-      onUpsertAttendanceRecord: upsertAttendanceRecord,
-      onDeleteAttendanceRecord: deleteAttendanceRecord,
-      onExport: () => handleExport('attendance'),
-      onImport: (file) => handleImport(file, 'attendance'),
-      maxTeamMembers: 20,
-      onAddTeamMember: addTeamMember,
-      onUpdateTeamMember: updateTeamMember,
-      onDeleteTeamMember: deleteTeamMember,
-      onExportTeam: () => handleExport('team'),
-      onImportTeam: (file) => handleImport(file, 'team'),
-    });
-  } else if (currentView === 'notes') {
-    renderNotesPage(mainContentElement, {
-        notes: pageNotes, // Pass filtered data
-        currentUser,
-        noteStatuses: Object.values(NoteStatus),
-        onAddNote: addNote,
-        onUpdateNote: updateNote,
-        onDeleteNote: deleteNote,
-        onExport: () => handleExport('notes'),
-        onImport: (file) => handleImport(file, 'notes'),
-    });
-  } else if (currentView === 'worklog') {
-    renderWorkLogPage(mainContentElement, {
-        workLogs: pageWorkLogs, // Pass filtered data
-        teamMembers,
-        projects,
-        currentUser,
-        workLogTasks: appSettings.workLogTasks || [],
-        onAddMultipleWorkLogs: addMultipleWorkLogs,
-        onUpdateWorkLog: updateWorkLog,
-        onDeleteWorkLog: deleteWorkLog,
-        onExport: () => handleExport('worklogs'),
-        onImport: (file) => handleImport(file, 'worklogs'),
-    });
-  } else if (currentView === 'admin') {
-      renderAdminPage(mainContentElement, {
-          appSettings,
-          onUpdateSettings: updateAppSettings,
-      });
-  }
-  
-  const navbarElement = rootElement.querySelector('nav.navbar');
-  if (navbarElement) {
-      const newNavbar = Navbar({ 
-          currentView, 
-          onNavChange: handleNavChange, 
-          onThemeToggle: handleThemeToggle,
-          currentUser,
-          onLogout: handleLogout,
-          appSettings,
-      });
-      navbarElement.replaceWith(newNavbar);
-  }
-  
-  // Update browser title and favicon
-  document.title = appSettings.appName || 'TeamSync';
-  const favicon = document.querySelector("link[rel~='icon']");
-  const appleIcon = document.querySelector("link[rel='apple-touch-icon']");
-  if (appSettings.appLogoUrl) {
-    if (favicon) favicon.href = appSettings.appLogoUrl;
-    if (appleIcon) appleIcon.href = appSettings.appLogoUrl;
-  }
-}
-
-async function loadInitialData(seedIfEmpty = true) {
   try {
-    const [projectData, attendanceData, notesData, teamMemberData, workLogData, appSettingsSnapshot] = await Promise.all([
-        getCollection('projects'),
-        getCollection('attendance'),
-        getCollection('notes'),
-        getCollection('teamMembers'),
-        getCollection('worklogs'),
-        getCollection('appSettings'),
+    const [fetchedProjects, fetchedAttendance, fetchedNotes, fetchedMembers, fetchedWorkLogs, fetchedSettings] = await Promise.all([
+      getCollection('projects'),
+      getCollection('attendance'),
+      getCollection('notes'),
+      getCollection('teamMembers'),
+      getCollection('worklogs'),
+      getCollection('appSettings'),
     ]);
+
+    projects = fetchedProjects;
+    attendance = fetchedAttendance;
+    notes = fetchedNotes;
+    teamMembers = fetchedMembers;
+    workLogs = fetchedWorkLogs;
     
-    projects = projectData;
-    attendance = attendanceData;
-    notes = notesData;
-    workLogs = workLogData;
-    
-    if (appSettingsSnapshot.length > 0) {
-        appSettings = appSettingsSnapshot[0]; // Assuming one config doc named 'main_config'
-    } else {
-        console.log("No app settings found. Seeding with default configuration.");
-        const defaultSettings = {
-            id: 'main_config', // Explicitly set ID for easy fetching
-            appName: 'TeamSync',
-            appLogoUrl: '',
-            workLogTasks: WORK_LOG_TASKS,
-        };
-        const { id, ...dataToSet } = defaultSettings;
-        await setDocument('appSettings', id, dataToSet);
-        appSettings = defaultSettings;
+    if (fetchedSettings.length > 0) {
+        appSettings = fetchedSettings.find(s => s.id === 'main_config') || {};
     }
 
-
-    // Check if team members need to be seeded. This is more robust.
-    if (seedIfEmpty && teamMemberData.length === 0) {
-        console.log("No team members found in database. Seeding with initial data.");
-        const membersToSeed = INITIAL_TEAM_MEMBERS;
-        await batchWrite('teamMembers', membersToSeed);
-        teamMembers = await getCollection('teamMembers'); 
-    } else {
-        teamMembers = teamMemberData;
+    if (seedDataIfEmpty) {
+        if (teamMembers.length === 0) {
+            console.log("No team members found. Seeding initial data...");
+            await batchWrite('teamMembers', INITIAL_TEAM_MEMBERS);
+            teamMembers = await getCollection('teamMembers');
+        }
+        if (Object.keys(appSettings).length === 0) {
+            console.log("No app settings found. Seeding defaults...");
+            const defaultSettings = {
+                appName: 'TeamSync',
+                appLogoUrl: '',
+                workLogTasks: WORK_LOG_TASKS,
+                maxTeamMembers: 20,
+                welcomeMessage: 'Welcome back,',
+                defaultProjectPriority: 'Medium'
+            };
+            await setDocument('appSettings', 'main_config', defaultSettings);
+            appSettings = defaultSettings;
+        }
     }
 
-    // Data migration: ensure all members have a role
-    teamMembers.forEach(m => {
-        if (!m.role) {
-            m.role = TeamMemberRole.Member; // Default to 'Member' if role is missing
-        }
-    });
-
-    // One-time data migration for existing notes to add userId, to avoid orphaning them.
-    // This is not perfectly accurate but prevents data loss for the user.
-    // We'll assign them to the first manager found, or the first user.
-    const firstManager = teamMembers.find(m => m.role === TeamMemberRole.Manager);
-    const defaultOwnerId = (firstManager || teamMembers[0])?.id;
-
-    if (defaultOwnerId) {
-        const notesWithoutOwner = notes.filter(n => !n.userId);
-        if (notesWithoutOwner.length > 0) {
-            console.log(`Migrating ${notesWithoutOwner.length} notes to have an owner...`);
-            const notesToUpdate = notesWithoutOwner.map(n => ({...n, userId: defaultOwnerId }));
-            await batchWrite('notes', notesToUpdate);
-            // Re-fetch notes to get the updated data
-            notes = await getCollection('notes');
-        }
+    const currentUserId = sessionStorage.getItem('currentUserId');
+    if (currentUserId) {
+        currentUser = teamMembers.find(m => m.id === currentUserId) || null;
+    }
+    
+    if (localStorage.getItem('theme') === 'dark' || 
+       (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
     }
 
   } catch (error) {
-    console.error("Failed to load initial data from Firestore:", error);
-    rootElement.innerHTML = `<div class="firebase-config-error-container">
+    console.error("Failed to load initial data:", error);
+    document.body.innerHTML = `<div class="firebase-config-error-container">
             <h1><i class="fas fa-exclamation-triangle"></i> Data Loading Error</h1>
-            <p>The application could not load data from the database.</p>
-            <p>This might be due to a network issue or incorrect Firebase security rules.</p>
-            <p>Please check your internet connection and ensure your Firestore security rules are correctly set up to allow reads.</p>
-            <p class="error-message"><strong>Original Error:</strong> ${error.message}</p>
+            <p>Could not load application data from the database. Please check your network connection and Firebase security rules.</p>
+            <p class="error-message"><strong>Error:</strong> ${error.message}</p>
         </div>`;
-    throw error; // Stop execution
+    throw error;
+  } finally {
+      if (loadingContainer) loadingContainer.style.display = 'none';
   }
-}
+};
 
-export async function initializeApp(appRootElement) {
-  rootElement = appRootElement;
-  rootElement.innerHTML = `<div class="loading-container"><div class="spinner"></div><p>Loading Team Data...</p></div>`;
+export const initializeApp = async (element) => {
+  rootElement = element;
+  
+  rootElement.innerHTML = `<div class="loading-container">
+      <div class="spinner"></div>
+      <p>Loading application data...</p>
+    </div>`;
 
   await loadInitialData();
-  
-  // Set theme based on preference
-  if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-    document.documentElement.classList.add('dark');
-    document.body.classList.add('dark');
-  } else {
-    document.documentElement.classList.remove('dark');
-    document.body.classList.remove('dark');
-  }
-
-  // Attempt to resume session
-  const savedUserId = sessionStorage.getItem('currentUserId');
-  if (savedUserId) {
-    currentUser = teamMembers.find(m => m.id === savedUserId) || null;
-  }
-
   renderApp();
-}
+};
