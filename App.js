@@ -1,4 +1,5 @@
 
+
 import { renderDashboardPage } from './pages/DashboardPage.js';
 import { renderProjectsPage } from './pages/ProjectsPage.js';
 import { renderAttendancePage } from './pages/AttendancePage.js';
@@ -7,8 +8,8 @@ import { renderWorkLogPage } from './pages/WorkLogPage.js';
 import { renderLoginPage } from './pages/LoginPage.js';
 import { renderAdminPage } from './pages/AdminPage.js';
 import { Navbar } from './components/Navbar.js';
-import { INITIAL_TEAM_MEMBERS, WORK_LOG_TASKS, PRIORITIES } from './constants.js';
-import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery } from './services/firebaseService.js';
+import { INITIAL_TEAM_MEMBERS, WORK_LOG_TASKS, PRIORITIES, INITIAL_INTERNAL_TEAMS } from './constants.js';
+import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery, deleteAllFromCollection } from './services/firebaseService.js';
 import { exportToCSV as exportDataToCSV, importFromCSV } from './services/csvService.js';
 import { ProjectStatus, AttendanceStatus, LeaveType, NoteStatus, TeamMemberRole } from './types.js'; // Enums
 
@@ -381,6 +382,7 @@ const handleExport = (dataType) => {
       department: m.department || '',
       company: m.company || '',
       role: m.role,
+      internalTeam: m.internalTeam || '',
     }));
     exportDataToCSV(teamToExport, 'team.csv');
   }
@@ -436,6 +438,41 @@ const handleImport = async (file, dataType) => {
   }
 };
 
+// --- Admin Danger Zone Handlers ---
+const handleClearData = async (collectionNameToClear) => {
+    try {
+        await deleteAllFromCollection(collectionNameToClear);
+        if (collectionNameToClear === 'worklogs') workLogs = [];
+        if (collectionNameToClear === 'attendance') attendance = [];
+        // Add more state resets as needed
+        alert(`${collectionNameToClear} data has been cleared successfully.`);
+        renderApp();
+    } catch (error) {
+        console.error(`Failed to clear ${collectionNameToClear}:`, error);
+        alert(`Error clearing data: ${error.message}`);
+    }
+};
+
+const handleResetApp = async () => {
+    try {
+        await Promise.all([
+            deleteAllFromCollection('projects'),
+            deleteAllFromCollection('attendance'),
+            deleteAllFromCollection('notes'),
+            deleteAllFromCollection('teamMembers'),
+            deleteAllFromCollection('worklogs'),
+            deleteAllFromCollection('appSettings'),
+        ]);
+        alert("Application has been reset. It will now reload with default data.");
+        await loadInitialData(true); // Re-seed the data
+        renderApp();
+    } catch (error) {
+        console.error("Failed to reset application:", error);
+        alert(`Error resetting application: ${error.message}`);
+    }
+};
+
+
 const renderApp = () => {
   if (!rootElement) return;
 
@@ -455,6 +492,29 @@ const renderApp = () => {
   
   mainContentElement = document.createElement('main');
   mainContentElement.className = 'main-content';
+  
+  const userNotes = notes.filter(note => note.userId === currentUser.id);
+  
+  const props = {
+    projects, teamMembers, attendanceRecords: attendance, notes: userNotes, workLogs, currentUser, appSettings,
+    projectStatuses: Object.values(ProjectStatus),
+    attendanceStatuses: Object.values(AttendanceStatus),
+    leaveTypes: Object.values(LeaveType),
+    noteStatuses: Object.values(NoteStatus),
+    maxTeamMembers: appSettings.maxTeamMembers || 20,
+    workLogTasks: appSettings.workLogTasks || [],
+    internalTeams: appSettings.internalTeams || [],
+    onAddProject: addProject, onUpdateProject: updateProject, onDeleteProject: deleteProject,
+    onUpsertAttendanceRecord: upsertAttendanceRecord, onDeleteAttendanceRecord: deleteAttendanceRecord,
+    onAddNote: addNote, onUpdateNote: updateNote, onDeleteNote: deleteNote,
+    onAddMultipleWorkLogs: addMultipleWorkLogs, onUpdateWorkLog: updateWorkLog, onDeleteWorkLog: deleteWorkLog,
+    onAddTeamMember: addTeamMember, onUpdateTeamMember: updateTeamMember, onDeleteTeamMember: deleteTeamMember,
+    onUpdateSettings: updateAppSettings,
+    onExport: handleExport, onImport: handleImport,
+    onExportTeam: () => handleExport('team'), onImportTeam: (file) => handleImport(file, 'team'),
+    onClearData: handleClearData,
+    onResetApp: handleResetApp,
+  };
 
   const onNavChange = (view) => {
     currentView = view;
@@ -466,26 +526,6 @@ const renderApp = () => {
     const isDark = document.documentElement.classList.toggle('dark');
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
     renderApp();
-  };
-  
-  const userNotes = notes.filter(note => note.userId === currentUser.id);
-
-  const props = {
-    projects, teamMembers, attendanceRecords: attendance, notes: userNotes, workLogs, currentUser, appSettings,
-    projectStatuses: Object.values(ProjectStatus),
-    attendanceStatuses: Object.values(AttendanceStatus),
-    leaveTypes: Object.values(LeaveType),
-    noteStatuses: Object.values(NoteStatus),
-    maxTeamMembers: appSettings.maxTeamMembers || 20,
-    workLogTasks: appSettings.workLogTasks || WORK_LOG_TASKS,
-    onAddProject: addProject, onUpdateProject: updateProject, onDeleteProject: deleteProject,
-    onUpsertAttendanceRecord: upsertAttendanceRecord, onDeleteAttendanceRecord: deleteAttendanceRecord,
-    onAddNote: addNote, onUpdateNote: updateNote, onDeleteNote: deleteNote,
-    onAddMultipleWorkLogs: addMultipleWorkLogs, onUpdateWorkLog: updateWorkLog, onDeleteWorkLog: deleteWorkLog,
-    onAddTeamMember: addTeamMember, onUpdateTeamMember: updateTeamMember, onDeleteTeamMember: deleteTeamMember,
-    onUpdateSettings: updateAppSettings,
-    onExport: handleExport, onImport: handleImport,
-    onExportTeam: () => handleExport('team'), onImportTeam: (file) => handleImport(file, 'team'),
   };
 
   rootElement.appendChild(Navbar({ currentView, onNavChange, onThemeToggle, currentUser, onLogout: handleLogout, appSettings }));
@@ -546,9 +586,11 @@ const loadInitialData = async (seedDataIfEmpty = true) => {
                 appName: 'TeamSync',
                 appLogoUrl: '',
                 workLogTasks: WORK_LOG_TASKS,
+                internalTeams: INITIAL_INTERNAL_TEAMS,
                 maxTeamMembers: 20,
                 welcomeMessage: 'Welcome back,',
-                defaultProjectPriority: 'Medium'
+                defaultProjectPriority: 'Medium',
+                defaultTheme: 'User Choice'
             };
             await setDocument('appSettings', 'main_config', defaultSettings);
             appSettings = defaultSettings;
@@ -560,12 +602,21 @@ const loadInitialData = async (seedDataIfEmpty = true) => {
         currentUser = teamMembers.find(m => m.id === currentUserId) || null;
     }
     
-    if (localStorage.getItem('theme') === 'dark' || 
-       (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
+    // Theme application logic
+    const theme = appSettings.defaultTheme || 'User Choice';
+    if (theme === 'Dark') {
+        document.documentElement.classList.add('dark');
+    } else if (theme === 'Light') {
+        document.documentElement.classList.remove('dark');
+    } else { // User Choice
+        if (localStorage.getItem('theme') === 'dark' || 
+           (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
     }
+
 
   } catch (error) {
     console.error("Failed to load initial data:", error);
