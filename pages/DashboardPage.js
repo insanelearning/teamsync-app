@@ -26,17 +26,6 @@ function getStartOfWeek() {
     return new Date(new Date(now.getFullYear(), now.getMonth(), diff).setHours(0, 0, 0, 0));
 }
 
-
-// Simple hash to get a consistent color for a member ID
-function getColorForId(id) {
-    const colors = ['#4f46e5', '#db2777', '#16a34a', '#f97316', '#0891b2', '#6d28d9', '#ca8a04'];
-    let hash = 0;
-    for (let i = 0; i < id.length; i++) {
-        hash = id.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    return colors[Math.abs(hash) % colors.length];
-}
-
 /**
  * Checks team members for any birthdays or work anniversaries occurring today.
  * @param {Array} teamMembers - The list of all team members.
@@ -371,53 +360,68 @@ function renderProjectInsights(props) {
     const { projects, workLogs, teamMembers } = props;
     const container = document.createElement('div');
     container.className = 'dashboard-widget';
-    container.innerHTML = '<h3><i class="fas fa-chart-pie widget-icon"></i>Project Insights</h3>';
 
-    const activeProjects = projects.filter(p => p.status !== ProjectStatus.Done && p.status !== ProjectStatus.ToDo);
-    
-    const content = document.createElement('div');
-    content.className = 'widget-content project-insights-list';
+    let selectedDateFilter = null;
 
-    if (activeProjects.length === 0) {
-        content.innerHTML = `<div class="activity-empty">No projects in progress.</div>`;
-    } else {
+    const rerenderInsights = () => {
+        const content = container.querySelector('.project-insights-list');
+        if (!content) return;
+        content.innerHTML = '';
+        
+        const dateTitle = selectedDateFilter
+            ? ` for ${new Date(selectedDateFilter + 'T00:00:00').toLocaleDateString()}`
+            : ' (All Time)';
+        
+        container.querySelector('.widget-header h3').innerHTML = `<i class="fas fa-chart-pie widget-icon"></i>Project Contributions${dateTitle}`;
+
+        const activeProjects = projects.filter(p => p.status !== ProjectStatus.Done && p.status !== ProjectStatus.ToDo);
+        
+        if (activeProjects.length === 0) {
+            content.innerHTML = `<div class="activity-empty">No projects in progress.</div>`;
+            return;
+        }
+
         activeProjects.forEach(project => {
-            const projectLogs = workLogs.filter(log => log.projectId === project.id);
-            const totalMinutes = projectLogs.reduce((sum, log) => sum + log.timeSpentMinutes, 0);
+            const allProjectLogs = workLogs.filter(log => log.projectId === project.id);
+            const logsForDate = selectedDateFilter ? allProjectLogs.filter(log => log.date === selectedDateFilter) : allProjectLogs;
+            
+            const totalMinutes = logsForDate.reduce((sum, log) => sum + log.timeSpentMinutes, 0);
 
             const contributionData = (project.assignees || [])
                 .map(assigneeId => {
-                    const memberMinutes = projectLogs
+                    const member = teamMembers.find(tm => tm.id === assigneeId);
+                    if (!member) return null;
+                    const memberMinutes = logsForDate
                         .filter(log => log.memberId === assigneeId)
                         .reduce((sum, log) => sum + log.timeSpentMinutes, 0);
                     return {
                         memberId: assigneeId,
-                        memberName: teamMembers.find(tm => tm.id === assigneeId)?.name || 'Unknown',
+                        memberName: member.name,
+                        memberColor: member.color || '#9ca3af',
                         percentage: totalMinutes > 0 ? (memberMinutes / totalMinutes) * 100 : 0
                     };
                 })
-                .filter(d => d.percentage > 0)
-                .sort((a,b) => b.percentage - a.percentage);
-            
+                .filter(d => d && d.percentage > 0)
+                .sort((a, b) => b.percentage - a.percentage);
+
             const insightItem = document.createElement('div');
             insightItem.className = 'insight-item';
-            
-            let contributionBarHTML = '<div class="insight-empty-bar">No hours logged yet.</div>';
+
+            let contributionBarHTML = '<div class="insight-empty-bar">No hours logged.</div>';
             if (totalMinutes > 0) {
-                contributionBarHTML = contributionData.map(d => 
-                    `<div class="contribution-segment" style="width: ${d.percentage}%; background-color: ${getColorForId(d.memberId)};" title="${d.memberName}: ${d.percentage.toFixed(1)}%"></div>`
+                contributionBarHTML = contributionData.map(d =>
+                    `<div class="contribution-segment" style="width: ${d.percentage}%; background-color: ${d.memberColor};" title="${d.memberName}: ${d.percentage.toFixed(1)}%"></div>`
                 ).join('');
             }
-            
+
             let legendHTML = contributionData.length > 0
-                ? contributionData.map(d => 
+                ? contributionData.map(d =>
                     `<div class="insight-legend-item">
-                        <span class="legend-color-box" style="background-color: ${getColorForId(d.memberId)};"></span>
+                        <span class="legend-color-box" style="background-color: ${d.memberColor};"></span>
                         ${d.memberName} (${d.percentage.toFixed(1)}%)
                     </div>`
-                  ).join('')
-                : '<span>No contributors yet.</span>';
-
+                ).join('')
+                : '<span>No contributors.</span>';
 
             insightItem.innerHTML = `
                 <div class="insight-header">
@@ -429,9 +433,43 @@ function renderProjectInsights(props) {
             `;
             content.appendChild(insightItem);
         });
-    }
+    };
 
-    container.appendChild(content);
+    const header = document.createElement('div');
+    header.className = 'widget-header';
+    header.innerHTML = `<h3><i class="fas fa-chart-pie widget-icon"></i>Project Insights</h3>`;
+    
+    const controls = document.createElement('div');
+    controls.className = 'project-insights-controls';
+    
+    const datePicker = document.createElement('input');
+    datePicker.type = 'date';
+    datePicker.className = 'form-input';
+    datePicker.onchange = (e) => {
+        selectedDateFilter = e.target.value;
+        rerenderInsights();
+    };
+
+    const showAllBtn = Button({
+        children: 'Show All',
+        variant: 'secondary',
+        size: 'sm',
+        onClick: () => {
+            selectedDateFilter = null;
+            datePicker.value = '';
+            rerenderInsights();
+        }
+    });
+
+    controls.append(datePicker, showAllBtn);
+    header.appendChild(controls);
+    container.appendChild(header);
+
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'widget-content project-insights-list';
+    container.appendChild(contentDiv);
+    
+    rerenderInsights();
     return container;
 }
 
@@ -604,210 +642,4 @@ function renderMyNotes(props) {
 
     const pendingNotes = notes
         .filter(n => n.status === 'Pending')
-        .sort((a,b) => new Date(b.updatedAt) - new Date(a.updatedAt))
-        .slice(0, 4);
-
-    const list = document.createElement('ul');
-    list.className = 'widget-list-condensed';
-    if (pendingNotes.length === 0) {
-        list.innerHTML = `<li class="activity-empty">No pending notes.</li>`;
-    } else {
-        pendingNotes.forEach(note => {
-            list.innerHTML += `
-                <li class="list-item">
-                    <span class="item-title">${note.title}</span>
-                    ${note.dueDate ? `<span class="item-meta">Due: ${new Date(note.dueDate).toLocaleDateString()}</span>` : ''}
-                </li>
-            `;
-        });
-    }
-    container.appendChild(list);
-    return container;
-}
-
-// --- Main Page Render Logic ---
-
-function openModal(type, props) {
-    const { onAddNote, onAddMultipleWorkLogs, projects, teamMembers, currentUser, workLogTasks } = props;
-    const closeModal = () => { closeGlobalModal(); currentModalInstance = null; };
-    
-    let form, title, size;
-
-    if (type === 'note') {
-        form = NoteForm({
-            note: null,
-            onSave: (noteData) => { onAddNote(noteData); closeModal(); },
-            onCancel: closeModal,
-        });
-        title = 'Add New Note';
-        size = 'lg';
-    } else { // worklog
-        const targetMember = teamMembers.find(m => m.id === currentUser.id);
-        const userTeam = targetMember ? targetMember.internalTeam : '';
-
-        const availableTasksForUser = (workLogTasks || []).filter(task => 
-            (task.teams || []).includes(userTeam)
-        );
-
-        const tasksGroupedByCategory = availableTasksForUser.reduce((acc, task) => {
-            const category = task.category || 'Uncategorized';
-            if (!acc[category]) { acc[category] = []; }
-            acc[category].push(task);
-            return acc;
-        }, {});
-
-
-        form = WorkLogForm({
-            log: null, currentUser, teamMembers, projects,
-            workLogTasks: tasksGroupedByCategory,
-            onSaveAll: (logsData) => { onAddMultipleWorkLogs(logsData); closeModal(); },
-            onCancel: closeModal,
-        });
-        title = 'Add New Work Log';
-        size = 'xl';
-    }
-
-    currentModalInstance = Modal({ isOpen: true, onClose: closeModal, title, children: form, size });
-}
-
-
-function renderManagerDashboard(container, props) {
-    const { teamMembers, workLogs, attendanceRecords, holidays } = props;
-    
-    const celebrations = getTodaysCelebrations(teamMembers);
-    if (celebrations.length > 0) {
-        container.appendChild(CelebrationsWidget({ celebrations }));
-    }
-
-    const onKpiClick = (kpi, allProps) => {
-        const closeModal = () => { closeGlobalModal(); currentModalInstance = null; };
-        let title = '';
-        const modalContent = document.createElement('div');
-        modalContent.className = 'kpi-modal-content';
-        
-        if (kpi.type === 'hours') {
-            currentModalInstance = Modal({
-                isOpen: true,
-                onClose: closeModal,
-                title: 'Weekly Hours Breakdown',
-                children: WeeklyHoursDetailModal({
-                    workLogs: allProps.workLogs,
-                    teamMembers: allProps.teamMembers,
-                    attendanceRecords: allProps.attendanceRecords,
-                    holidays: allProps.holidays,
-                    startOfWeek: getStartOfWeek()
-                }),
-                size: 'lg',
-            });
-            return;
-        }
-
-        if (kpi.type === 'overdue') {
-            title = 'Overdue Projects';
-            const list = document.createElement('ul');
-            list.className = 'kpi-modal-list';
-            kpi.data.forEach(p => {
-                const li = document.createElement('li');
-                li.className = 'kpi-modal-list-item';
-                li.innerHTML = `<strong>${p.name}</strong> <span>Due: ${new Date(p.dueDate).toLocaleDateString()}</span>`;
-                list.appendChild(li);
-            });
-            modalContent.appendChild(list);
-        } else if (kpi.type === 'leave') {
-            title = 'Members on Leave Today';
-            const list = document.createElement('ul');
-            list.className = 'kpi-modal-list';
-            kpi.data.forEach(m => {
-                const li = document.createElement('li');
-                li.className = 'kpi-modal-list-item';
-                li.innerHTML = `<strong>${m.name}</strong> <span>${m.leaveType}</span>`;
-                list.appendChild(li);
-            });
-            modalContent.appendChild(list);
-        }
-
-        currentModalInstance = Modal({
-            isOpen: true,
-            onClose: closeModal,
-            title: title,
-            children: modalContent,
-            footer: Button({ children: 'Close', variant: 'secondary', onClick: closeModal }),
-            size: 'md'
-        });
-    };
-
-    container.appendChild(renderManagerKPIs(props, onKpiClick));
-    
-    const layout = document.createElement('div');
-    layout.className = 'dashboard-layout';
-    
-    const mainCol = document.createElement('div');
-    mainCol.className = 'dashboard-main-col';
-    mainCol.appendChild(renderDailyStandup(props));
-    mainCol.appendChild(renderProjectInsights(props));
-    
-    const sideCol = document.createElement('div');
-    sideCol.className = 'dashboard-side-col';
-    sideCol.appendChild(renderActivityFeed(props));
-
-    layout.append(mainCol, sideCol);
-    container.appendChild(layout);
-}
-
-function renderMemberDashboard(container, props) {
-    const { currentUser, appSettings } = props;
-
-    const celebrations = getTodaysCelebrations(props.teamMembers);
-    if (celebrations.length > 0) {
-        container.appendChild(CelebrationsWidget({ celebrations }));
-    }
-
-    const header = document.createElement('div');
-    header.className = 'member-welcome-header';
-
-    const welcomeText = document.createElement('h2');
-    welcomeText.innerHTML = `${appSettings.welcomeMessage || 'Welcome back,'} <strong>${currentUser.name.split(' ')[0]}!</strong>`;
-    
-    const actions = document.createElement('div');
-    actions.className = 'member-hero-actions';
-    actions.append(
-        Button({
-            children: 'Add Work Log',
-            leftIcon: '<i class="fas fa-clock"></i>',
-            onClick: () => openModal('worklog', props)
-        }),
-        Button({
-            children: 'Add Note',
-            variant: 'secondary',
-            leftIcon: '<i class="fas fa-sticky-note"></i>',
-            onClick: () => openModal('note', props)
-        })
-    );
-
-    header.append(welcomeText, actions);
-    container.appendChild(header);
-
-    container.appendChild(renderMemberStats(props));
-    
-    const layout = document.createElement('div');
-    layout.className = 'dashboard-layout-member';
-    layout.appendChild(renderMyContributions(props));
-    layout.appendChild(renderMyNotes(props));
-    
-    container.appendChild(layout);
-}
-
-
-export function renderDashboardPage(container, props) {
-  container.innerHTML = '';
-  const pageWrapper = document.createElement('div');
-  pageWrapper.className = 'page-container dashboard-page';
-
-  if (props.currentUser.role === TeamMemberRole.Manager) {
-    renderManagerDashboard(pageWrapper, props);
-  } else {
-    renderMemberDashboard(pageWrapper, props);
-  }
-  
-  container.appendChild(pageWrapper);
-}
+        .sort((a,b) => new Date(
