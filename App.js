@@ -9,7 +9,7 @@ import { renderLoginPage } from './pages/LoginPage.js';
 import { renderAdminPage } from './pages/AdminPage.js';
 import { Navbar } from './components/Navbar.js';
 import { INITIAL_TEAM_MEMBERS, WORK_LOG_TASKS, PRIORITIES, INITIAL_INTERNAL_TEAMS } from './constants.js';
-import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery, deleteAllFromCollection } from './services/firebaseService.js';
+import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery } from './services/firebaseService.js';
 import { exportToCSV as exportDataToCSV, importFromCSV } from './services/csvService.js';
 import { ProjectStatus, AttendanceStatus, LeaveType, NoteStatus, TeamMemberRole } from './types.js'; // Enums
 
@@ -438,48 +438,6 @@ const handleImport = async (file, dataType) => {
   }
 };
 
-// --- Admin Danger Zone Handlers ---
-const handleClearData = async (collectionNameToClear) => {
-    try {
-        await deleteAllFromCollection(collectionNameToClear);
-        if (collectionNameToClear === 'worklogs') workLogs = [];
-        if (collectionNameToClear === 'attendance') attendance = [];
-        // Add more state resets as needed
-        alert(`${collectionNameToClear} data has been cleared successfully.`);
-        renderApp();
-    } catch (error) {
-        console.error(`Failed to clear ${collectionNameToClear}:`, error);
-        alert(`Error clearing data: ${error.message}`);
-    }
-};
-
-const handleResetApp = async () => {
-    try {
-        await Promise.all([
-            deleteAllFromCollection('projects'),
-            deleteAllFromCollection('attendance'),
-            deleteAllFromCollection('notes'),
-            deleteAllFromCollection('teamMembers'),
-            deleteAllFromCollection('worklogs'),
-            deleteAllFromCollection('appSettings'),
-        ]);
-        alert("Application has been reset. It will now reload with default data.");
-        // Clear local state before reloading data
-        projects = [];
-        attendance = [];
-        notes = [];
-        teamMembers = [];
-        workLogs = [];
-        appSettings = {};
-        await loadInitialData(true); // Re-seed the data
-        renderApp();
-    } catch (error) {
-        console.error("Failed to reset application:", error);
-        alert(`Error resetting application: ${error.message}`);
-    }
-};
-
-
 const renderApp = () => {
   if (!rootElement) return;
 
@@ -519,8 +477,6 @@ const renderApp = () => {
     onUpdateSettings: updateAppSettings,
     onExport: handleExport, onImport: handleImport,
     onExportTeam: () => handleExport('team'), onImportTeam: (file) => handleImport(file, 'team'),
-    onClearData: handleClearData,
-    onResetApp: handleResetApp,
   };
 
   const onNavChange = (view) => {
