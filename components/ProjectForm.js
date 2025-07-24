@@ -3,13 +3,13 @@ import { Button } from './Button.js';
 import { PRIORITIES } from '../constants.js';
 import { ProjectStatus } from '../types.js';
 
-const getDefaultProject = () => ({
+const getDefaultProject = (appSettings) => ({
   name: '',
   description: '',
   status: ProjectStatus.ToDo,
   assignees: [],
   dueDate: new Date().toISOString().split('T')[0],
-  priority: 'Medium',
+  priority: appSettings?.defaultProjectPriority || 'Medium',
   tags: [],
   stakeholderName: '',
   teamLeadId: '',
@@ -55,10 +55,10 @@ function updateCampaignCalculations(fieldset) {
 }
 
 
-export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onCancel }) {
+export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onCancel, appSettings }) {
   let formData = project 
-    ? { ...getDefaultProject(), ...project, assignees: project.assignees || [], tags: project.tags || [], goals: project.goals || [] } 
-    : { ...getDefaultProject(), id: undefined, createdAt: undefined, updatedAt: undefined };
+    ? { ...getDefaultProject(appSettings), ...project, assignees: project.assignees || [], tags: project.tags || [], goals: project.goals || [] } 
+    : { ...getDefaultProject(appSettings), id: undefined, createdAt: undefined, updatedAt: undefined };
   
   // Data migration: Rename 'Total Leads' to 'Total Prospects' for older projects
   if (formData.goals) {
