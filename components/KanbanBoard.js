@@ -1,9 +1,11 @@
 
-import { ProjectCard } from './ProjectCard.js';
+import { KanbanCard } from './KanbanCard.js';
+import { TeamMemberRole } from '../types.js';
 
-export function KanbanBoard({ projects, projectStatuses, teamMembers, onUpdateProject, onEditProject, onDeleteProject }) {
+export function KanbanBoard({ projects, projectStatuses, teamMembers, currentUser, onUpdateProject, onEditProject, onDeleteProject }) {
     const container = document.createElement('div');
     container.className = 'kanban-board-container';
+    const isManager = currentUser.role === TeamMemberRole.Manager;
 
     projectStatuses.forEach(status => {
         const column = document.createElement('div');
@@ -23,17 +25,20 @@ export function KanbanBoard({ projects, projectStatuses, teamMembers, onUpdatePr
         const body = document.createElement('div');
         body.className = 'kanban-column-body';
         
-        projectsInColumn.forEach(project => {
-            const card = ProjectCard({
-                project,
-                teamMembers,
-                onEdit: onEditProject,
-                onDelete: onDeleteProject,
+        if (projectsInColumn.length > 0) {
+            projectsInColumn.forEach(project => {
+                const card = KanbanCard({
+                    project,
+                    teamMembers,
+                    isManager,
+                    onEdit: onEditProject,
+                    onDelete: onDeleteProject,
+                });
+                body.appendChild(card);
             });
-            card.classList.add('kanban-project-card');
-            card.dataset.projectId = project.id;
-            body.appendChild(card);
-        });
+        } else {
+            body.innerHTML = `<div class="kanban-empty-placeholder"></div>`;
+        }
         
         column.appendChild(body);
         container.appendChild(column);
@@ -41,7 +46,10 @@ export function KanbanBoard({ projects, projectStatuses, teamMembers, onUpdatePr
         // Drag and Drop Event Listeners
         column.addEventListener('dragover', (e) => {
             e.preventDefault(); // Necessary to allow dropping
-            column.classList.add('drag-over');
+            const draggingCard = document.querySelector('.kanban-card.dragging');
+            if (draggingCard) { // Check if a valid card is being dragged
+                column.classList.add('drag-over');
+            }
         });
 
         column.addEventListener('dragleave', () => {
