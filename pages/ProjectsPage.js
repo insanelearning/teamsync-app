@@ -5,6 +5,7 @@ import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { Button } from '../components/Button.js';
 import { FileUploadButton } from '../components/FileUploadButton.js';
 import { TeamMemberRole } from '../types.js';
+import { KanbanBoard } from '../components/KanbanBoard.js';
 
 let currentModalInstance = null; 
 
@@ -272,6 +273,7 @@ export function renderProjectsPage(container, props) {
   
   const isManager = currentUser.role === TeamMemberRole.Manager;
 
+  let viewType = 'list'; // 'list' or 'board'
   let searchTerm = '';
   let statusFilter = '';
   let assigneeFilter = '';
@@ -289,7 +291,38 @@ export function renderProjectsPage(container, props) {
   const headerTitle = document.createElement('h1');
   headerTitle.className = 'page-header-title';
   headerTitle.textContent = isManager ? 'Projects Dashboard' : 'My Assigned Projects';
-  headerDiv.appendChild(headerTitle);
+  
+  const headerActionsContainer = document.createElement('div');
+  headerActionsContainer.className = 'page-header-actions';
+  
+  // View Toggle
+  const viewToggleGroup = document.createElement('div');
+  viewToggleGroup.className = 'view-toggle-group';
+  const listButton = document.createElement('button');
+  listButton.innerHTML = `<i class="fas fa-list"></i> List`;
+  listButton.className = 'view-toggle-button active';
+  const boardButton = document.createElement('button');
+  boardButton.innerHTML = `<i class="fas fa-columns"></i> Board`;
+  boardButton.className = 'view-toggle-button';
+  
+  viewToggleGroup.append(listButton, boardButton);
+
+  const setView = (newView) => {
+    viewType = newView;
+    if (newView === 'list') {
+        listButton.classList.add('active');
+        boardButton.classList.remove('active');
+    } else {
+        boardButton.classList.add('active');
+        listButton.classList.remove('active');
+    }
+    rerenderMainContent();
+  };
+
+  listButton.onclick = () => setView('list');
+  boardButton.onclick = () => setView('board');
+  
+  headerActionsContainer.appendChild(viewToggleGroup);
   
   if (isManager) {
     const actionsWrapper = document.createElement('div');
@@ -302,56 +335,16 @@ export function renderProjectsPage(container, props) {
       }),
       Button({ children: 'Add Project', size: 'sm', leftIcon: '<i class="fas fa-plus"></i>', onClick: openModalForNew })
     );
-    headerDiv.appendChild(actionsWrapper);
+    headerActionsContainer.appendChild(actionsWrapper);
   }
+  headerDiv.append(headerTitle, headerActionsContainer);
   pageWrapper.appendChild(headerDiv);
   
   // Render the new overview section, passing the function to open a project modal
   pageWrapper.appendChild(renderProjectsOverview(projects, projectStatuses, openModalWithProject));
 
-  const filtersDiv = document.createElement('div');
-  filtersDiv.className = "filters-container";
-  const filterGrid = document.createElement('div');
-  filterGrid.className = "filters-grid";
-
-  function createFilterInput(type, placeholder, onUpdate) {
-    const input = document.createElement('input');
-    input.type = type; input.placeholder = placeholder;
-    input.className = "form-input";
-    input.oninput = (e) => { onUpdate(e.target.value); rerenderProjectList(); };
-    return input;
-  }
-  function createFilterSelect(optionsArray, defaultOptionText, onUpdate, currentValue = '') {
-    const select = document.createElement('select');
-    select.className = "form-select";
-    if (defaultOptionText) select.innerHTML = `<option value="">${defaultOptionText}</option>`;
-    optionsArray.forEach(opt => select.innerHTML += `<option value="${opt.value}" ${opt.value === currentValue ? 'selected' : ''}>${opt.label}</option>`);
-    select.value = currentValue;
-    select.onchange = (e) => { onUpdate(e.target.value); rerenderProjectList(); };
-    return select;
-  }
-  
-  const uniqueProjectTypes = Array.from(new Set(projects.map(p => p.projectType).filter(Boolean)));
-  const uniqueProjectCategories = Array.from(new Set(projects.map(p => p.projectCategory).filter(Boolean)));
-  const sortOptions = [
-      {value: 'dueDateAsc', label: 'Sort: Due Date (Asc)'},{value: 'dueDateDesc', label: 'Sort: Due Date (Desc)'},
-      {value: 'nameAsc', label: 'Sort: Name (A-Z)'},{value: 'nameDesc', label: 'Sort: Name (Z-A)'}
-  ];
-
-  filterGrid.append(
-    createFilterInput('text', 'Search projects...', val => searchTerm = val),
-    createFilterSelect(projectStatuses.map(s => ({value: s, label: s})), 'All Statuses', val => statusFilter = val),
-    createFilterSelect(teamMembers.map(m => ({value: m.id, label: m.name})), 'Any Assignee', val => assigneeFilter = val),
-    createFilterSelect(teamMembers.map(m => ({value: m.id, label: m.name})), 'Any Team Lead', val => teamLeadFilter = val),
-    createFilterSelect(uniqueProjectTypes.map(t => ({value: t, label: t})), 'All Types', val => projectTypeFilter = val),
-    createFilterSelect(uniqueProjectCategories.map(c => ({value: c, label: c})), 'All Categories', val => projectCategoryFilter = val),
-    createFilterSelect(sortOptions, '', val => sortOrder = val, sortOrder)
-  );
-  filtersDiv.appendChild(filterGrid);
-  pageWrapper.appendChild(filtersDiv);
-  
-  const projectsContainer = document.createElement('div');
-  pageWrapper.appendChild(projectsContainer);
+  const mainContentContainer = document.createElement('div');
+  pageWrapper.appendChild(mainContentContainer);
 
   function getFilteredAndSortedProjects() {
     return projects.filter(p => {
@@ -370,65 +363,125 @@ export function renderProjectsPage(container, props) {
       return 0;
     });
   }
+  
+  function createFilters() {
+    const filtersDiv = document.createElement('div');
+    filtersDiv.className = "filters-container";
+    const filterGrid = document.createElement('div');
+    filterGrid.className = "filters-grid";
 
-  function rerenderProjectList() {
+    function createFilterInput(type, placeholder, onUpdate) {
+      const input = document.createElement('input');
+      input.type = type; input.placeholder = placeholder;
+      input.className = "form-input";
+      input.oninput = (e) => { onUpdate(e.target.value); rerenderMainContent(); };
+      return input;
+    }
+    function createFilterSelect(optionsArray, defaultOptionText, onUpdate, currentValue = '') {
+      const select = document.createElement('select');
+      select.className = "form-select";
+      if (defaultOptionText) select.innerHTML = `<option value="">${defaultOptionText}</option>`;
+      optionsArray.forEach(opt => select.innerHTML += `<option value="${opt.value}" ${opt.value === currentValue ? 'selected' : ''}>${opt.label}</option>`);
+      select.value = currentValue;
+      select.onchange = (e) => { onUpdate(e.target.value); rerenderMainContent(); };
+      return select;
+    }
+    
+    const uniqueProjectTypes = Array.from(new Set(projects.map(p => p.projectType).filter(Boolean)));
+    const uniqueProjectCategories = Array.from(new Set(projects.map(p => p.projectCategory).filter(Boolean)));
+    const sortOptions = [
+        {value: 'dueDateAsc', label: 'Sort: Due Date (Asc)'},{value: 'dueDateDesc', label: 'Sort: Due Date (Desc)'},
+        {value: 'nameAsc', label: 'Sort: Name (A-Z)'},{value: 'nameDesc', label: 'Sort: Name (Z-A)'}
+    ];
+
+    filterGrid.append(
+      createFilterInput('text', 'Search projects...', val => searchTerm = val),
+      createFilterSelect(projectStatuses.map(s => ({value: s, label: s})), 'All Statuses', val => statusFilter = val),
+      createFilterSelect(teamMembers.map(m => ({value: m.id, label: m.name})), 'Any Assignee', val => assigneeFilter = val),
+      createFilterSelect(teamMembers.map(m => ({value: m.id, label: m.name})), 'Any Team Lead', val => teamLeadFilter = val),
+      createFilterSelect(uniqueProjectTypes.map(t => ({value: t, label: t})), 'All Types', val => projectTypeFilter = val),
+      createFilterSelect(uniqueProjectCategories.map(c => ({value: c, label: c})), 'All Categories', val => projectCategoryFilter = val),
+      createFilterSelect(sortOptions, '', val => sortOrder = val, sortOrder)
+    );
+    filtersDiv.appendChild(filterGrid);
+    return filtersDiv;
+  }
+
+  function rerenderMainContent() {
+    mainContentContainer.innerHTML = '';
+    mainContentContainer.appendChild(createFilters());
+    
     const displayProjects = getFilteredAndSortedProjects();
-    projectsContainer.innerHTML = ''; 
-    if (displayProjects.length > 0) {
-        const table = document.createElement('table');
-        table.className = "data-table projects-table";
-        table.innerHTML = `
-            <thead>
-                <tr>
-                    <th>Project Name</th>
-                    <th>Status</th>
-                    <th>Progress</th>
-                    <th>Assignees</th>
-                    <th>Due Date</th>
-                    <th>Priority</th>
-                </tr>
-            </thead>`;
-        const tbody = document.createElement('tbody');
-        const getMemberName = (id) => teamMembers.find(tm => tm.id === id)?.name || 'Unknown';
+    
+    if (viewType === 'list') {
+        const projectsContainer = document.createElement('div');
+        projectsContainer.className = 'projects-list-container';
+        if (displayProjects.length > 0) {
+            const table = document.createElement('table');
+            table.className = "data-table projects-table";
+            table.innerHTML = `
+                <thead>
+                    <tr>
+                        <th>Project Name</th>
+                        <th>Status</th>
+                        <th>Progress</th>
+                        <th>Assignees</th>
+                        <th>Due Date</th>
+                        <th>Priority</th>
+                    </tr>
+                </thead>`;
+            const tbody = document.createElement('tbody');
+            const getMemberName = (id) => teamMembers.find(tm => tm.id === id)?.name || 'Unknown';
 
-        displayProjects.forEach(p => {
-            const assigneesNames = p.assignees && p.assignees.length > 0
-                ? p.assignees.map(id => getMemberName(id)).join(', ')
-                : 'Unassigned';
-            const tr = document.createElement('tr');
-            tr.dataset.projectId = p.id;
+            displayProjects.forEach(p => {
+                const assigneesNames = p.assignees && p.assignees.length > 0
+                    ? p.assignees.map(id => getMemberName(id)).join(', ')
+                    : 'Unassigned';
+                const tr = document.createElement('tr');
+                tr.dataset.projectId = p.id;
 
-            const progressCell = document.createElement('td');
-            progressCell.appendChild(createProgressBar(p.completionPercentage));
+                const progressCell = document.createElement('td');
+                progressCell.appendChild(createProgressBar(p.completionPercentage));
 
-            tr.innerHTML = `
-                <td>${p.name}</td>
-                <td><span class="project-status-badge ${getStatusClass(p.status)}">${p.status}</span></td>
-                <td></td>
-                <td class="truncate" title="${assigneesNames}">${assigneesNames}</td>
-                <td>${new Date(p.dueDate).toLocaleDateString()}</td>
-                <td><span class="${getPriorityClass(p.priority)}">${p.priority}</span></td>
-            `;
-            tr.children[2].replaceWith(progressCell); // Replace placeholder TD with progress bar
-            tbody.appendChild(tr);
+                tr.innerHTML = `
+                    <td>${p.name}</td>
+                    <td><span class="project-status-badge ${getStatusClass(p.status)}">${p.status}</span></td>
+                    <td></td>
+                    <td class="truncate" title="${assigneesNames}">${assigneesNames}</td>
+                    <td>${new Date(p.dueDate).toLocaleDateString()}</td>
+                    <td><span class="${getPriorityClass(p.priority)}">${p.priority}</span></td>
+                `;
+                tr.children[2].replaceWith(progressCell); // Replace placeholder TD with progress bar
+                tbody.appendChild(tr);
+            });
+
+            tbody.addEventListener('click', (e) => {
+                const row = e.target.closest('tr');
+                if (row && row.dataset.projectId) {
+                    const project = projects.find(p => p.id === row.dataset.projectId);
+                    if (project) openModalWithProject(project);
+                }
+            });
+            
+            table.appendChild(tbody);
+            projectsContainer.appendChild(table);
+        } else {
+          projectsContainer.className = "no-projects-placeholder";
+          projectsContainer.innerHTML = `
+            <i class="fas fa-folder-open icon"></i>
+            <p class="primary-text">No projects found.</p>
+            <p class="secondary-text">Try adjusting filters or add a new project.</p>`;
+        }
+        mainContentContainer.appendChild(projectsContainer);
+    } else { // 'board' view
+        const kanbanContainer = KanbanBoard({
+            projects: displayProjects,
+            projectStatuses,
+            teamMembers,
+            onUpdateProject,
+            onEditProject: openModalWithProject
         });
-
-        tbody.addEventListener('click', (e) => {
-            const row = e.target.closest('tr');
-            if (row && row.dataset.projectId) {
-                const project = projects.find(p => p.id === row.dataset.projectId);
-                if (project) openModalWithProject(project);
-            }
-        });
-        
-        table.appendChild(tbody);
-        projectsContainer.appendChild(table);
-    } else {
-      projectsContainer.className = "no-projects-placeholder";
-      projectsContainer.innerHTML = `
-        <i class="fas fa-folder-open icon"></i>
-        <p class="primary-text">No projects found.</p>
-        <p class="secondary-text">Try adjusting filters or add a new project.</p>`;
+        mainContentContainer.appendChild(kanbanContainer);
     }
   }
 
@@ -699,6 +752,6 @@ export function renderProjectsPage(container, props) {
     renderContent();
   }
 
-  rerenderProjectList();
+  rerenderMainContent();
   container.appendChild(pageWrapper);
 }
