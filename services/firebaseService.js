@@ -1,6 +1,7 @@
 
-import { initializeApp } from "firebase-app";
-import { getFirestore, collection, getDocs, doc, setDoc, updateDoc, deleteDoc, writeBatch, query, where, Timestamp } from "firebase-firestore";
+
+import { initializeApp } from "firebase/app";
+import { getFirestore, collection, getDocs, doc, setDoc, updateDoc, deleteDoc, writeBatch, query, where, Timestamp, addDoc } from "firebase/firestore";
 import { firebaseConfig } from '../firebaseConfig.js';
 
 // Initialize Firebase
@@ -73,6 +74,18 @@ export async function getCollection(collectionName) {
 }
 
 /**
+ * Creates a new document in a collection with an auto-generated ID.
+ * @param {string} collectionName The name of the collection.
+ * @param {Object} data The data for the new document.
+ * @returns {Promise<string>} The ID of the newly created document.
+ */
+export async function addDocument(collectionName, data) {
+    const docRef = await addDoc(collection(db, collectionName), data);
+    return docRef.id;
+}
+
+
+/**
  * Creates or overwrites a single document in a collection.
  * @param {string} collectionName The name of the collection.
  * @param {string} docId The ID of the document.
@@ -138,4 +151,3 @@ export async function deleteByQuery(collectionName, field, value) {
     });
     await batch.commit();
 }
-
