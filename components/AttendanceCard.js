@@ -80,50 +80,52 @@ export function AttendanceCard({ member, date, record, leaveTypes, holidays, onU
             className: 'status-btn-present',
             onClick: () => handleUpsert({ status: AttendanceStatus.Present })
         });
-        
         const wfhBtn = Button({
             children: 'WFH',
             variant: 'secondary',
             className: 'status-btn-wfh',
             onClick: () => handleUpsert({ status: AttendanceStatus.WorkFromHome })
         });
-        
         const leaveBtn = Button({
             children: 'Leave',
             variant: 'secondary',
             className: 'status-btn-leave',
             onClick: () => handleUpsert({ status: AttendanceStatus.Leave })
         });
-        
-        // Add active classes based on current status
-        if (currentStatus === AttendanceStatus.Present) presentBtn.classList.add('active');
-        if (currentStatus === AttendanceStatus.WorkFromHome) wfhBtn.classList.add('active');
-        if (currentStatus === AttendanceStatus.Leave) leaveBtn.classList.add('active');
-
         statusButtonsContainer.append(presentBtn, wfhBtn, leaveBtn);
         card.appendChild(statusButtonsContainer);
-
-        const contextualFields = document.createElement('div');
-        contextualFields.className = 'attendance-card-contextual-fields';
+        
+        const contextualFieldsContainer = document.createElement('div');
+        contextualFieldsContainer.className = 'attendance-card-contextual-fields';
         
         if (currentStatus === AttendanceStatus.Leave) {
             const leaveTypeSelect = document.createElement('select');
             leaveTypeSelect.className = 'form-select';
-            leaveTypeSelect.innerHTML = `<option value="">Select Leave Type</option>` + (leaveTypes || []).map(lt => `<option value="${lt}" ${currentLeaveType === lt ? 'selected' : ''}>${lt}</option>`).join('');
+            leaveTypeSelect.innerHTML = `<option value="">Select Leave Type...</option>` + leaveTypes.map(lt => `<option value="${lt}" ${currentLeaveType === lt ? 'selected' : ''}>${lt}</option>`).join('');
+            leaveTypeSelect.value = currentLeaveType || '';
             leaveTypeSelect.onchange = (e) => handleUpsert({ leaveType: e.target.value });
-            contextualFields.appendChild(leaveTypeSelect);
+            contextualFieldsContainer.appendChild(leaveTypeSelect);
         }
-
+        
         const notesInput = document.createElement('input');
         notesInput.type = 'text';
         notesInput.className = 'form-input';
-        notesInput.placeholder = 'Add a note (optional)...';
+        notesInput.placeholder = 'Add notes...';
         notesInput.value = currentNotes;
-        notesInput.onchange = (e) => handleUpsert({ notes: e.target.value });
-        contextualFields.appendChild(notesInput);
+        notesInput.onblur = (e) => {
+            if (e.target.value.trim() !== currentNotes) {
+               handleUpsert({ notes: e.target.value });
+            }
+        };
+        notesInput.onkeydown = (e) => {
+            if (e.key === 'Enter') {
+                e.target.blur();
+            }
+        };
+        contextualFieldsContainer.appendChild(notesInput);
         
-        card.appendChild(contextualFields);
+        card.appendChild(contextualFieldsContainer);
     }
-
+    
     return card;
 }

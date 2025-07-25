@@ -1,5 +1,4 @@
 
-
 import { Button } from './Button.js';
 import { PRIORITIES } from '../constants.js';
 import { ProjectStatus } from '../types.js';
@@ -259,37 +258,23 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
       });
 
       const handleOutsideClick = (e) => {
-          if (!container.contains(e.target)) {
-              closeDropdown();
-          }
-      };
-
-      const openDropdown = () => {
-          if (isOpen) return;
-          isOpen = true;
-          renderList();
-          dropdown.style.display = 'block';
-          // Add listener after a delay to prevent it from catching the same click event
-          setTimeout(() => document.addEventListener('click', handleOutsideClick), 0);
-      };
-
-      const closeDropdown = () => {
-          if (!isOpen) return;
-          isOpen = false;
-          dropdown.style.display = 'none';
-          document.removeEventListener('click', handleOutsideClick);
+        if (isOpen && !container.contains(e.target)) {
+            isOpen = false;
+            dropdown.style.display = 'none';
+            document.removeEventListener('click', handleOutsideClick);
+        }
       };
 
       inputWrapper.addEventListener('click', (e) => {
           e.stopPropagation();
-          if (isOpen) {
-              closeDropdown();
-          } else {
-              openDropdown();
+          if (!isOpen) {
+              isOpen = true;
+              dropdown.style.display = 'block';
+              renderList();
+              document.addEventListener('click', handleOutsideClick);
           }
       });
-
-
+      
       dropdown.append(searchInput, list);
       inputWrapper.appendChild(pillsContainer);
       container.append(inputWrapper, dropdown);
