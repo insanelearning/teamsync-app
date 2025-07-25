@@ -492,43 +492,12 @@ footer.app-footer {
     font-size: 0.875rem;
     max-width: 160px;
 }
-.standup-tabs {
-    display: flex;
-    gap: 0.25rem;
+.standup-toggle-container {
+    padding-bottom: 1rem;
     border-bottom: 1px solid #e5e7eb;
-    margin-bottom: 1rem;
 }
-.dark .standup-tabs {
+.dark .standup-toggle-container {
     border-color: #374151;
-}
-.standup-tab-btn {
-    padding: 0.5rem 1rem;
-    border: none;
-    background: none;
-    cursor: pointer;
-    font-size: 0.9rem;
-    font-weight: 500;
-    color: #6b7280;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px; /* Overlap border */
-    transition: color 0.2s ease, border-color 0.2s ease;
-}
-.dark .standup-tab-btn {
-    color: #9ca3af;
-}
-.standup-tab-btn:hover {
-    color: #374151;
-}
-.dark .standup-tab-btn:hover {
-    color: #e5e7eb;
-}
-.standup-tab-btn.active {
-    color: #4f46e5;
-    border-bottom-color: #4f46e5;
-}
-.dark .standup-tab-btn.active {
-    color: #a5b4fc;
-    border-bottom-color: #a5b4fc;
 }
 .standup-content {
     min-height: 100px;
