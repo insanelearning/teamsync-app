@@ -13,6 +13,8 @@ export function Navbar({ currentView, onNavChange, onThemeToggle, currentUser, o
   ];
 
   if (currentUser && currentUser.role === TeamMemberRole.Manager) {
+    navItems.push({ view: 'campaigns', label: 'Campaigns', icon: 'fas fa-bullhorn' });
+    navItems.push({ view: 'evaluation', label: 'Evaluation', icon: 'fas fa-clipboard-check' });
     navItems.push({ view: 'admin', label: 'Admin', icon: 'fas fa-cogs' });
   }
 
