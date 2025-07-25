@@ -7,6 +7,8 @@ import { renderNotesPage } from './pages/NotesPage.js';
 import { renderWorkLogPage } from './pages/WorkLogPage.js';
 import { renderLoginPage } from './pages/LoginPage.js';
 import { renderAdminPage } from './pages/AdminPage.js';
+import { renderCampaignsPage } from './pages/CampaignsPage.js';
+import { renderEvaluationPage } from './pages/EvaluationPage.js';
 import { Navbar } from './components/Navbar.js';
 import { INITIAL_TEAM_MEMBERS, WORK_LOG_TASKS, PRIORITIES, INITIAL_INTERNAL_TEAMS, INITIAL_HOLIDAYS, INITIAL_LEAVE_TYPES, MEMBER_COLORS } from './constants.js';
 import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery, addDocument } from './services/firebaseService.js';
@@ -601,6 +603,24 @@ const renderApp = () => {
     case 'attendance': renderAttendancePage(mainContentElement, props); break;
     case 'notes': renderNotesPage(mainContentElement, props); break;
     case 'worklog': renderWorkLogPage(mainContentElement, props); break;
+    case 'campaigns':
+        if (currentUser.role === TeamMemberRole.Manager) {
+            renderCampaignsPage(mainContentElement, props);
+        } else {
+            currentView = 'dashboard';
+            sessionStorage.setItem('currentView', 'dashboard');
+            renderDashboardPage(mainContentElement, props);
+        }
+        break;
+    case 'evaluation':
+        if (currentUser.role === TeamMemberRole.Manager) {
+            renderEvaluationPage(mainContentElement, props);
+        } else {
+            currentView = 'dashboard';
+            sessionStorage.setItem('currentView', 'dashboard');
+            renderDashboardPage(mainContentElement, props);
+        }
+        break;
     case 'admin': 
         if (currentUser.role === TeamMemberRole.Manager) {
             renderAdminPage(mainContentElement, props);
