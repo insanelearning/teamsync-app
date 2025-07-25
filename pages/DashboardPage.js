@@ -1,4 +1,3 @@
-
 import { TeamMemberRole, ProjectStatus } from '../types.js';
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
@@ -160,25 +159,19 @@ function renderDailyStandup(props) {
 
     const header = document.createElement('div');
     header.className = 'standup-header';
-    header.innerHTML = `<h3><i class="fas fa-users widget-icon"></i>Daily Standup</h3>`;
-    const datePicker = document.createElement('input');
-    datePicker.type = 'date';
-    datePicker.className = 'form-input form-input-sm';
-    datePicker.value = selectedDate;
-    datePicker.onchange = (e) => {
-        selectedDate = e.target.value;
-        rerenderContent();
-    };
-    header.appendChild(datePicker);
-    container.appendChild(header);
+    
+    const title = document.createElement('h3');
+    title.innerHTML = `<i class="fas fa-users widget-icon"></i>Daily Standup`;
+    header.appendChild(title);
 
-    // --- Tabs as Toggle Switch ---
-    const toggleContainer = document.createElement('div');
-    toggleContainer.className = 'standup-toggle-container';
+    const controlsWrapper = document.createElement('div');
+    controlsWrapper.style.display = 'flex';
+    controlsWrapper.style.alignItems = 'center';
+    controlsWrapper.style.gap = '1rem';
 
+    // Toggle Switch
     const viewToggleGroup = document.createElement('div');
     viewToggleGroup.className = 'view-toggle-group';
-
     const attendanceBtn = document.createElement('button');
     attendanceBtn.className = 'view-toggle-button active';
     attendanceBtn.textContent = 'Attendance';
@@ -200,11 +193,23 @@ function renderDailyStandup(props) {
         attendanceBtn.classList.remove('active');
         rerenderContent();
     };
-
     viewToggleGroup.append(attendanceBtn, workLogsBtn);
-    toggleContainer.appendChild(viewToggleGroup);
-    container.appendChild(toggleContainer);
+    controlsWrapper.appendChild(viewToggleGroup);
+
+    // Date Picker
+    const datePicker = document.createElement('input');
+    datePicker.type = 'date';
+    datePicker.className = 'form-input form-input-sm';
+    datePicker.value = selectedDate;
+    datePicker.onchange = (e) => {
+        selectedDate = e.target.value;
+        rerenderContent();
+    };
+    controlsWrapper.appendChild(datePicker);
     
+    header.appendChild(controlsWrapper);
+    container.appendChild(header);
+
     container.appendChild(contentDiv);
     
     rerenderContent(); // Initial render
