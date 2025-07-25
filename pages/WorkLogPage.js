@@ -62,7 +62,7 @@ export function renderWorkLogPage(container, props) {
             children: 'Add Log',
             size: 'sm',
             leftIcon: '<i class="fas fa-plus"></i>',
-            onClick: () => openModalForNew(getMemberFilteredTasks())
+            onClick: () => openModalForNew(getMemberFilteredTasks(memberFilter || currentUser.id))
         })
     );
     if (isManager) {
@@ -81,16 +81,18 @@ export function renderWorkLogPage(container, props) {
     pageWrapper.appendChild(summaryContainer);
     
     const mainContentContainer = document.createElement('div');
-    mainContentContainer.className = 'attendance-page-section';
+    mainContentContainer.className = 'worklog-main-content'; // A specific class for this section
     pageWrapper.appendChild(mainContentContainer);
 
-    function getMemberFilteredTasks() {
-        const member = teamMembers.find(m => m.id === (isManager ? memberFilter : currentUser.id));
+    function getMemberFilteredTasks(selectedMemberId) {
+        const member = teamMembers.find(m => m.id === selectedMemberId);
         const memberTeam = member?.internalTeam;
         
         const allTasks = appSettings.workLogTasks || [];
+        // If a team is defined for the member, filter tasks for that team. Otherwise, show all tasks.
         const tasksForMember = memberTeam ? allTasks.filter(task => (task.teams || []).includes(memberTeam)) : allTasks;
 
+        // Group tasks by category
         const groupedTasks = {};
         tasksForMember.forEach(task => {
             if (!groupedTasks[task.category]) {
@@ -109,7 +111,7 @@ export function renderWorkLogPage(container, props) {
             (log.date >= startDateFilter) &&
             (log.date <= endDateFilter)
         );
-        return filtered.sort((a, b) => new Date(b.date) - new Date(a.date) || b.createdAt.localeCompare(a.createdAt));
+        return filtered.sort((a, b) => new Date(b.date) - new Date(a.date) || new Date(b.createdAt) - new Date(a.createdAt));
     }
     
     function rerenderContent() {
@@ -134,22 +136,23 @@ export function renderWorkLogPage(container, props) {
         const uniqueMembers = [...new Set(displayLogs.map(log => log.memberId))];
 
         const summaryGrid = document.createElement('div');
-        summaryGrid.className = 'work-log-summary-container';
+        summaryGrid.className = 'kpi-grid'; // Reuse kpi-grid for layout
         summaryGrid.innerHTML = `
-            <div class="work-log-summary-card">
-                <div class="label">Total Time Logged</div>
-                <div class="value">${formatMinutes(totalMinutes)}</div>
-                <div class="sub-label">Across ${displayLogs.length} entries</div>
+            <div class="stat-card">
+                <div class="stat-card-icon"><i class="fas fa-stopwatch"></i></div>
+                <div><div class="stat-card-value">${formatMinutes(totalMinutes)}</div><div class="stat-card-label">Total Time Logged</div></div>
             </div>
-            <div class="work-log-summary-card">
-                <div class="label">Total Projects</div>
-                <div class="value">${uniqueProjects.length}</div>
-                <div class="sub-label">Worked on in this period</div>
+            <div class="stat-card">
+                <div class="stat-card-icon"><i class="fas fa-layer-group"></i></div>
+                <div><div class="stat-card-value">${uniqueProjects.length}</div><div class="stat-card-label">Projects Worked On</div></div>
             </div>
-            <div class="work-log-summary-card">
-                <div class="label">Team Members</div>
-                <div class="value">${uniqueMembers.length}</div>
-                <div class="sub-label">Contributed in this period</div>
+            <div class="stat-card">
+                 <div class="stat-card-icon"><i class="fas fa-users"></i></div>
+                <div><div class="stat-card-value">${uniqueMembers.length}</div><div class="stat-card-label">Members Contributed</div></div>
+            </div>
+             <div class="stat-card">
+                 <div class="stat-card-icon"><i class="fas fa-clipboard-list"></i></div>
+                <div><div class="stat-card-value">${displayLogs.length}</div><div class="stat-card-label">Total Entries</div></div>
             </div>
         `;
         summaryContainer.appendChild(summaryGrid);
@@ -159,50 +162,43 @@ export function renderWorkLogPage(container, props) {
         const filtersDiv = document.createElement('div');
         filtersDiv.className = "filters-container";
         const filterGrid = document.createElement('div');
-        filterGrid.className = "worklog-filters-grid";
+        filterGrid.className = "filters-grid";
+        filterGrid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(220px, 1fr))';
 
         // Member Filter (Manager only)
         if (isManager) {
             const memberDiv = document.createElement('div');
-            memberDiv.innerHTML = `<label class="form-label">Team Member</label>`;
             const memberSelect = document.createElement('select');
             memberSelect.className = 'form-select';
             memberSelect.innerHTML = `<option value="">All Members</option>` + teamMembers.map(m => `<option value="${m.id}" ${memberFilter === m.id ? 'selected' : ''}>${m.name}</option>`).join('');
-            memberSelect.onchange = (e) => { memberFilter = e.target.value; rerenderContent(); };
+            memberSelect.onchange = (e) => { memberFilter = e.target.value; currentPage = 1; rerenderContent(); };
             memberDiv.appendChild(memberSelect);
             filterGrid.appendChild(memberDiv);
         }
 
         // Project Filter
         const projectDiv = document.createElement('div');
-        projectDiv.innerHTML = `<label class="form-label">Project</label>`;
         const projectSelect = document.createElement('select');
         projectSelect.className = 'form-select';
         projectSelect.innerHTML = `<option value="">All Projects</option>` + projects.map(p => `<option value="${p.id}" ${projectFilter === p.id ? 'selected' : ''}>${p.name}</option>`).join('');
-        projectSelect.onchange = (e) => { projectFilter = e.target.value; rerenderContent(); };
+        projectSelect.onchange = (e) => { projectFilter = e.target.value; currentPage = 1; rerenderContent(); };
         projectDiv.appendChild(projectSelect);
         filterGrid.appendChild(projectDiv);
 
         // Date Range Filter
-        const dateRangeDiv = document.createElement('div');
-        dateRangeDiv.innerHTML = `<label class="form-label">Date Range</label>`;
-        const innerDiv = document.createElement('div');
-        innerDiv.className = 'filter-date-range-inner';
         const startDateInput = document.createElement('input');
         startDateInput.type = 'date'; startDateInput.className = 'form-input'; startDateInput.value = startDateFilter;
-        startDateInput.onchange = (e) => { startDateFilter = e.target.value; rerenderContent(); };
+        startDateInput.onchange = (e) => { startDateFilter = e.target.value; currentPage = 1; rerenderContent(); };
+        filterGrid.appendChild(startDateInput);
+
         const endDateInput = document.createElement('input');
         endDateInput.type = 'date'; endDateInput.className = 'form-input'; endDateInput.value = endDateFilter;
-        endDateInput.onchange = (e) => { endDateFilter = e.target.value; rerenderContent(); };
-        innerDiv.append(startDateInput, `<span class="date-range-separator">to</span>`, endDateInput);
-        dateRangeDiv.appendChild(innerDiv);
-        filterGrid.appendChild(dateRangeDiv);
+        endDateInput.onchange = (e) => { endDateFilter = e.target.value; currentPage = 1; rerenderContent(); };
+        filterGrid.appendChild(endDateInput);
 
         // Reset Button
-        const resetDiv = document.createElement('div');
-        resetDiv.style.alignSelf = 'flex-end';
         const resetButton = Button({
-            children: 'Reset Filters',
+            children: 'Reset',
             variant: 'ghost',
             onClick: () => {
                 memberFilter = isManager ? '' : currentUser.id;
@@ -213,14 +209,15 @@ export function renderWorkLogPage(container, props) {
                 rerenderContent();
             }
         });
-        resetDiv.appendChild(resetButton);
-        filterGrid.appendChild(resetDiv);
+        filterGrid.appendChild(resetButton);
 
         filtersDiv.appendChild(filterGrid);
         return filtersDiv;
     }
 
     function renderTable(displayLogs) {
+        const tableAndPaginationContainer = document.createElement('div');
+        
         const tableContainer = document.createElement('div');
         tableContainer.className = 'data-table-container';
         
@@ -274,18 +271,22 @@ export function renderWorkLogPage(container, props) {
             table.appendChild(tbody);
             tableContainer.appendChild(table);
         } else {
-            tableContainer.innerHTML = `<p class="no-data-placeholder">No work logs match the current filters.</p>`;
+            tableContainer.innerHTML = `<div class="no-data-placeholder">
+                <i class="fas fa-clock icon"></i>
+                <p class="primary-text">No Work Logs Found</p>
+                <p class="secondary-text">Try adjusting the filters or add a new log entry.</p>
+            </div>`;
         }
-        mainContentContainer.appendChild(tableContainer);
+        tableAndPaginationContainer.appendChild(tableContainer);
         
         // Pagination
-        if (totalLogs > 0) {
+        if (totalLogs > rowsPerPage) {
             const paginationContainer = document.createElement('div');
             paginationContainer.className = 'pagination-controls';
 
             const rowsSelector = document.createElement('div');
             rowsSelector.className = 'pagination-rows-selector';
-            rowsSelector.innerHTML = `<label for="rowsPerPage" class="form-label">Rows per page:</label>`;
+            rowsSelector.innerHTML = `<label for="rowsPerPage" class="form-label">Rows:</label>`;
             const select = document.createElement('select');
             select.id = 'rowsPerPage';
             select.className = 'form-select';
@@ -307,15 +308,22 @@ export function renderWorkLogPage(container, props) {
             navContainer.append(prevButton, nextButton);
             
             paginationContainer.append(rowsSelector, navContainer);
-            mainContentContainer.appendChild(paginationContainer);
+            tableAndPaginationContainer.appendChild(paginationContainer);
         }
+
+        mainContentContainer.appendChild(tableAndPaginationContainer);
+    }
+    
+    function closeModal() {
+        closeGlobalModal();
+        currentModalInstance = null;
     }
 
     function openModalForNew(filteredTasks) {
         const form = WorkLogForm({
             log: null, ...props, workLogTasks: filteredTasks,
             onSaveAll: (logsData) => { onAddMultipleWorkLogs(logsData); closeModal(); },
-            onCancel: closeModal
+            onCancel: closeModal,
         });
         currentModalInstance = Modal({ isOpen: true, onClose: closeModal, title: 'Add Work Log', children: form, size: 'xl' });
     }
