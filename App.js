@@ -27,53 +27,6 @@ let activities = []; // New state for activities like login
 let currentUser = null; // Start as null, will be set on login
 let appSettings = {}; // For dynamic app name, logo, etc.
 
-// --- Theme Color Helpers ---
-function lightenDarkenColor(col, amt) {
-    let usePound = false;
-    if (col[0] === "#") {
-        col = col.slice(1);
-        usePound = true;
-    }
-    const num = parseInt(col, 16);
-    let r = (num >> 16) + amt;
-    if (r > 255) r = 255;
-    else if  (r < 0) r = 0;
-    let b = ((num >> 8) & 0x00FF) + amt;
-    if (b > 255) b = 255;
-    else if  (b < 0) b = 0;
-    let g = (num & 0x0000FF) + amt;
-    if (g > 255) g = 255;
-    else if (g < 0) g = 0;
-    return (usePound?"#":"") + (g | (b << 8) | (r << 16)).toString(16).padStart(6, '0');
-}
-
-function hexToRgba(hex, alpha) {
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
-function applyThemeColors(settings) {
-    const primary = settings.primaryColor || '#4f46e5';
-    const primaryHover = lightenDarkenColor(primary, -20);
-    const primaryFocusRing = hexToRgba(primary, 0.4);
-    const primaryTextLight = lightenDarkenColor(primary, 180); // Lighter version for text on dark bg
-    const primaryBgLight = lightenDarkenColor(primary, 200); // Very light version for backgrounds
-    const primaryTextDark = lightenDarkenColor(primary, 50); // Slightly lighter for dark mode text
-    const primaryBgDark = lightenDarkenColor(primary, -50); // Darker for dark mode backgrounds
-
-    const root = document.documentElement;
-    root.style.setProperty('--color-primary', primary);
-    root.style.setProperty('--color-primary-hover', primaryHover);
-    root.style.setProperty('--color-primary-focus-ring', primaryFocusRing);
-    root.style.setProperty('--color-primary-text-light', primaryTextLight);
-    root.style.setProperty('--color-primary-bg-light', primaryBgLight);
-    root.style.setProperty('--color-primary-text-dark', primaryTextDark);
-    root.style.setProperty('--color-primary-bg-dark', primaryBgDark);
-}
-
-
 // --- Login/Logout Handlers ---
 
 const handleLogin = async (member) => {
@@ -119,7 +72,6 @@ const updateAppSettings = async (newSettings) => {
     // Before saving, ensure any base64 logo is handled if needed, or just save the URL/data URI
     await setDocument('appSettings', 'main_config', newSettings);
     appSettings = newSettings;
-    applyThemeColors(appSettings); // Apply new colors immediately
     renderApp();
     alert('Settings saved successfully!');
   } catch (error) {
@@ -233,8 +185,7 @@ const deleteNote = async (noteId) => {
     await deleteDocument('notes', noteId);
     notes = notes.filter(n => n.id !== noteId);
     renderApp();
-  } catch (error)
-  {
+  } catch (error) {
     console.error("Failed to delete note:", error);
     alert("Error: Could not delete the note.");
   }
@@ -520,7 +471,7 @@ const renderApp = () => {
   rootElement.removeAttribute('class'); 
 
   if (!currentUser) {
-    renderLoginPage(rootElement, { onLogin: handleLogin, teamMembers, appSettings });
+    renderLoginPage(rootElement, { onLogin: handleLogin, teamMembers });
     return;
   }
   
@@ -621,8 +572,7 @@ const loadInitialData = async (seedDataIfEmpty = true) => {
         maxTeamMembers: 20,
         welcomeMessage: 'Welcome back,',
         defaultProjectPriority: 'Medium',
-        defaultTheme: 'User Choice',
-        primaryColor: '#4f46e5', // Add default primary color
+        defaultTheme: 'User Choice'
     };
 
     // Check for missing keys and add defaults
@@ -662,8 +612,6 @@ const loadInitialData = async (seedDataIfEmpty = true) => {
         currentUser = teamMembers.find(m => m.id === currentUserId) || null;
     }
     
-    applyThemeColors(appSettings);
-
     // Theme application logic
     const theme = appSettings.defaultTheme || 'User Choice';
     if (theme === 'Dark') {
