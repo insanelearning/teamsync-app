@@ -27,6 +27,83 @@ let activities = []; // New state for activities like login
 let currentUser = null; // Start as null, will be set on login
 let appSettings = {}; // For dynamic app name, logo, etc.
 
+// --- Style Helpers ---
+
+function darkenColor(hex, percent) {
+    if (!hex || hex.length < 7) return '#000000';
+    let f = parseInt(hex.slice(1), 16),
+        t = percent / 100,
+        R = f >> 16,
+        G = (f >> 8) & 0x00ff,
+        B = f & 0x0000ff;
+    return (
+        '#' +
+        (
+            0x1000000 +
+            (Math.round((1 - t) * R) * 0x10000 +
+                Math.round((1 - t) * G) * 0x100 +
+                Math.round((1 - t) * B))
+        )
+            .toString(16)
+            .slice(1)
+    );
+}
+
+function getContrastingTextColor(hex) {
+    if (!hex || hex.length < 7) return '#1f2937';
+    const r = parseInt(hex.substr(1, 2), 16);
+    const g = parseInt(hex.substr(3, 2), 16);
+    const b = parseInt(hex.substr(5, 2), 16);
+    const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+    return yiq >= 128 ? '#111827' : '#ffffff';
+}
+
+function applyCustomStyles(settings) {
+    const { colorScheme } = settings;
+    if (!colorScheme) return;
+
+    const styleId = 'custom-color-styles';
+    let styleTag = document.getElementById(styleId);
+    if (!styleTag) {
+        styleTag = document.createElement('style');
+        styleTag.id = styleId;
+        document.head.appendChild(styleTag);
+    }
+    
+    const styles = `
+      :root {
+        --color-primary-bg: ${colorScheme.primary || '#4f46e5'};
+        --color-primary-text: ${getContrastingTextColor(colorScheme.primary)};
+        --color-primary-hover: ${darkenColor(colorScheme.primary || '#4f46e5', 10)};
+        --color-primary-focus-ring: ${colorScheme.primary || '#4f46e5'}99;
+
+        --color-secondary-bg: ${colorScheme.secondary || '#e5e7eb'};
+        --color-secondary-text: ${getContrastingTextColor(colorScheme.secondary)};
+        --color-secondary-hover: ${darkenColor(colorScheme.secondary || '#e5e7eb', 10)};
+        --color-secondary-border: ${darkenColor(colorScheme.secondary || '#e5e7eb', 15)};
+        --color-secondary-focus-ring: ${darkenColor(colorScheme.secondary || '#e5e7eb', 20)}99;
+        
+        --color-danger-bg: ${colorScheme.danger || '#dc2626'};
+        --color-danger-text: ${getContrastingTextColor(colorScheme.danger)};
+        --color-danger-hover: ${darkenColor(colorScheme.danger || '#dc2626', 10)};
+        --color-danger-focus-ring: ${colorScheme.danger || '#dc2626'}99;
+
+        --color-success-bg: ${colorScheme.success || '#16a34a'};
+        --color-success-text: ${getContrastingTextColor(colorScheme.success)};
+        --color-success-hover: ${darkenColor(colorScheme.success || '#16a34a', 10)};
+        --color-success-focus-ring: ${colorScheme.success || '#16a34a'}99;
+
+        --color-warning-bg: ${colorScheme.warning || '#f59e0b'};
+        --color-warning-text: ${getContrastingTextColor(colorScheme.warning)};
+        --color-warning-hover: ${darkenColor(colorScheme.warning || '#f59e0b', 10)};
+        --color-warning-focus-ring: ${colorScheme.warning || '#f59e0b'}99;
+      }
+    `;
+
+    styleTag.innerHTML = styles;
+}
+
+
 // --- Login/Logout Handlers ---
 
 const handleLogin = async (member) => {
@@ -281,7 +358,7 @@ const deleteTeamMember = async (memberId) => {
   try {
     const projectsToUpdate = [];
     const currentProjects = projects.map(p => {
-        const needsUpdate = (p.assignees || []).includes(memberId) || 
+        const needsUpdate = p.assignees.includes(memberId) || 
                             p.teamLeadId === memberId || 
                             (p.goals || []).some(g => (g.metrics || []).some(m => m.memberId === memberId));
         
@@ -289,11 +366,11 @@ const deleteTeamMember = async (memberId) => {
 
         const updatedProject = {
             ...p,
-            assignees: (p.assignees || []).filter(assigneeId => assigneeId !== memberId),
+            assignees: p.assignees.filter(assigneeId => assigneeId !== memberId),
             teamLeadId: p.teamLeadId === memberId ? '' : p.teamLeadId,
             goals: (p.goals || []).map(g => ({
                 ...g,
-                metrics: (g.metrics || []).map(m => m.memberId === memberId ? { ...m, memberId: '' } : m)
+                metrics: (g.metrics || []).map(m => m.memberId === memberId ? { ...m, memberId: undefined } : m)
             }))
         };
         projectsToUpdate.push(updatedProject);
@@ -395,6 +472,7 @@ const handleExport = (dataType) => {
       id: m.id,
       name: m.name,
       email: m.email,
+      phoneNumber: m.phoneNumber || '',
       employeeId: m.employeeId || '',
       joinDate: m.joinDate || '',
       birthDate: m.birthDate || '',
@@ -461,6 +539,8 @@ const handleImport = async (file, dataType) => {
 const renderApp = () => {
   if (!rootElement) return;
 
+  applyCustomStyles(appSettings);
+
   document.title = appSettings.appName || 'TeamSync';
   const faviconLink = document.querySelector("link[rel~='icon']");
   if (faviconLink) {
@@ -471,7 +551,7 @@ const renderApp = () => {
   rootElement.removeAttribute('class'); 
 
   if (!currentUser) {
-    renderLoginPage(rootElement, { onLogin: handleLogin, teamMembers });
+    renderLoginPage(rootElement, { onLogin: handleLogin, teamMembers, appSettings });
     return;
   }
   
@@ -572,7 +652,14 @@ const loadInitialData = async (seedDataIfEmpty = true) => {
         maxTeamMembers: 20,
         welcomeMessage: 'Welcome back,',
         defaultProjectPriority: 'Medium',
-        defaultTheme: 'User Choice'
+        defaultTheme: 'User Choice',
+        colorScheme: {
+            primary: '#4f46e5',
+            secondary: '#e5e7eb',
+            danger: '#dc2626',
+            success: '#16a34a',
+            warning: '#f59e0b',
+        }
     };
 
     // Check for missing keys and add defaults
@@ -613,6 +700,7 @@ const loadInitialData = async (seedDataIfEmpty = true) => {
     }
     
     // Theme application logic
+    applyCustomStyles(appSettings);
     const theme = appSettings.defaultTheme || 'User Choice';
     if (theme === 'Dark') {
         document.documentElement.classList.add('dark');
