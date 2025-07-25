@@ -177,6 +177,32 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
       const list = document.createElement('ul');
       list.className = 'assignee-select-list';
 
+      const closeDropdown = () => {
+          isOpen = false;
+          dropdown.style.display = 'none';
+          document.removeEventListener('click', handleOutsideClick);
+      };
+
+      const openDropdown = () => {
+          isOpen = true;
+          dropdown.style.display = 'block';
+          renderList();
+          // Add listener on the next tick to avoid capturing the current click
+          setTimeout(() => document.addEventListener('click', handleOutsideClick), 0);
+      };
+
+      const handleOutsideClick = (e) => {
+          if (isOpen && !container.contains(e.target)) {
+              closeDropdown();
+          }
+      };
+      
+      inputWrapper.addEventListener('click', (e) => {
+          if (!isOpen) {
+              openDropdown();
+          }
+      });
+      
       const updatePills = () => {
           pillsContainer.innerHTML = '';
           selectedAssignees.forEach(id => {
@@ -255,24 +281,6 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
       searchInput.querySelector('input').addEventListener('input', (e) => {
         searchTerm = e.target.value;
         filterList();
-      });
-
-      const handleOutsideClick = (e) => {
-        if (isOpen && !container.contains(e.target)) {
-            isOpen = false;
-            dropdown.style.display = 'none';
-            document.removeEventListener('click', handleOutsideClick);
-        }
-      };
-
-      inputWrapper.addEventListener('click', (e) => {
-          e.stopPropagation();
-          if (!isOpen) {
-              isOpen = true;
-              dropdown.style.display = 'block';
-              renderList();
-              document.addEventListener('click', handleOutsideClick);
-          }
       });
       
       dropdown.append(searchInput, list);
