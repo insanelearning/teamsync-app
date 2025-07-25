@@ -8,6 +8,9 @@ import { PRIORITIES } from '../constants.js';
 
 let currentModalInstance = null;
 let localSettings = {};
+let taskCurrentPage = 1;
+const tasksPerPage = 5;
+
 
 function closeModal() {
     closeGlobalModal();
@@ -481,14 +484,25 @@ export function renderAdminPage(container, { appSettings, onUpdateSettings }) {
 
         const tasksTableContainer = document.createElement('div');
         tasksTableContainer.className = 'data-table-container';
-        if (!localSettings.workLogTasks || localSettings.workLogTasks.length === 0) {
+        
+        const tasks = localSettings.workLogTasks || [];
+        const totalTasks = tasks.length;
+        const totalPages = Math.ceil(totalTasks / tasksPerPage) || 1;
+        if (taskCurrentPage > totalPages) taskCurrentPage = totalPages;
+
+        const startIndex = (taskCurrentPage - 1) * tasksPerPage;
+        const endIndex = startIndex + tasksPerPage;
+        const tasksForPage = tasks.slice(startIndex, endIndex);
+
+        if (tasksForPage.length === 0) {
             tasksTableContainer.innerHTML = `<p class="admin-list-empty">No tasks defined.</p>`;
         } else {
             const table = document.createElement('table');
             table.className = 'data-table admin-tasks-table';
             table.innerHTML = `<thead><tr><th>Task Name</th><th>Category</th><th>Assigned Teams</th><th class="action-cell">Actions</th></tr></thead>`;
             const tbody = document.createElement('tbody');
-            (localSettings.workLogTasks || []).forEach((task, index) => {
+            tasksForPage.forEach((task) => {
+                const index = localSettings.workLogTasks.indexOf(task);
                 const tr = document.createElement('tr');
                 tr.innerHTML = `<td>${task.name}</td><td>${task.category}</td><td>${(task.teams || []).join(', ') || 'None'}</td>`;
                 const actionCell = document.createElement('td');
@@ -512,6 +526,22 @@ export function renderAdminPage(container, { appSettings, onUpdateSettings }) {
             tasksTableContainer.appendChild(table);
         }
         tasksFieldset.appendChild(tasksTableContainer);
+
+        // Pagination for Tasks Table
+        const paginationContainer = document.createElement('div');
+        paginationContainer.className = 'pagination-controls';
+        if (totalPages > 1) {
+            const navContainer = document.createElement('div');
+            navContainer.className = 'pagination-nav';
+            const pageInfo = document.createElement('span');
+            pageInfo.textContent = `Page ${taskCurrentPage} of ${totalPages}`;
+            const prevButton = Button({ children: 'Prev', variant: 'secondary', size: 'sm', disabled: taskCurrentPage === 1, onClick: () => { taskCurrentPage--; rerenderPage(); }});
+            const nextButton = Button({ children: 'Next', variant: 'secondary', size: 'sm', disabled: taskCurrentPage >= totalPages, onClick: () => { taskCurrentPage++; rerenderPage(); }});
+            navContainer.append(prevButton, pageInfo, nextButton);
+            paginationContainer.append(document.createElement('div'), navContainer);
+        }
+        tasksFieldset.appendChild(paginationContainer);
+
         form.appendChild(tasksFieldset);
 
         // --- Save Form ---
