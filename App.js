@@ -281,7 +281,7 @@ const deleteTeamMember = async (memberId) => {
   try {
     const projectsToUpdate = [];
     const currentProjects = projects.map(p => {
-        const needsUpdate = p.assignees.includes(memberId) || 
+        const needsUpdate = (p.assignees || []).includes(memberId) || 
                             p.teamLeadId === memberId || 
                             (p.goals || []).some(g => (g.metrics || []).some(m => m.memberId === memberId));
         
@@ -289,11 +289,11 @@ const deleteTeamMember = async (memberId) => {
 
         const updatedProject = {
             ...p,
-            assignees: p.assignees.filter(assigneeId => assigneeId !== memberId),
+            assignees: (p.assignees || []).filter(assigneeId => assigneeId !== memberId),
             teamLeadId: p.teamLeadId === memberId ? '' : p.teamLeadId,
             goals: (p.goals || []).map(g => ({
                 ...g,
-                metrics: (g.metrics || []).map(m => m.memberId === memberId ? { ...m, memberId: undefined } : m)
+                metrics: (g.metrics || []).map(m => m.memberId === memberId ? { ...m, memberId: '' } : m)
             }))
         };
         projectsToUpdate.push(updatedProject);
