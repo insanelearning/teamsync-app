@@ -328,10 +328,10 @@ export function renderProjectsPage(container, props) {
     const actionsWrapper = document.createElement('div');
     actionsWrapper.className = "page-header-actions";
     actionsWrapper.append(
-      Button({ children: 'Export CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>', onClick: onExport }),
+      Button({ children: 'Export CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>', onClick: () => onExport('projects') }),
       FileUploadButton({
           children: 'Import CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-import"></i>', accept: '.csv',
-          onFileSelect: (file) => { if (file) onImport(file); }
+          onFileSelect: (file) => { if (file) onImport(file, 'projects'); }
       }),
       Button({ children: 'Add Project', size: 'sm', leftIcon: '<i class="fas fa-plus"></i>', onClick: openModalForNew })
     );
@@ -367,21 +367,15 @@ export function renderProjectsPage(container, props) {
   function createFilters() {
     const filtersDiv = document.createElement('div');
     filtersDiv.className = "filters-container";
-
-    const filterHeader = document.createElement('div');
-    filterHeader.className = 'filters-header';
-    const filterTitle = document.createElement('h3');
-    filterTitle.className = 'chart-title';
-    filterTitle.textContent = 'Filter & Sort Projects';
-    filterHeader.appendChild(filterTitle);
-    
     const filterGrid = document.createElement('div');
     filterGrid.className = "filters-grid";
 
-    function createFilterInput(type, placeholder, onUpdate) {
+    function createFilterInput(type, placeholder, onUpdate, value) {
       const input = document.createElement('input');
-      input.type = type; input.placeholder = placeholder;
+      input.type = type; 
+      input.placeholder = placeholder;
       input.className = "form-input";
+      input.value = value;
       input.oninput = (e) => { onUpdate(e.target.value); rerenderMainContent(); };
       return input;
     }
@@ -403,42 +397,34 @@ export function renderProjectsPage(container, props) {
     ];
 
     filterGrid.append(
-      createFilterInput('text', 'Search projects...', val => searchTerm = val),
-      createFilterSelect(projectStatuses.map(s => ({value: s, label: s})), 'All Statuses', val => statusFilter = val),
-      createFilterSelect(teamMembers.map(m => ({value: m.id, label: m.name})), 'Any Assignee', val => assigneeFilter = val),
-      createFilterSelect(teamMembers.map(m => ({value: m.id, label: m.name})), 'Any Team Lead', val => teamLeadFilter = val),
-      createFilterSelect(uniqueProjectTypes.map(t => ({value: t, label: t})), 'All Types', val => projectTypeFilter = val),
-      createFilterSelect(uniqueProjectCategories.map(c => ({value: c, label: c})), 'All Categories', val => projectCategoryFilter = val),
+      createFilterInput('text', 'Search projects...', val => searchTerm = val, searchTerm),
+      createFilterSelect(projectStatuses.map(s => ({value: s, label: s})), 'All Statuses', val => statusFilter = val, statusFilter),
+      createFilterSelect(teamMembers.map(m => ({value: m.id, label: m.name})), 'Any Assignee', val => assigneeFilter = val, assigneeFilter),
+      createFilterSelect(teamMembers.map(m => ({value: m.id, label: m.name})), 'Any Team Lead', val => teamLeadFilter = val, teamLeadFilter),
+      createFilterSelect(uniqueProjectTypes.map(t => ({value: t, label: t})), 'All Types', val => projectTypeFilter = val, projectTypeFilter),
+      createFilterSelect(uniqueProjectCategories.map(c => ({value: c, label: c})), 'All Categories', val => projectCategoryFilter = val, projectCategoryFilter),
       createFilterSelect(sortOptions, '', val => sortOrder = val, sortOrder)
     );
-    
-    const handleReset = () => {
-        searchTerm = ''; statusFilter = ''; assigneeFilter = ''; teamLeadFilter = ''; 
-        projectTypeFilter = ''; projectCategoryFilter = ''; sortOrder = 'dueDateAsc';
-        
-        // Reset form elements visually
-        const inputs = filterGrid.querySelectorAll('input, select');
-        inputs.forEach(input => {
-            if (input.tagName === 'INPUT') {
-                input.value = '';
-            } else if (input.id === 'sortOrderSelect') { // Assuming you add an ID for sort
-                input.value = 'dueDateAsc';
-            } else {
-                input.value = '';
-            }
-        });
-        rerenderMainContent();
-    };
-    
-    const resetButton = Button({ children: '<i class="fas fa-undo"></i> Reset', variant: 'ghost', size: 'sm', onClick: handleReset });
-    filterHeader.appendChild(resetButton);
-    
-    filtersDiv.appendChild(filterHeader);
+
+    const resetButton = Button({
+        children: 'Reset',
+        variant: 'ghost',
+        size: 'sm',
+        leftIcon: '<i class="fas fa-undo"></i>',
+        onClick: () => {
+            searchTerm = '';
+            statusFilter = '';
+            assigneeFilter = '';
+            teamLeadFilter = '';
+            projectTypeFilter = '';
+            projectCategoryFilter = '';
+            sortOrder = 'dueDateAsc';
+            rerenderMainContent();
+        }
+    });
+    filterGrid.appendChild(resetButton);
+
     filtersDiv.appendChild(filterGrid);
-    
-    // Quick-assign an ID for the reset handler
-    filterGrid.querySelector('select:last-child').id = 'sortOrderSelect';
-    
     return filtersDiv;
   }
 
@@ -695,19 +681,36 @@ export function renderProjectsPage(container, props) {
                     if (hasTarget) {
                         const currentValue = isNaN(Number(metric.fieldValue)) ? 0 : Number(metric.fieldValue);
                         const targetValue = Number(metric.targetValue);
-                        const percentage = targetValue > 0 ? (currentValue / targetValue) * 100 : 0;
-                        tdProgress.appendChild(createProgressBar(percentage));
+                        const percentage = Math.max(0, Math.min(100, (currentValue / targetValue) * 100));
+                        
+                        const progressContainer = document.createElement('div');
+                        progressContainer.className = 'progress-bar-with-text';
+                        
+                        const progressBarContainer = document.createElement('div');
+                        progressBarContainer.className = 'progress-bar-container';
+                        const progressBarFill = document.createElement('div');
+                        progressBarFill.className = 'progress-bar-fill';
+                        progressBarFill.style.width = `${percentage}%`;
+                        progressBarContainer.appendChild(progressBarFill);
+                        
+                        const progressText = document.createElement('span');
+                        progressText.className = 'progress-bar-text';
+                        progressText.textContent = `${metric.fieldValue}`;
+                        
+                        progressContainer.append(progressBarContainer, progressText);
+                        tdProgress.appendChild(progressContainer);
                     } else {
                         tdProgress.textContent = metric.fieldValue;
                     }
                     tr.appendChild(tdProgress);
-                    
+
                     const tdTarget = document.createElement('td');
                     tdTarget.textContent = metric.targetValue || 'N/A';
                     tr.appendChild(tdTarget);
 
                     tbody.appendChild(tr);
                 });
+
                 table.appendChild(tbody);
                 tableContainer.appendChild(table);
                 goalDiv.appendChild(tableContainer);
@@ -716,98 +719,60 @@ export function renderProjectsPage(container, props) {
         });
         detailView.appendChild(goalsContainerDiv);
     }
+
     return detailView;
   }
 
   function openModalWithProject(project) {
-    const canEdit = isManager || (project.assignees || []).includes(currentUser.id) || project.teamLeadId === currentUser.id;
-    let activeTab = 'details';
+    let isEditing = false;
+    let modalEl, modalBody, modalFooter;
 
-    const modalContent = document.createElement('div');
-    modalContent.className = 'project-modal-tab-container';
+    const renderContent = () => {
+        modalBody.innerHTML = '';
+        modalFooter.innerHTML = '';
 
-    const tabs = document.createElement('div');
-    tabs.className = 'modal-tabs';
-
-    const tabContent = document.createElement('div');
-    tabContent.className = 'project-modal-tab-content';
-
-    modalContent.append(tabs, tabContent);
-
-    const renderTabsAndContent = () => {
-        tabs.innerHTML = '';
-        tabContent.innerHTML = '';
-
-        const detailsTabBtn = Button({
-            children: 'Details',
-            variant: activeTab === 'details' ? 'primary' : 'secondary',
-            size: 'sm',
-            onClick: () => {
-                if (activeTab === 'details') return;
-                activeTab = 'details';
-                renderTabsAndContent();
-            }
-        });
-        
-        tabs.appendChild(detailsTabBtn);
-
-        if (canEdit) {
-            const editTabBtn = Button({
-                children: 'Edit',
-                variant: activeTab === 'edit' ? 'primary' : 'secondary',
-                size: 'sm',
-                onClick: () => {
-                    if (activeTab === 'edit') return;
-                    activeTab = 'edit';
-                    renderTabsAndContent();
-                }
-            });
-            tabs.appendChild(editTabBtn);
-        }
-
-        if (activeTab === 'details') {
-            tabContent.appendChild(renderProjectDetailView(project));
-        } else { // 'edit'
-            tabContent.innerHTML = ''; // Clear previous content before adding form
+        if (isEditing) {
             const formElement = ProjectForm({
                 project, teamMembers, projectStatuses, appSettings,
                 onSave: (projectData) => {
                     onUpdateProject(projectData);
                     closeModal();
                 },
-                onCancel: () => { 
-                    activeTab = 'details';
-                    renderTabsAndContent();
+                onCancel: () => {
+                    isEditing = false;
+                    renderContent(); // Go back to view mode
                 }
             });
-            tabContent.appendChild(formElement);
+            modalBody.appendChild(formElement);
+            // Footer is handled by form's action buttons
+        } else {
+            modalBody.appendChild(renderProjectDetailView(project));
+
+            const footerButtons = [];
+            if (isManager) {
+                footerButtons.push(Button({ children: 'Delete', variant: 'danger', onClick: () => handleDeleteProject(project.id) }));
+                footerButtons.push(Button({ children: 'Edit', variant: 'primary', onClick: () => { isEditing = true; renderContent(); } }));
+            }
+            footerButtons.push(Button({ children: 'Close', variant: 'secondary', onClick: closeModal }));
+            
+            modalFooter.append(...footerButtons);
         }
     };
     
-    let footerButtons = [];
-    if (isManager) {
-        footerButtons.push(Button({
-            children: 'Delete Project',
-            variant: 'danger',
-            onClick: () => handleDeleteProject(project.id)
-        }));
-    }
-    footerButtons.push(Button({
-        children: 'Close',
-        variant: 'secondary',
-        onClick: closeModal
-    }));
-    
-    currentModalInstance = Modal({
-      isOpen: true,
-      onClose: closeModal,
-      title: project.name,
-      children: modalContent,
-      footer: footerButtons,
-      size: 'xl'
+    modalEl = Modal({
+        isOpen: true,
+        onClose: closeModal,
+        title: project.name,
+        children: document.createElement('div'), // Placeholder
+        footer: document.createElement('div'),   // Placeholder
+        size: 'xl'
     });
     
-    renderTabsAndContent();
+    // After Modal creates the elements, grab them to manage content
+    modalBody = modalEl.querySelector('.modal-body');
+    modalFooter = modalEl.querySelector('.modal-footer');
+    currentModalInstance = modalEl;
+    renderContent();
   }
 
   rerenderMainContent();
