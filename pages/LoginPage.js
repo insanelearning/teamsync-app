@@ -1,22 +1,16 @@
 
 
-export function renderLoginPage(container, { onLogin, teamMembers, appSettings }) {
+export function renderLoginPage(container, { onLogin, teamMembers }) {
     container.innerHTML = '';
     container.className = 'login-page-container';
 
     const loginBox = document.createElement('div');
     loginBox.className = 'login-box';
 
-    const logoUrl = appSettings?.appLogoUrl;
-    const appName = appSettings?.appName || 'TeamSync';
-
     loginBox.innerHTML = `
         <div class="login-logo">
-            ${logoUrl 
-                ? `<img src="${logoUrl}" alt="Logo" class="navbar-logo-image"/>` 
-                : `<i class="fas fa-sync-alt navbar-logo-icon"></i>`
-            }
-            <span>${appName}</span>
+            <i class="fas fa-sync-alt navbar-logo-icon"></i>
+            <span>TeamSync</span>
         </div>
         <h2 class="login-title">Sign in to your account</h2>
         <p class="login-subtitle">Enter your email address to continue.</p>
