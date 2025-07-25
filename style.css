@@ -1966,6 +1966,7 @@ footer.app-footer {
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    white-space: nowrap;
 }
 .dark .view-toggle-button {
     color: #d1d5db;
@@ -1976,8 +1977,8 @@ footer.app-footer {
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 .dark .view-toggle-button.active {
-    background-color: #4f46e5;
-    color: #ffffff;
+    background-color: #ffffff;
+    color: #4f46e5;
 }
 
 /* Projects Table */
