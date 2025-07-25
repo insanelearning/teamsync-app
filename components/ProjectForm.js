@@ -177,32 +177,6 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
       const list = document.createElement('ul');
       list.className = 'assignee-select-list';
 
-      const closeDropdown = () => {
-          isOpen = false;
-          dropdown.style.display = 'none';
-          document.removeEventListener('click', handleOutsideClick);
-      };
-
-      const openDropdown = () => {
-          isOpen = true;
-          dropdown.style.display = 'block';
-          renderList();
-          // Add listener on the next tick to avoid capturing the current click
-          setTimeout(() => document.addEventListener('click', handleOutsideClick), 0);
-      };
-
-      const handleOutsideClick = (e) => {
-          if (isOpen && !container.contains(e.target)) {
-              closeDropdown();
-          }
-      };
-      
-      inputWrapper.addEventListener('click', (e) => {
-          if (!isOpen) {
-              openDropdown();
-          }
-      });
-      
       const updatePills = () => {
           pillsContainer.innerHTML = '';
           selectedAssignees.forEach(id => {
@@ -281,6 +255,42 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
       searchInput.querySelector('input').addEventListener('input', (e) => {
         searchTerm = e.target.value;
         filterList();
+      });
+
+      const getEventTarget = () => {
+          // Find the nearest modal body to scope the listener, fallback to document.
+          return container.closest('.modal-body') || document;
+      }
+      
+      const handleOutsideClick = (e) => {
+        // This handler is now on modal-body or document.
+        // We only close if the click is outside our component container.
+        if (isOpen && !container.contains(e.target)) {
+            isOpen = false;
+            dropdown.style.display = 'none';
+            // Clean up the listener from the same target it was added to.
+            getEventTarget().removeEventListener('click', handleOutsideClick);
+        }
+      };
+
+      inputWrapper.addEventListener('click', (e) => {
+          e.stopPropagation(); // Prevent this click from being caught by handleOutsideClick
+          
+          const wasOpen = isOpen;
+
+          // If it was already open, we close it.
+          if (wasOpen) {
+              isOpen = false;
+              dropdown.style.display = 'none';
+              getEventTarget().removeEventListener('click', handleOutsideClick);
+          } else {
+          // If it was closed, we open it.
+              isOpen = true;
+              dropdown.style.display = 'block';
+              renderList();
+              // And attach the listener to close it when clicking "outside".
+              getEventTarget().addEventListener('click', handleOutsideClick);
+          }
       });
       
       dropdown.append(searchInput, list);
