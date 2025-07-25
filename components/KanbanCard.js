@@ -35,9 +35,6 @@ export function KanbanCard({ project, teamMembers, isManager, onEdit, onDelete }
   const cardBody = document.createElement('div');
   cardBody.style.cursor = 'pointer';
   cardBody.style.flexGrow = '1';
-  cardBody.style.display = 'flex';
-  cardBody.style.flexDirection = 'column';
-  cardBody.style.gap = '0.75rem';
   cardBody.onclick = () => onEdit(project);
   
   const title = document.createElement('h4');
@@ -64,10 +61,7 @@ export function KanbanCard({ project, teamMembers, isManager, onEdit, onDelete }
   const dueDate = document.createElement('div');
   dueDate.className = 'kanban-card-duedate';
   const isOverdue = new Date(project.dueDate) < new Date() && project.status !== 'Done';
-  if (isOverdue) {
-    dueDate.style.color = '#ef4444';
-    dueDate.style.fontWeight = '600';
-  }
+  dueDate.style.color = isOverdue ? '#ef4444' : '';
   dueDate.innerHTML = `
       <i class="far fa-calendar-alt"></i>
       <span>${new Date(project.dueDate).toLocaleDateString(undefined, {month: 'short', day: 'numeric'})}</span>

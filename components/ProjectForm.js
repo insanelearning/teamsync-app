@@ -257,39 +257,21 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
         filterList();
       });
 
-      const getEventTarget = () => {
-          // Find the nearest modal body to scope the listener, fallback to document.
-          return container.closest('.modal-body') || document;
-      }
-      
       const handleOutsideClick = (e) => {
-        // This handler is now on modal-body or document.
-        // We only close if the click is outside our component container.
         if (isOpen && !container.contains(e.target)) {
             isOpen = false;
             dropdown.style.display = 'none';
-            // Clean up the listener from the same target it was added to.
-            getEventTarget().removeEventListener('click', handleOutsideClick);
+            document.removeEventListener('click', handleOutsideClick);
         }
       };
 
       inputWrapper.addEventListener('click', (e) => {
-          e.stopPropagation(); // Prevent this click from being caught by handleOutsideClick
-          
-          const wasOpen = isOpen;
-
-          // If it was already open, we close it.
-          if (wasOpen) {
-              isOpen = false;
-              dropdown.style.display = 'none';
-              getEventTarget().removeEventListener('click', handleOutsideClick);
-          } else {
-          // If it was closed, we open it.
+          e.stopPropagation();
+          if (!isOpen) {
               isOpen = true;
               dropdown.style.display = 'block';
               renderList();
-              // And attach the listener to close it when clicking "outside".
-              getEventTarget().addEventListener('click', handleOutsideClick);
+              document.addEventListener('click', handleOutsideClick);
           }
       });
       

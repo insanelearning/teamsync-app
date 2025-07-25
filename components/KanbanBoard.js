@@ -12,8 +12,7 @@ export function KanbanBoard({ projects, projectStatuses, teamMembers, currentUse
         column.className = 'kanban-column';
         column.dataset.status = status;
 
-        const projectsInColumn = projects.filter(p => p.status === status)
-                                         .sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate));
+        const projectsInColumn = projects.filter(p => p.status === status);
 
         const header = document.createElement('div');
         header.className = 'kanban-column-header';
@@ -46,19 +45,19 @@ export function KanbanBoard({ projects, projectStatuses, teamMembers, currentUse
         container.appendChild(column);
 
         // Drag and Drop Event Listeners
-        body.addEventListener('dragover', (e) => {
+        column.addEventListener('dragover', (e) => {
             e.preventDefault(); // Necessary to allow dropping
             const draggingCard = document.querySelector('.kanban-card.dragging');
-            if (draggingCard && draggingCard.parentElement !== body) { // Check if a valid card is being dragged
+            if (draggingCard) { // Check if a valid card is being dragged
                 column.classList.add('drag-over');
             }
         });
 
-        body.addEventListener('dragleave', () => {
+        column.addEventListener('dragleave', () => {
             column.classList.remove('drag-over');
         });
 
-        body.addEventListener('drop', (e) => {
+        column.addEventListener('drop', (e) => {
             e.preventDefault();
             column.classList.remove('drag-over');
             const projectId = e.dataTransfer.getData('text/plain');
@@ -66,7 +65,7 @@ export function KanbanBoard({ projects, projectStatuses, teamMembers, currentUse
 
             const projectToUpdate = projects.find(p => p.id === projectId);
             if (projectToUpdate && projectToUpdate.status !== newStatus) {
-                const updatedProject = { ...projectToUpdate, status: newStatus, updatedAt: new Date().toISOString() };
+                const updatedProject = { ...projectToUpdate, status: newStatus };
                 onUpdateProject(updatedProject);
             }
         });
