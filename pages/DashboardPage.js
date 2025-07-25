@@ -101,17 +101,18 @@ function renderDailyStandup(props) {
     let selectedDate = new Date().toISOString().split('T')[0];
     let activeTab = 'attendance'; // 'attendance' or 'worklogs'
 
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'standup-content';
+
     const rerenderContent = () => {
-        const contentContainer = container.querySelector('.standup-content');
-        if (!contentContainer) return;
-        contentContainer.innerHTML = ''; // Clear previous content
+        contentDiv.innerHTML = ''; // Clear previous content
 
         const dateObj = new Date(selectedDate + 'T00:00:00');
         const isWeekend = [0, 6].includes(dateObj.getDay());
         const holiday = (holidays || []).find(h => h.date === selectedDate);
 
         if (isWeekend || holiday) {
-            contentContainer.innerHTML = `<div class="attendance-card-non-working-status" style="margin-top: 1rem;">${holiday ? `<i class="fas fa-calendar-star"></i> Holiday: ${holiday.name}` : `<i class="fas fa-bed"></i> Week Off`}</div>`;
+            contentDiv.innerHTML = `<div class="attendance-card-non-working-status" style="margin-top: 1rem;">${holiday ? `<i class="fas fa-calendar-star"></i> Holiday: ${holiday.name}` : `<i class="fas fa-bed"></i> Week Off`}</div>`;
             return;
         }
 
@@ -119,7 +120,6 @@ function renderDailyStandup(props) {
 
         if (activeTab === 'attendance') {
             const stats = { present: 0, wfh: 0, leave: 0, notMarked: 0 };
-            const membersOnLeave = [];
             
             teamMembers.forEach(member => {
                 const record = todaysRecords.find(r => r.memberId === member.id);
@@ -128,22 +128,16 @@ function renderDailyStandup(props) {
                 else if (record.status === 'Work From Home') stats.wfh++;
                 else if (record.status === 'Leave') {
                     stats.leave++;
-                    membersOnLeave.push({ name: member.name, leaveType: record.leaveType || 'Unspecified' });
                 }
             });
             
-            contentContainer.innerHTML = `
+            contentDiv.innerHTML = `
                 <div class="attendance-stats">
                     <div class="stat-item" title="Present"><i class="fas fa-user-check" style="color: #22c55e;"></i> ${stats.present} Present</div>
                     <div class="stat-item" title="Work From Home"><i class="fas fa-laptop-house" style="color: #3b82f6;"></i> ${stats.wfh} WFH</div>
                     <div class="stat-item" title="On Leave"><i class="fas fa-umbrella-beach" style="color: #f97316;"></i> ${stats.leave} On Leave</div>
                     <div class="stat-item" title="Not Marked"><i class="fas fa-question-circle" style="color: #6b7280;"></i> ${stats.notMarked} Not Marked</div>
                 </div>
-                ${membersOnLeave.length > 0 ? `
-                    <h4 style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin: 1rem 0 0.5rem 0;">Members on Leave</h4>
-                    <ul class="log-status-list">
-                        ${membersOnLeave.map(m => `<li class="log-status-item"><span>${m.name}</span><span style="font-size:0.8rem;color:#f97316;">${m.leaveType}</span></li>`).join('')}
-                    </ul>` : ''}
             `;
         } else { // 'worklogs' tab
             const logsForDate = workLogs.filter(log => log.date === selectedDate);
@@ -152,7 +146,7 @@ function renderDailyStandup(props) {
                 return acc;
             }, {});
 
-            contentContainer.innerHTML = `
+            contentDiv.innerHTML = `
                 <h4 style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin: 0 0 0.5rem 0;">Work Log Status</h4>
                 <ul class="log-status-list">
                     ${teamMembers.map(m => `
@@ -178,34 +172,39 @@ function renderDailyStandup(props) {
     header.appendChild(datePicker);
     container.appendChild(header);
 
-    // --- Tabs ---
-    const tabs = document.createElement('div');
-    tabs.className = 'standup-tabs';
+    // --- Tabs as Toggle Switch ---
+    const toggleContainer = document.createElement('div');
+    toggleContainer.className = 'standup-toggle-container';
+
+    const viewToggleGroup = document.createElement('div');
+    viewToggleGroup.className = 'view-toggle-group';
+
     const attendanceBtn = document.createElement('button');
-    attendanceBtn.className = 'standup-tab-btn active';
+    attendanceBtn.className = 'view-toggle-button active';
     attendanceBtn.textContent = 'Attendance';
     const workLogsBtn = document.createElement('button');
-    workLogsBtn.className = 'standup-tab-btn';
+    workLogsBtn.className = 'view-toggle-button';
     workLogsBtn.textContent = 'Work Logs';
 
     attendanceBtn.onclick = () => {
+        if (activeTab === 'attendance') return;
         activeTab = 'attendance';
         attendanceBtn.classList.add('active');
         workLogsBtn.classList.remove('active');
         rerenderContent();
     };
     workLogsBtn.onclick = () => {
+        if (activeTab === 'worklogs') return;
         activeTab = 'worklogs';
         workLogsBtn.classList.add('active');
         attendanceBtn.classList.remove('active');
         rerenderContent();
     };
 
-    tabs.append(attendanceBtn, workLogsBtn);
-    container.appendChild(tabs);
-
-    const contentDiv = document.createElement('div');
-    contentDiv.className = 'standup-content';
+    viewToggleGroup.append(attendanceBtn, workLogsBtn);
+    toggleContainer.appendChild(viewToggleGroup);
+    container.appendChild(toggleContainer);
+    
     container.appendChild(contentDiv);
     
     rerenderContent(); // Initial render
