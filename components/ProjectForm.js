@@ -257,24 +257,32 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
         filterList();
       });
 
-      const handleOutsideClick = (e) => {
-        if (isOpen && !container.contains(e.target)) {
-            isOpen = false;
-            dropdown.style.display = 'none';
-            document.removeEventListener('click', handleOutsideClick);
-        }
+      const closeDropdownOnOutsideClick = (e) => {
+          if (!container.contains(e.target)) {
+              toggleDropdown(false);
+          }
       };
 
+      const toggleDropdown = (forceOpen) => {
+          const shouldBeOpen = typeof forceOpen === 'boolean' ? forceOpen : !isOpen;
+          if (isOpen === shouldBeOpen) return;
+          
+          isOpen = shouldBeOpen;
+          dropdown.style.display = isOpen ? 'block' : 'none';
+
+          if (isOpen) {
+              renderList();
+              document.addEventListener('click', closeDropdownOnOutsideClick);
+          } else {
+              document.removeEventListener('click', closeDropdownOnOutsideClick);
+          }
+      };
+      
       inputWrapper.addEventListener('click', (e) => {
           e.stopPropagation();
-          if (!isOpen) {
-              isOpen = true;
-              dropdown.style.display = 'block';
-              renderList();
-              document.addEventListener('click', handleOutsideClick);
-          }
+          toggleDropdown();
       });
-      
+
       dropdown.append(searchInput, list);
       inputWrapper.appendChild(pillsContainer);
       container.append(inputWrapper, dropdown);
