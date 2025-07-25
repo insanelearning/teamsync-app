@@ -1,5 +1,4 @@
 
-
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { WorkLogForm } from '../components/WorkLogForm.js';
@@ -10,31 +9,45 @@ let currentModalInstance = null;
 
 function formatMinutes(minutes) {
     const totalMinutes = Math.round(minutes);
-    if (isNaN(totalMinutes) || totalMinutes < 0) return '0h 0m';
+    if (isNaN(totalMinutes) || totalMinutes < 0) return '0m';
     const h = Math.floor(totalMinutes / 60);
     const m = totalMinutes % 60;
-    return `${h}h ${m}m`;
+    return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
 export function renderWorkLogPage(container, props) {
-    const { workLogs, teamMembers, projects, currentUser, onAddMultipleWorkLogs, onUpdateWorkLog, onDeleteWorkLog, onExport, onImport, workLogTasks } = props;
+    const {
+        workLogs,
+        teamMembers,
+        projects,
+        currentUser,
+        appSettings,
+        onAddMultipleWorkLogs,
+        onUpdateWorkLog,
+        onDeleteWorkLog,
+        onExport,
+        onImport,
+    } = props;
 
     const isManager = currentUser.role === TeamMemberRole.Manager;
+
+    // Filtering and pagination state
+    let memberFilter = isManager ? '' : currentUser.id;
+    let projectFilter = '';
+    // Default date range: last 7 days
+    const today = new Date();
+    const sevenDaysAgo = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 6);
+    let startDateFilter = sevenDaysAgo.toISOString().split('T')[0];
+    let endDateFilter = today.toISOString().split('T')[0];
+    
     let currentPage = 1;
     let rowsPerPage = 10;
-
-    let filterState = {
-        memberId: isManager ? '' : currentUser.id,
-        projectId: '',
-        startDate: new Date(new Date().setDate(new Date().getDate() - 29)).toISOString().split('T')[0],
-        endDate: new Date().toISOString().split('T')[0],
-    };
 
     container.innerHTML = '';
     const pageWrapper = document.createElement('div');
     pageWrapper.className = 'page-container';
 
-    // --- Header ---
+    // Header
     const headerDiv = document.createElement('div');
     headerDiv.className = "page-header";
     const headerTitle = document.createElement('h1');
@@ -44,225 +57,215 @@ export function renderWorkLogPage(container, props) {
 
     const actionsWrapper = document.createElement('div');
     actionsWrapper.className = "page-header-actions";
-
+    actionsWrapper.append(
+        Button({
+            children: 'Add Log',
+            size: 'sm',
+            leftIcon: '<i class="fas fa-plus"></i>',
+            onClick: () => openModalForNew(getMemberFilteredTasks())
+        })
+    );
     if (isManager) {
         actionsWrapper.append(
-            Button({ children: 'Export CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>', onClick: onExport }),
+            Button({ children: 'Export Logs', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>', onClick: () => onExport('worklogs') }),
             FileUploadButton({
-                children: 'Import CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-import"></i>', accept: '.csv',
-                onFileSelect: (file) => { if (file) onImport(file); }
+                children: 'Import Logs', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-import"></i>', accept: '.csv',
+                onFileSelect: (file) => { if (file) onImport(file, 'worklogs'); }
             })
         );
     }
-    actionsWrapper.appendChild(Button({ children: 'Add Work Log', size: 'sm', leftIcon: '<i class="fas fa-plus"></i>', onClick: () => openModal() }));
-    
     headerDiv.appendChild(actionsWrapper);
     pageWrapper.appendChild(headerDiv);
-
-    // --- Summary Section ---
+    
     const summaryContainer = document.createElement('div');
-    summaryContainer.className = 'work-log-summary-container';
-    
-    const rangeTotalCard = document.createElement('div');
-    rangeTotalCard.className = 'work-log-summary-card';
-    const avgHoursCard = document.createElement('div');
-    avgHoursCard.className = 'work-log-summary-card';
-    const efficiencyCard = document.createElement('div');
-    efficiencyCard.className = 'work-log-summary-card';
-    
-    summaryContainer.append(rangeTotalCard, avgHoursCard, efficiencyCard);
     pageWrapper.appendChild(summaryContainer);
-
-    // --- Filters & Table Section ---
-    const contentSection = document.createElement('div');
-    contentSection.className = 'attendance-page-section'; // Reuse styles
     
-    // Filters
-    const filtersDiv = document.createElement('div');
-    filtersDiv.className = "filters-container";
-    const filterGrid = document.createElement('div');
-    filterGrid.className = "worklog-filters-grid";
-    
-    // Member Filter (Only for Managers)
-    if (isManager) {
-        const memberFilterContainer = document.createElement('div');
-        memberFilterContainer.innerHTML = `<label for="memberFilter" class="form-label">Member</label>`;
-        const memberFilter = document.createElement('select');
-        memberFilter.id = 'memberFilter';
-        memberFilter.className = "form-select";
-        memberFilter.innerHTML = `<option value="">All Members</option>` + teamMembers.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
-        memberFilter.value = filterState.memberId;
-        memberFilter.onchange = (e) => { filterState.memberId = e.target.value; rerenderPage(); };
-        memberFilterContainer.appendChild(memberFilter);
-        filterGrid.appendChild(memberFilterContainer);
-    }
+    const mainContentContainer = document.createElement('div');
+    mainContentContainer.className = 'attendance-page-section';
+    pageWrapper.appendChild(mainContentContainer);
 
-    // Project Filter
-    const projectFilterContainer = document.createElement('div');
-    projectFilterContainer.innerHTML = `<label for="projectFilter" class="form-label">Project</label>`;
-    const projectFilter = document.createElement('select');
-    projectFilter.id = 'projectFilter';
-    projectFilter.className = "form-select";
-    projectFilter.innerHTML = `<option value="">All Projects</option>` + projects.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
-    projectFilter.value = filterState.projectId;
-    projectFilter.onchange = (e) => { filterState.projectId = e.target.value; rerenderPage(); };
-    projectFilterContainer.appendChild(projectFilter);
-    filterGrid.appendChild(projectFilterContainer);
-
-    // Date Range Filter
-    const dateRangeOuterContainer = document.createElement('div');
-    dateRangeOuterContainer.className = "filter-date-range-container";
-    dateRangeOuterContainer.innerHTML = `<label class="form-label">Date Range</label>`;
-
-    const dateRangeInnerContainer = document.createElement('div');
-    dateRangeInnerContainer.className = "filter-date-range-inner";
-    
-    const startDateInput = document.createElement('input');
-    startDateInput.type = 'date'; startDateInput.className = 'form-input';
-    startDateInput.value = filterState.startDate;
-    startDateInput.setAttribute('aria-label', 'Start Date');
-    startDateInput.onchange = e => { filterState.startDate = e.target.value; rerenderPage(); };
-    
-    const toLabel = document.createElement('span');
-    toLabel.className = 'date-range-separator';
-    toLabel.textContent = 'to';
-
-    const endDateInput = document.createElement('input');
-    endDateInput.type = 'date'; endDateInput.className = 'form-input';
-    endDateInput.value = filterState.endDate;
-    endDateInput.setAttribute('aria-label', 'End Date');
-    endDateInput.onchange = e => { filterState.endDate = e.target.value; rerenderPage(); };
-    dateRangeInnerContainer.append(startDateInput, toLabel, endDateInput);
-    dateRangeOuterContainer.appendChild(dateRangeInnerContainer);
-    filterGrid.appendChild(dateRangeOuterContainer);
-    
-    filtersDiv.appendChild(filterGrid);
-    contentSection.appendChild(filtersDiv);
-
-    // Table
-    const tableContainer = document.createElement('div');
-    tableContainer.className = 'data-table-container';
-    contentSection.appendChild(tableContainer);
-
-    // Pagination
-    const paginationContainer = document.createElement('div');
-    paginationContainer.className = 'pagination-controls';
-    contentSection.appendChild(paginationContainer);
-
-    pageWrapper.appendChild(contentSection);
-
-    function getFilteredLogs() {
-        // Use simple string comparison for YYYY-MM-DD format, which is robust against timezone issues.
-        return workLogs.filter(log => {
-            const isMemberMatch = !filterState.memberId || log.memberId === filterState.memberId;
-            const isProjectMatch = !filterState.projectId || log.projectId === filterState.projectId;
-            const isDateMatch = log.date >= filterState.startDate && log.date <= filterState.endDate;
-
-            return isMemberMatch && isProjectMatch && isDateMatch;
-        }).sort((a,b) => new Date(b.date) - new Date(a.date));
-    }
-    
-    function updateSummaries(logsToSummarize, todaysTotalMinutes) {
-        const totalMinutes = logsToSummarize.reduce((acc, log) => acc + (log.timeSpentMinutes || 0), 0);
-
-        // --- Calculation for person-days (unique member+date combinations) ---
-        const personDays = new Set(logsToSummarize.map(log => `${log.memberId}|${log.date}`)).size;
-
-        // --- Card 1: Selected Range Total ---
-        const start = new Date(filterState.startDate + 'T00:00:00');
-        const end = new Date(filterState.endDate + 'T00:00:00');
-        // Calculate number of days in the selected range
-        const timeDiff = end.getTime() - start.getTime();
-        const dayDiff = timeDiff >= 0 ? Math.round(timeDiff / (1000 * 3600 * 24)) + 1 : 0;
-        const dayDiffText = dayDiff > 0 ? `(${dayDiff} day${dayDiff !== 1 ? 's' : ''})` : '';
+    function getMemberFilteredTasks() {
+        const member = teamMembers.find(m => m.id === (isManager ? memberFilter : currentUser.id));
+        const memberTeam = member?.internalTeam;
         
-        rangeTotalCard.innerHTML = `
-            <div class="label" style="display: flex; justify-content: space-between; align-items: baseline;">
-                <span>Selected Range Total</span>
-                <span style="font-weight: 400; font-size: 0.8rem;">Today: ${formatMinutes(todaysTotalMinutes)}</span>
+        const allTasks = appSettings.workLogTasks || [];
+        const tasksForMember = memberTeam ? allTasks.filter(task => (task.teams || []).includes(memberTeam)) : allTasks;
+
+        const groupedTasks = {};
+        tasksForMember.forEach(task => {
+            if (!groupedTasks[task.category]) {
+                groupedTasks[task.category] = [];
+            }
+            groupedTasks[task.category].push(task);
+        });
+        return groupedTasks;
+    }
+
+
+    function getFilteredAndSortedLogs() {
+        const filtered = workLogs.filter(log =>
+            (!memberFilter || log.memberId === memberFilter) &&
+            (!projectFilter || log.projectId === projectFilter) &&
+            (log.date >= startDateFilter) &&
+            (log.date <= endDateFilter)
+        );
+        return filtered.sort((a, b) => new Date(b.date) - new Date(a.date) || b.createdAt.localeCompare(a.createdAt));
+    }
+    
+    function rerenderContent() {
+        mainContentContainer.innerHTML = '';
+        summaryContainer.innerHTML = '';
+
+        const displayLogs = getFilteredAndSortedLogs();
+        
+        // Render Summary
+        renderSummary(displayLogs);
+        
+        // Render Filters
+        mainContentContainer.appendChild(createFilters());
+        
+        // Render Table
+        renderTable(displayLogs);
+    }
+    
+    function renderSummary(displayLogs) {
+        const totalMinutes = displayLogs.reduce((sum, log) => sum + log.timeSpentMinutes, 0);
+        const uniqueProjects = [...new Set(displayLogs.map(log => log.projectId))];
+        const uniqueMembers = [...new Set(displayLogs.map(log => log.memberId))];
+
+        const summaryGrid = document.createElement('div');
+        summaryGrid.className = 'work-log-summary-container';
+        summaryGrid.innerHTML = `
+            <div class="work-log-summary-card">
+                <div class="label">Total Time Logged</div>
+                <div class="value">${formatMinutes(totalMinutes)}</div>
+                <div class="sub-label">Across ${displayLogs.length} entries</div>
             </div>
-            <div class="value">${formatMinutes(totalMinutes)}</div>
-            <div class="sub-label">${start.toLocaleDateString()} - ${end.toLocaleDateString()} ${dayDiffText}</div>`;
-        
-        // --- Card 2: Average Hours / Day ---
-        const avgMinutesPerPersonDay = personDays > 0 ? (totalMinutes / personDays) : 0;
-        
-        avgHoursCard.innerHTML = `
-            <div class="label">Average Hours / Day</div>
-            <div class="value">${formatMinutes(avgMinutesPerPersonDay)}</div>
-            <div class="sub-label">Avg. per person per workday</div>`;
-
-        // --- Card 3: Efficiency ---
-        const expectedMinutes = personDays * 8 * 60; // 8 hours goal for each person-day
-        const efficiency = expectedMinutes > 0 ? Math.round((totalMinutes / expectedMinutes) * 100) : 0;
-        
-        efficiencyCard.innerHTML = `
-            <div class="label">Efficiency</div>
-            <div class="efficiency-dial" style="--progress: ${efficiency}%;">
-                <div class="dial-center">
-                    <span class="value">${efficiency}%</span>
-                </div>
+            <div class="work-log-summary-card">
+                <div class="label">Total Projects</div>
+                <div class="value">${uniqueProjects.length}</div>
+                <div class="sub-label">Worked on in this period</div>
             </div>
-            <div class="sub-label">Against 8h/day goal</div>`;
+            <div class="work-log-summary-card">
+                <div class="label">Team Members</div>
+                <div class="value">${uniqueMembers.length}</div>
+                <div class="sub-label">Contributed in this period</div>
+            </div>
+        `;
+        summaryContainer.appendChild(summaryGrid);
     }
+    
+    function createFilters() {
+        const filtersDiv = document.createElement('div');
+        filtersDiv.className = "filters-container";
+        const filterGrid = document.createElement('div');
+        filterGrid.className = "worklog-filters-grid";
 
-    function rerenderTableAndPagination(allFilteredLogs) {
-        // Pagination logic
-        const totalRows = allFilteredLogs.length;
-        const totalPages = Math.ceil(totalRows / rowsPerPage) || 1;
-        if (currentPage > totalPages) {
-            currentPage = totalPages;
+        // Member Filter (Manager only)
+        if (isManager) {
+            const memberDiv = document.createElement('div');
+            memberDiv.innerHTML = `<label class="form-label">Team Member</label>`;
+            const memberSelect = document.createElement('select');
+            memberSelect.className = 'form-select';
+            memberSelect.innerHTML = `<option value="">All Members</option>` + teamMembers.map(m => `<option value="${m.id}" ${memberFilter === m.id ? 'selected' : ''}>${m.name}</option>`).join('');
+            memberSelect.onchange = (e) => { memberFilter = e.target.value; rerenderContent(); };
+            memberDiv.appendChild(memberSelect);
+            filterGrid.appendChild(memberDiv);
         }
+
+        // Project Filter
+        const projectDiv = document.createElement('div');
+        projectDiv.innerHTML = `<label class="form-label">Project</label>`;
+        const projectSelect = document.createElement('select');
+        projectSelect.className = 'form-select';
+        projectSelect.innerHTML = `<option value="">All Projects</option>` + projects.map(p => `<option value="${p.id}" ${projectFilter === p.id ? 'selected' : ''}>${p.name}</option>`).join('');
+        projectSelect.onchange = (e) => { projectFilter = e.target.value; rerenderContent(); };
+        projectDiv.appendChild(projectSelect);
+        filterGrid.appendChild(projectDiv);
+
+        // Date Range Filter
+        const dateRangeDiv = document.createElement('div');
+        dateRangeDiv.innerHTML = `<label class="form-label">Date Range</label>`;
+        const innerDiv = document.createElement('div');
+        innerDiv.className = 'filter-date-range-inner';
+        const startDateInput = document.createElement('input');
+        startDateInput.type = 'date'; startDateInput.className = 'form-input'; startDateInput.value = startDateFilter;
+        startDateInput.onchange = (e) => { startDateFilter = e.target.value; rerenderContent(); };
+        const endDateInput = document.createElement('input');
+        endDateInput.type = 'date'; endDateInput.className = 'form-input'; endDateInput.value = endDateFilter;
+        endDateInput.onchange = (e) => { endDateFilter = e.target.value; rerenderContent(); };
+        innerDiv.append(startDateInput, `<span class="date-range-separator">to</span>`, endDateInput);
+        dateRangeDiv.appendChild(innerDiv);
+        filterGrid.appendChild(dateRangeDiv);
+
+        // Reset Button
+        const resetDiv = document.createElement('div');
+        resetDiv.style.alignSelf = 'flex-end';
+        const resetButton = Button({
+            children: 'Reset Filters',
+            variant: 'ghost',
+            onClick: () => {
+                memberFilter = isManager ? '' : currentUser.id;
+                projectFilter = '';
+                startDateFilter = sevenDaysAgo.toISOString().split('T')[0];
+                endDateFilter = today.toISOString().split('T')[0];
+                currentPage = 1;
+                rerenderContent();
+            }
+        });
+        resetDiv.appendChild(resetButton);
+        filterGrid.appendChild(resetDiv);
+
+        filtersDiv.appendChild(filterGrid);
+        return filtersDiv;
+    }
+
+    function renderTable(displayLogs) {
+        const tableContainer = document.createElement('div');
+        tableContainer.className = 'data-table-container';
         
+        const totalLogs = displayLogs.length;
+        const totalPages = Math.ceil(totalLogs / rowsPerPage) || 1;
+        currentPage = Math.min(currentPage, totalPages || 1);
         const startIndex = (currentPage - 1) * rowsPerPage;
         const endIndex = startIndex + rowsPerPage;
-        const logsForPage = allFilteredLogs.slice(startIndex, endIndex);
+        const logsForPage = displayLogs.slice(startIndex, endIndex);
 
-        // Render Table
-        tableContainer.innerHTML = '';
-        if (logsForPage.length === 0) {
-            tableContainer.innerHTML = `
-                <div class="no-data-placeholder">
-                    <i class="fas fa-folder-open icon"></i>
-                    <p class="primary-text">No work logs found.</p>
-                    <p class="secondary-text">Try adjusting the filters or add a new log.</p>
-                </div>`;
-        } else {
+        if (logsForPage.length > 0) {
             const table = document.createElement('table');
             table.className = 'data-table work-log-table';
-            table.innerHTML = `<thead><tr>
-                <th>Date</th>
-                <th>Member</th>
-                <th>Project</th>
-                <th>Task</th>
-                <th>Comments</th>
-                <th>Time Spent</th>
-                <th class="action-cell">Actions</th>
-            </tr></thead>`;
-            const tbody = document.createElement('tbody');
-            
-            const getMemberName = (id) => teamMembers.find(m => m.id === id)?.name || 'N/A';
-            const getProjectName = (id) => projects.find(p => p.id === id)?.name || 'N/A';
+            let headHtml = `<thead><tr><th>Date</th>`;
+            if (isManager) headHtml += `<th>Member</th>`;
+            headHtml += `<th>Project</th><th>Task</th><th>Time</th><th>Comments</th><th class="action-cell">Actions</th></tr></thead>`;
+            table.innerHTML = headHtml;
 
+            const tbody = document.createElement('tbody');
             logsForPage.forEach(log => {
                 const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${new Date(log.date + 'T00:00:00').toLocaleDateString()}</td>
-                    <td>${getMemberName(log.memberId)}</td>
-                    <td>${getProjectName(log.projectId)}</td>
-                    <td class="truncate" title="${log.taskName}">${log.taskName}</td>
-                    <td class="truncate" title="${log.comments || ''}">${log.comments || '-'}</td>
-                    <td>${formatMinutes(log.timeSpentMinutes)}</td>
-                `;
+                const memberName = teamMembers.find(tm => tm.id === log.memberId)?.name || 'Unknown';
+                const projectName = projects.find(p => p.id === log.projectId)?.name || 'Unknown Project';
+                
+                let rowHtml = `<td>${new Date(log.date + 'T00:00:00').toLocaleDateString()}</td>`;
+                if (isManager) rowHtml += `<td>${memberName}</td>`;
+                rowHtml += `<td>${projectName}</td><td>${log.taskName}</td><td>${formatMinutes(log.timeSpentMinutes)}</td><td><div class="truncate" title="${log.comments || ''}">${log.comments || '-'}</div></td>`;
+                tr.innerHTML = rowHtml;
 
                 const actionCell = document.createElement('td');
                 actionCell.className = 'action-cell';
                 if (isManager || currentUser.id === log.memberId) {
                     actionCell.append(
-                        Button({ variant: 'ghost', size: 'sm', onClick: () => openModal(log), children: '<i class="fas fa-edit"></i>' }),
-                        Button({ variant: 'danger', size: 'sm', onClick: () => {
-                            if (confirm('Delete this log entry?')) onDeleteWorkLog(log.id);
-                        }, children: '<i class="fas fa-trash"></i>' })
+                        Button({
+                            variant: 'ghost', size: 'sm', children: '<i class="fas fa-edit"></i>',
+                            onClick: () => openModalForEdit(log)
+                        }),
+                        Button({
+                            variant: 'danger', size: 'sm', children: '<i class="fas fa-trash"></i>',
+                            onClick: () => {
+                                if (confirm('Are you sure you want to delete this log?')) {
+                                    onDeleteWorkLog(log.id);
+                                }
+                            }
+                        })
                     );
                 }
                 tr.appendChild(actionCell);
@@ -270,112 +273,64 @@ export function renderWorkLogPage(container, props) {
             });
             table.appendChild(tbody);
             tableContainer.appendChild(table);
+        } else {
+            tableContainer.innerHTML = `<p class="no-data-placeholder">No work logs match the current filters.</p>`;
         }
+        mainContentContainer.appendChild(tableContainer);
+        
+        // Pagination
+        if (totalLogs > 0) {
+            const paginationContainer = document.createElement('div');
+            paginationContainer.className = 'pagination-controls';
 
-        // Render Pagination Controls
-        paginationContainer.innerHTML = '';
-        if (totalRows > 0) {
-            const rowsSelectorContainer = document.createElement('div');
-            rowsSelectorContainer.className = 'pagination-rows-selector';
-            rowsSelectorContainer.innerHTML = `<label for="rowsPerPageSelect" class="form-label mb-0">Rows:</label>`;
-            const rowsSelect = document.createElement('select');
-            rowsSelect.id = 'rowsPerPageSelect';
-            rowsSelect.className = 'form-select';
-            rowsSelect.innerHTML = `
-                <option value="5">5</option>
-                <option value="10">10</option>
-                <option value="20">20</option>
-                <option value="30">30</option>`;
-            rowsSelect.value = rowsPerPage;
-            rowsSelect.onchange = (e) => {
+            const rowsSelector = document.createElement('div');
+            rowsSelector.className = 'pagination-rows-selector';
+            rowsSelector.innerHTML = `<label for="rowsPerPage" class="form-label">Rows per page:</label>`;
+            const select = document.createElement('select');
+            select.id = 'rowsPerPage';
+            select.className = 'form-select';
+            [10, 25, 50].forEach(num => {
+                select.innerHTML += `<option value="${num}" ${rowsPerPage === num ? 'selected' : ''}>${num}</option>`;
+            });
+            select.onchange = (e) => {
                 rowsPerPage = Number(e.target.value);
                 currentPage = 1;
-                rerenderPage();
+                rerenderContent();
             };
-            rowsSelectorContainer.appendChild(rowsSelect);
-
+            rowsSelector.appendChild(select);
+            
             const navContainer = document.createElement('div');
             navContainer.className = 'pagination-nav';
-            const pageInfo = document.createElement('span');
-            pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
-
-            const prevButton = Button({ children: 'Prev', variant: 'secondary', size: 'sm', disabled: currentPage === 1, onClick: () => {
-                if(currentPage > 1) { currentPage--; rerenderPage(); }
-            }});
-            const nextButton = Button({ children: 'Next', variant: 'secondary', size: 'sm', disabled: currentPage >= totalPages, onClick: () => {
-                if(currentPage < totalPages) { currentPage++; rerenderPage(); }
-            }});
-
-            navContainer.append(prevButton, pageInfo, nextButton);
-            paginationContainer.append(rowsSelectorContainer, navContainer);
+            navContainer.innerHTML = `<span>${startIndex + 1}-${Math.min(endIndex, totalLogs)} of ${totalLogs}</span>`;
+            const prevButton = Button({ children: 'Prev', variant: 'secondary', size: 'sm', disabled: currentPage === 1, onClick: () => { currentPage--; rerenderContent(); }});
+            const nextButton = Button({ children: 'Next', variant: 'secondary', size: 'sm', disabled: currentPage >= totalPages, onClick: () => { currentPage++; rerenderContent(); }});
+            navContainer.append(prevButton, nextButton);
+            
+            paginationContainer.append(rowsSelector, navContainer);
+            mainContentContainer.appendChild(paginationContainer);
         }
     }
-    
-    function openModal(log = null) {
-        // Find the member for whom the log is being added/edited
-        const targetMemberId = log ? log.memberId : currentUser.id;
-        const targetMember = teamMembers.find(m => m.id === targetMemberId);
-        const userTeam = targetMember ? targetMember.internalTeam : '';
 
-        // Filter and group tasks for the target member's team
-        const availableTasksForUser = workLogTasks.filter(task => 
-            (task.teams || []).includes(userTeam)
-        );
+    function openModalForNew(filteredTasks) {
+        const form = WorkLogForm({
+            log: null, ...props, workLogTasks: filteredTasks,
+            onSaveAll: (logsData) => { onAddMultipleWorkLogs(logsData); closeModal(); },
+            onCancel: closeModal
+        });
+        currentModalInstance = Modal({ isOpen: true, onClose: closeModal, title: 'Add Work Log', children: form, size: 'xl' });
+    }
 
-        const tasksGroupedByCategory = availableTasksForUser.reduce((acc, task) => {
-            const category = task.category || 'Uncategorized';
-            if (!acc[category]) {
-                acc[category] = [];
-            }
-            acc[category].push(task);
-            return acc;
-        }, {});
-
+    function openModalForEdit(log) {
+        const filteredTasks = getMemberFilteredTasks(log.memberId);
 
         const form = WorkLogForm({
-            log, currentUser, teamMembers, projects,
-            workLogTasks: tasksGroupedByCategory, // Pass filtered and grouped tasks
-            onSave: (logData) => { // For single edits
-                onUpdateWorkLog(logData);
-                closeModal();
-            },
-            onSaveAll: (logsData) => { // For multi-add
-                onAddMultipleWorkLogs(logsData);
-                closeModal();
-            },
-            onCancel: closeModal,
+            log, ...props, workLogTasks: filteredTasks,
+            onSave: (logData) => { onUpdateWorkLog({ ...logData, id: log.id, updatedAt: new Date().toISOString() }); closeModal(); },
+            onCancel: closeModal
         });
-        currentModalInstance = Modal({
-            isOpen: true,
-            onClose: closeModal,
-            title: log ? 'Edit Work Log' : 'Add Work Log(s)',
-            children: form,
-            size: 'xl'
-        });
+        currentModalInstance = Modal({ isOpen: true, onClose: closeModal, title: 'Edit Work Log', children: form, size: 'xl' });
     }
-
-    function closeModal() {
-        closeGlobalModal();
-        currentModalInstance = null;
-    }
-
-    function rerenderPage() {
-        const filteredLogs = getFilteredLogs();
-
-        // Calculate today's hours using current member/project filters, but ignoring date filter
-        const todaysDate = new Date().toISOString().split('T')[0];
-        const todaysLogs = workLogs.filter(log => {
-            const isMemberMatch = !filterState.memberId || log.memberId === filterState.memberId;
-            const isProjectMatch = !filterState.projectId || log.projectId === filterState.projectId;
-            const isToday = log.date === todaysDate;
-            return isMemberMatch && isProjectMatch && isToday;
-        });
-        const todaysTotalMinutes = todaysLogs.reduce((acc, log) => acc + (log.timeSpentMinutes || 0), 0);
-        
-        updateSummaries(filteredLogs, todaysTotalMinutes);
-        rerenderTableAndPagination(filteredLogs);
-    }
-
-    rerenderPage();
+    
+    rerenderContent();
     container.appendChild(pageWrapper);
 }
