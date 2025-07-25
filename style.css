@@ -492,13 +492,6 @@ footer.app-footer {
     font-size: 0.875rem;
     max-width: 160px;
 }
-.standup-toggle-container {
-    padding-bottom: 1rem;
-    border-bottom: 1px solid #e5e7eb;
-}
-.dark .standup-toggle-container {
-    border-color: #374151;
-}
 .standup-content {
     min-height: 100px;
 }
@@ -4013,7 +4006,4 @@ footer.app-footer {
 .admin-tasks-table td:nth-child(3) { /* Assigned Teams */
     white-space: normal;
     word-break: break-word;
-}
-.admin-tasks-table td:nth-child(3) {
-    min-width: 200px; /* Give teams column some space */
 }
