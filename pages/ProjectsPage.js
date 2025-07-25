@@ -328,10 +328,10 @@ export function renderProjectsPage(container, props) {
     const actionsWrapper = document.createElement('div');
     actionsWrapper.className = "page-header-actions";
     actionsWrapper.append(
-      Button({ children: 'Export CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>', onClick: () => onExport('projects') }),
+      Button({ children: 'Export CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>', onClick: onExport }),
       FileUploadButton({
           children: 'Import CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-import"></i>', accept: '.csv',
-          onFileSelect: (file) => { if (file) onImport(file, 'projects'); }
+          onFileSelect: (file) => { if (file) onImport(file); }
       }),
       Button({ children: 'Add Project', size: 'sm', leftIcon: '<i class="fas fa-plus"></i>', onClick: openModalForNew })
     );
@@ -370,12 +370,10 @@ export function renderProjectsPage(container, props) {
     const filterGrid = document.createElement('div');
     filterGrid.className = "filters-grid";
 
-    function createFilterInput(type, placeholder, onUpdate, value) {
+    function createFilterInput(type, placeholder, onUpdate) {
       const input = document.createElement('input');
-      input.type = type; 
-      input.placeholder = placeholder;
+      input.type = type; input.placeholder = placeholder;
       input.className = "form-input";
-      input.value = value;
       input.oninput = (e) => { onUpdate(e.target.value); rerenderMainContent(); };
       return input;
     }
@@ -397,33 +395,14 @@ export function renderProjectsPage(container, props) {
     ];
 
     filterGrid.append(
-      createFilterInput('text', 'Search projects...', val => searchTerm = val, searchTerm),
-      createFilterSelect(projectStatuses.map(s => ({value: s, label: s})), 'All Statuses', val => statusFilter = val, statusFilter),
-      createFilterSelect(teamMembers.map(m => ({value: m.id, label: m.name})), 'Any Assignee', val => assigneeFilter = val, assigneeFilter),
-      createFilterSelect(teamMembers.map(m => ({value: m.id, label: m.name})), 'Any Team Lead', val => teamLeadFilter = val, teamLeadFilter),
-      createFilterSelect(uniqueProjectTypes.map(t => ({value: t, label: t})), 'All Types', val => projectTypeFilter = val, projectTypeFilter),
-      createFilterSelect(uniqueProjectCategories.map(c => ({value: c, label: c})), 'All Categories', val => projectCategoryFilter = val, projectCategoryFilter),
+      createFilterInput('text', 'Search projects...', val => searchTerm = val),
+      createFilterSelect(projectStatuses.map(s => ({value: s, label: s})), 'All Statuses', val => statusFilter = val),
+      createFilterSelect(teamMembers.map(m => ({value: m.id, label: m.name})), 'Any Assignee', val => assigneeFilter = val),
+      createFilterSelect(teamMembers.map(m => ({value: m.id, label: m.name})), 'Any Team Lead', val => teamLeadFilter = val),
+      createFilterSelect(uniqueProjectTypes.map(t => ({value: t, label: t})), 'All Types', val => projectTypeFilter = val),
+      createFilterSelect(uniqueProjectCategories.map(c => ({value: c, label: c})), 'All Categories', val => projectCategoryFilter = val),
       createFilterSelect(sortOptions, '', val => sortOrder = val, sortOrder)
     );
-
-    const resetButton = Button({
-        children: 'Reset',
-        variant: 'ghost',
-        size: 'sm',
-        leftIcon: '<i class="fas fa-undo"></i>',
-        onClick: () => {
-            searchTerm = '';
-            statusFilter = '';
-            assigneeFilter = '';
-            teamLeadFilter = '';
-            projectTypeFilter = '';
-            projectCategoryFilter = '';
-            sortOrder = 'dueDateAsc';
-            rerenderMainContent();
-        }
-    });
-    filterGrid.appendChild(resetButton);
-
     filtersDiv.appendChild(filterGrid);
     return filtersDiv;
   }

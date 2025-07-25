@@ -1,4 +1,5 @@
 
+
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { FileUploadButton } from '../components/FileUploadButton.js';
@@ -41,22 +42,6 @@ const createTextField = (labelText, value, onChange) => {
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'form-input';
-    input.value = value;
-    input.oninput = (e) => onChange(e.target.value);
-    div.append(label, input);
-    return div;
-};
-
-const createColorField = (labelText, value, onChange) => {
-    const div = document.createElement('div');
-    const label = document.createElement('label');
-    label.className = 'form-label';
-    label.textContent = labelText;
-    const input = document.createElement('input');
-    input.type = 'color';
-    input.className = 'form-input';
-    input.style.padding = '0.25rem';
-    input.style.height = '38px';
     input.value = value;
     input.oninput = (e) => onChange(e.target.value);
     div.append(label, input);
@@ -300,13 +285,6 @@ async function handleTaskImport(file, rerenderCallback) {
 
 export function renderAdminPage(container, { appSettings, onUpdateSettings }) {
     localSettings = JSON.parse(JSON.stringify(appSettings)); // Deep clone for local editing
-    if (!localSettings.colorScheme) {
-        localSettings.colorScheme = {};
-    }
-
-    // State for task filters
-    let taskNameFilter = '';
-    let categoryFilter = '';
 
     const rerenderPage = () => {
         const scrollY = window.scrollY;
@@ -346,10 +324,6 @@ export function renderAdminPage(container, { appSettings, onUpdateSettings }) {
         );
         generalFieldset.appendChild(generalGrid);
         form.appendChild(generalFieldset);
-        
-        // --- Customization Grid (Holidays & Colors) ---
-        const customizationGrid = document.createElement('div');
-        customizationGrid.className = 'admin-two-column-grid';
 
         // --- Holiday Management ---
         const holidayFieldset = createFieldset('Holiday Management', 'Define company-wide non-working days.');
@@ -398,26 +372,7 @@ export function renderAdminPage(container, { appSettings, onUpdateSettings }) {
         });
         addHolidayContainer.append(holidayNameInput, holidayDateInput, addHolidayBtn);
         holidayFieldset.appendChild(addHolidayContainer);
-        customizationGrid.appendChild(holidayFieldset);
-
-        // --- Color Scheme Customization ---
-        const colorFieldset = createFieldset('Color Scheme Customization', 'Customize button colors. Text color will adjust for readability.');
-        const colorGrid = document.createElement('div');
-        colorGrid.className = 'admin-form-grid';
-        colorGrid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(150px, 1fr))';
-        const colors = localSettings.colorScheme;
-        colorGrid.append(
-            createColorField('Primary', colors.primary || '#4f46e5', val => { colors.primary = val; rerenderPage() }),
-            createColorField('Secondary', colors.secondary || '#e5e7eb', val => { colors.secondary = val; rerenderPage() }),
-            createColorField('Danger', colors.danger || '#dc2626', val => { colors.danger = val; rerenderPage() }),
-            createColorField('Success', colors.success || '#16a34a', val => { colors.success = val; rerenderPage() }),
-            createColorField('Warning', colors.warning || '#f59e0b', val => { colors.warning = val; rerenderPage() })
-        );
-        colorFieldset.appendChild(colorGrid);
-        customizationGrid.appendChild(colorFieldset);
-
-        form.appendChild(customizationGrid);
-
+        form.appendChild(holidayFieldset);
 
         // --- Two Column Layout for Teams & Leave Types ---
         const twoColumnGrid = document.createElement('div');
@@ -526,58 +481,28 @@ export function renderAdminPage(container, { appSettings, onUpdateSettings }) {
             })
         );
         tasksFieldset.appendChild(taskActions);
-        
-        // Task Filters
-        const taskFiltersContainer = document.createElement('div');
-        taskFiltersContainer.className = 'admin-task-filters';
-        
-        const nameFilterInput = document.createElement('input');
-        nameFilterInput.type = 'text';
-        nameFilterInput.className = 'form-input';
-        nameFilterInput.placeholder = 'Filter by task name...';
-        nameFilterInput.value = taskNameFilter;
-        nameFilterInput.oninput = (e) => { taskNameFilter = e.target.value; taskCurrentPage = 1; rerenderPage(); };
-        
-        const allTaskObjects = localSettings.workLogTasks || [];
-        const uniqueCategories = [...new Set(allTaskObjects.map(t => t.category))];
-        const categorySelect = document.createElement('select');
-        categorySelect.className = 'form-select';
-        categorySelect.innerHTML = `<option value="">All Categories</option>` + uniqueCategories.map(c => `<option value="${c}" ${categoryFilter === c ? 'selected' : ''}>${c}</option>`).join('');
-        categorySelect.value = categoryFilter;
-        categorySelect.onchange = (e) => { categoryFilter = e.target.value; taskCurrentPage = 1; rerenderPage(); };
-        
-        const resetFilterBtn = Button({
-            children: 'Reset', variant: 'ghost',
-            onClick: () => { taskNameFilter = ''; categoryFilter = ''; taskCurrentPage = 1; rerenderPage(); }
-        });
-        taskFiltersContainer.append(nameFilterInput, categorySelect, resetFilterBtn);
-        tasksFieldset.appendChild(taskFiltersContainer);
-        
+
         const tasksTableContainer = document.createElement('div');
         tasksTableContainer.className = 'data-table-container';
         
-        const filteredTasks = allTaskObjects.filter(task => 
-            task.name.toLowerCase().includes(taskNameFilter.toLowerCase()) &&
-            (!categoryFilter || task.category === categoryFilter)
-        );
-
-        const totalTasks = filteredTasks.length;
+        const tasks = localSettings.workLogTasks || [];
+        const totalTasks = tasks.length;
         const totalPages = Math.ceil(totalTasks / tasksPerPage) || 1;
         if (taskCurrentPage > totalPages) taskCurrentPage = totalPages;
 
         const startIndex = (taskCurrentPage - 1) * tasksPerPage;
         const endIndex = startIndex + tasksPerPage;
-        const tasksForPage = filteredTasks.slice(startIndex, endIndex);
+        const tasksForPage = tasks.slice(startIndex, endIndex);
 
         if (tasksForPage.length === 0) {
-            tasksTableContainer.innerHTML = `<p class="admin-list-empty">No tasks match filters.</p>`;
+            tasksTableContainer.innerHTML = `<p class="admin-list-empty">No tasks defined.</p>`;
         } else {
             const table = document.createElement('table');
             table.className = 'data-table admin-tasks-table';
             table.innerHTML = `<thead><tr><th>Task Name</th><th>Category</th><th>Assigned Teams</th><th class="action-cell">Actions</th></tr></thead>`;
             const tbody = document.createElement('tbody');
             tasksForPage.forEach((task) => {
-                const index = localSettings.workLogTasks.findIndex(t => t.id === task.id);
+                const index = localSettings.workLogTasks.indexOf(task);
                 const tr = document.createElement('tr');
                 tr.innerHTML = `<td>${task.name}</td><td>${task.category}</td><td>${(task.teams || []).join(', ') || 'None'}</td>`;
                 const actionCell = document.createElement('td');

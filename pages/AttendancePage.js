@@ -85,7 +85,6 @@ export function renderAttendancePage(container, props) {
   searchInput.type = 'text';
   searchInput.placeholder = 'Filter by name...';
   searchInput.className = 'form-input';
-  searchInput.value = teamSearchTerm;
   searchInput.oninput = (e) => { teamSearchTerm = e.target.value; renderTeamList(); };
   tmFiltersContainer.appendChild(searchInput);
 
@@ -110,22 +109,6 @@ export function renderAttendancePage(container, props) {
   sortSelect.innerHTML = sortOptions.map(opt => `<option value="${opt.value}" ${opt.value === teamSortOrder ? 'selected' : ''}>${opt.label}</option>`).join('');
   sortSelect.onchange = (e) => { teamSortOrder = e.target.value; renderTeamList(); };
   tmFiltersContainer.appendChild(sortSelect);
-
-  const resetTeamFiltersButton = Button({
-      children: 'Reset',
-      variant: 'ghost',
-      size: 'sm',
-      onClick: () => {
-          teamSearchTerm = '';
-          departmentFilter = '';
-          teamSortOrder = 'nameAsc';
-          searchInput.value = '';
-          tmFiltersContainer.querySelectorAll('select').forEach(s => s.selectedIndex = 0);
-          renderTeamList();
-      }
-  });
-  tmFiltersContainer.appendChild(resetTeamFiltersButton);
-
 
   const tmActionsDiv = document.createElement('div');
   tmActionsDiv.className = "team-management-actions";
@@ -168,7 +151,7 @@ export function renderAttendancePage(container, props) {
     const logActionsDiv = document.createElement('div');
     logActionsDiv.className = "daily-log-actions";
     logActionsDiv.append(
-      Button({ children: 'Export All Logs', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>', onClick: () => onExport('attendance') }),
+      Button({ children: 'Export All Logs', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>', onClick: onExport }),
       FileUploadButton({ children: 'Import Logs', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-import"></i>', accept: '.csv', onFileSelect: (f) => handleFileImport(f, 'attendance') }),
       Button({ children: 'View Attendance Logs', variant: 'primary', size: 'sm', leftIcon: '<i class="fas fa-history"></i>', onClick: openLogViewerModal })
     );
@@ -321,65 +304,11 @@ export function renderAttendancePage(container, props) {
   function renderTeamMemberDetailView(member) {
     const detailView = document.createElement('div');
     detailView.className = 'member-detail-view';
-
-    // Contact Info with actions
-    const contactSection = document.createElement('div');
-    contactSection.className = 'detail-section contact-info-section';
-    contactSection.innerHTML = `<h4 class="detail-label"><i class="fas fa-address-book"></i> Contact Information</h4>`;
-    
-    const contactGrid = document.createElement('div');
-    contactGrid.className = 'contact-info-grid';
-
-    // Email
-    contactGrid.innerHTML += `
-        <div class="contact-item">
-            <i class="fas fa-envelope"></i>
-            <div class="contact-details">
-                <span>Email</span>
-                <a href="mailto:${member.email}">${member.email || 'N/A'}</a>
-            </div>
-        </div>`;
-
-    // Phone
-    const phoneItem = document.createElement('div');
-    phoneItem.className = 'contact-item';
-    
-    let phoneContent;
-    if (member.phoneNumber) {
-        const whatsappNumber = member.phoneNumber.replace(/[^0-9]/g, '');
-        phoneContent = `
-            <i class="fas fa-phone"></i>
-            <div class="contact-details">
-                <span>Phone</span>
-                <a href="tel:${member.phoneNumber}">${member.phoneNumber}</a>
-            </div>
-            <div class="contact-actions">
-                <a href="tel:${member.phoneNumber}" class="button button-ghost button-sm" aria-label="Call ${member.name}">
-                    <i class="fas fa-phone-alt"></i> Call
-                </a>
-                <a href="https://wa.me/${whatsappNumber}" target="_blank" rel="noopener noreferrer" class="button button-ghost button-sm whatsapp-btn" aria-label="Chat with ${member.name} on WhatsApp">
-                    <i class="fab fa-whatsapp"></i> WhatsApp
-                </a>
-            </div>`;
-    } else {
-        phoneContent = `
-            <i class="fas fa-phone-slash"></i>
-            <div class="contact-details">
-                <span>Phone</span>
-                <span>Not Provided</span>
-            </div>`;
-    }
-    phoneItem.innerHTML = phoneContent;
-    contactGrid.appendChild(phoneItem);
-
-    contactSection.appendChild(contactGrid);
-    detailView.appendChild(contactSection);
     
     // Member Info
-    const infoSection = document.createElement('div');
-    infoSection.className = 'detail-section';
-    infoSection.innerHTML = `<h4 class="detail-label"><i class="fas fa-info-circle"></i> Member Information</h4>
+    detailView.innerHTML = `
       <div class="detail-grid">
+        <div class="detail-item"><h4 class="detail-label">Email</h4><p class="detail-value">${member.email || 'N/A'}</p></div>
         <div class="detail-item"><h4 class="detail-label">Employee ID</h4><p class="detail-value">${member.employeeId || 'N/A'}</p></div>
         <div class="detail-item"><h4 class="detail-label">Designation</h4><p class="detail-value">${member.designation || 'N/A'}</p></div>
         <div class="detail-item"><h4 class="detail-label">Department</h4><p class="detail-value">${member.department || 'N/A'}</p></div>
@@ -389,7 +318,6 @@ export function renderAttendancePage(container, props) {
         <div class="detail-item"><h4 class="detail-label">Company</h4><p class="detail-value">${member.company || 'N/A'}</p></div>
       </div>
     `;
-    detailView.appendChild(infoSection);
 
     // Active Projects
     const activeProjects = projects.filter(p => p.status !== 'Done' && (p.assignees || []).includes(member.id));
@@ -496,11 +424,14 @@ export function renderAttendancePage(container, props) {
     renderContent();
   }
 
-  function handleFileImport(file, type) { if (file) (type === 'attendance' ? onImport : onImportTeam)(file, type); }
+  function handleFileImport(file, type) { if (file) (type === 'attendance' ? onImport : onImportTeam)(file); }
 
   function handleDeleteLog(recordId) {
     if (window.confirm('Are you sure you want to delete this log entry? This cannot be undone.')) {
         onDeleteAttendanceRecord(recordId);
+        // The state update in App.js will cause a re-render.
+        // The modal will be removed from the view as the page component is rebuilt.
+        // Closing it explicitly ensures clean-up.
         closeLogViewerModal();
     }
   }
@@ -516,7 +447,13 @@ export function renderAttendancePage(container, props) {
     logs.sort((a,b) => new Date(b.date)-new Date(a.date) || (teamMembers.find(tm=>tm.id===a.memberId)?.name||'').localeCompare(teamMembers.find(tm=>tm.id===b.memberId)?.name||''));
     displayLogs = logs;
     if (currentLogModalInstance) { 
-        showLogViewerModal(true); // Re-render modal content
+      const logTableContainer = currentLogModalInstance.querySelector('#log-table-dynamic-container');
+      if (logTableContainer) {
+        logTableContainer.innerHTML = ''; 
+        logTableContainer.appendChild(AttendanceLogTable({ logs: displayLogs, teamMembers, onDelete: handleDeleteLog }));
+      }
+      const exportBtn = currentLogModalInstance.querySelector('#export-filtered-logs-btn');
+      if (exportBtn) exportBtn.disabled = displayLogs.length === 0;
     }
   }
   function handleExportFilteredLogs() {
@@ -527,8 +464,7 @@ export function renderAttendancePage(container, props) {
     });
     exportDataToCSV(logsToExport, `attendance_logs_${logStartDateFilter}_to_${logEndDateFilter}.csv`);
   }
-  
-  function showLogViewerModal(isRerender = false) {
+  function showLogViewerModal() {
     const modalContent = document.createElement('div'); 
     modalContent.style.display = 'flex';
     modalContent.style.flexDirection = 'column';
@@ -537,67 +473,38 @@ export function renderAttendancePage(container, props) {
     const filterRow = document.createElement('div'); 
     filterRow.className = "log-viewer-filter-row";
     
-    // Member Filter
-    const memberSelectContainer = document.createElement('div');
-    memberSelectContainer.innerHTML = `<label for="logMemberFilter" class="form-label">Team Member</label>`;
-    const memberSelect = document.createElement('select');
-    memberSelect.id = 'logMemberFilter';
-    memberSelect.className = 'form-select';
-    memberSelect.innerHTML = `<option value="">All</option>` + teamMembers.map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
-    memberSelect.value = logMemberFilter;
-    memberSelect.onchange = (e) => { logMemberFilter = e.target.value; handleFetchLogs(); };
-    memberSelectContainer.appendChild(memberSelect);
-    
-    // Start Date Filter
-    const startDateContainer = document.createElement('div');
-    startDateContainer.innerHTML = `<label for="logStartDateFilter" class="form-label">Start Date</label>`;
-    const startDateInput = document.createElement('input');
-    startDateInput.type = 'date';
-    startDateInput.id = 'logStartDateFilter';
-    startDateInput.className = 'form-input';
-    startDateInput.value = logStartDateFilter;
-    startDateInput.onchange = (e) => { logStartDateFilter = e.target.value; handleFetchLogs(); };
-    startDateContainer.appendChild(startDateInput);
-    
-    // End Date Filter
-    const endDateContainer = document.createElement('div');
-    endDateContainer.innerHTML = `<label for="logEndDateFilter" class="form-label">End Date</label>`;
-    const endDateInput = document.createElement('input');
-    endDateInput.type = 'date';
-    endDateInput.id = 'logEndDateFilter';
-    endDateInput.className = 'form-input';
-    endDateInput.value = logEndDateFilter;
-    endDateInput.onchange = (e) => { logEndDateFilter = e.target.value; handleFetchLogs(); };
-    endDateContainer.appendChild(endDateInput);
-
-    // Reset Button
-    const resetButton = Button({
-      children: 'Reset',
-      variant: 'ghost',
-      size: 'sm',
-      onClick: () => {
-        logMemberFilter = '';
-        logStartDateFilter = new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0];
-        logEndDateFilter = new Date().toISOString().split('T')[0];
-        handleFetchLogs();
-      }
-    });
-
-    filterRow.append(memberSelectContainer, startDateContainer, endDateContainer, resetButton);
+    const createSelect = (id, labelText, optionsHTML, currentVal, onChange) => {
+        const div = document.createElement('div');
+        const label = document.createElement('label');
+        label.htmlFor = id;
+        label.className = 'form-label';
+        label.textContent = labelText;
+        div.appendChild(label);
+        const sel = document.createElement('select'); sel.id = id; sel.className="form-select";
+        sel.innerHTML = optionsHTML; sel.value = currentVal; sel.onchange = onChange;
+        div.appendChild(sel); return div;
+    };
+    const createDateInput = (id, labelText, currentVal, onChange) => {
+        const div = document.createElement('div');
+        const label = document.createElement('label');
+        label.htmlFor = id;
+        label.className = 'form-label';
+        label.textContent = labelText;
+        div.appendChild(label);
+        const inp = document.createElement('input'); inp.type='date'; inp.id=id; inp.className="form-input";
+        inp.value = currentVal; inp.onchange = onChange;
+        div.appendChild(inp); return div;
+    };
+    filterRow.append(
+        createSelect('logMemberFilter', 'Team Member', `<option value="">All</option>`+teamMembers.map(m=>`<option value="${m.id}">${m.name}</option>`).join(''), logMemberFilter, e=>{logMemberFilter=e.target.value; handleFetchLogs();}),
+        createDateInput('logStartDateFilter', 'Start Date', logStartDateFilter, e=>{logStartDateFilter=e.target.value; handleFetchLogs();}),
+        createDateInput('logEndDateFilter', 'End Date', logEndDateFilter, e=>{logEndDateFilter=e.target.value; handleFetchLogs();})
+    );
     modalContent.appendChild(filterRow);
-    
-    const tableDiv = document.createElement('div');
-    tableDiv.id = 'log-table-dynamic-container';
+    const tableDiv = document.createElement('div'); tableDiv.id = 'log-table-dynamic-container';
     tableDiv.appendChild(AttendanceLogTable({ logs: displayLogs, teamMembers, onDelete: handleDeleteLog }));
     modalContent.appendChild(tableDiv);
     
-    if (isRerender && currentLogModalInstance) {
-        const modalBody = currentLogModalInstance.querySelector('.modal-body');
-        modalBody.innerHTML = '';
-        modalBody.appendChild(modalContent);
-        return;
-    }
-
     const footerButtons = [
         Button({variant: 'secondary', children: 'Close', onClick: closeLogViewerModal }),
         Button({id: 'export-filtered-logs-btn', variant: 'primary', children: 'Export Filtered', leftIcon: '<i class="fas fa-file-csv"></i>', onClick: handleExportFilteredLogs, disabled: displayLogs.length === 0})

@@ -1,4 +1,3 @@
-
 import { TeamMemberRole, ProjectStatus } from '../types.js';
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
@@ -10,22 +9,6 @@ import { WeeklyHoursDetailModal } from '../components/WeeklyHoursDetailModal.js'
 let currentModalInstance = null;
 
 // --- Helper Functions ---
-
-const formatToIST = (date) => {
-    if (!(date instanceof Date) || isNaN(date)) {
-        return 'Invalid Date';
-    }
-    // Formats to "dd/mm/yy, h:mm AM/PM"
-    return date.toLocaleString('en-IN', {
-        timeZone: 'Asia/Kolkata',
-        day: '2-digit',
-        month: '2-digit',
-        year: '2-digit',
-        hour: 'numeric',
-        minute: 'numeric',
-        hour12: true,
-    });
-};
 
 function closeModal() {
     closeGlobalModal();
@@ -258,7 +241,7 @@ function renderActivityFeed(props) {
             <li class="activity-item type-${event.type}">
                 <div class="activity-icon"><i class="fas ${iconMap[event.type]}"></i></div>
                 <div class="activity-text">${event.text}</div>
-                <div class="activity-time">${formatToIST(event.date).replace(', ', '<br>')}</div>
+                <div class="activity-time">${event.date.toLocaleDateString()}</div>
             </li>`).join('');
     }
     container.appendChild(list);
