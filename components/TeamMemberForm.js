@@ -6,6 +6,7 @@ import { TeamMemberRole } from '../types.js';
 const getDefaultTeamMember = () => ({
   name: '',
   email: '',
+  phoneNumber: '',
   employeeId: '',
   joinDate: new Date().toISOString().split('T')[0],
   birthDate: '',
@@ -64,11 +65,13 @@ export function TeamMemberForm({ member, onSave, onCancel, internalTeams }) {
     return div;
   }
 
-  const nameEmailGrid = document.createElement('div');
-  nameEmailGrid.className = "form-grid-cols-2";
-  nameEmailGrid.appendChild(createField('Member Name', 'text', 'name', formData.name, true));
-  nameEmailGrid.appendChild(createField('Email', 'email', 'email', formData.email, true));
-  form.appendChild(nameEmailGrid);
+  form.appendChild(createField('Member Name', 'text', 'name', formData.name, true));
+  
+  const emailPhoneGrid = document.createElement('div');
+  emailPhoneGrid.className = "form-grid-cols-2";
+  emailPhoneGrid.appendChild(createField('Email', 'email', 'email', formData.email, true));
+  emailPhoneGrid.appendChild(createField('Phone Number', 'tel', 'phoneNumber', formData.phoneNumber, false, {placeholder: 'e.g., +14155552671'}));
+  form.appendChild(emailPhoneGrid);
 
   const idDesignationGrid = document.createElement('div');
   idDesignationGrid.className = "form-grid-cols-2";
@@ -120,6 +123,7 @@ export function TeamMemberForm({ member, onSave, onCancel, internalTeams }) {
     
     // Add optional fields only if they have a value
     if (formData.email?.trim()) memberToSave.email = formData.email.trim().toLowerCase();
+    if (formData.phoneNumber?.trim()) memberToSave.phoneNumber = formData.phoneNumber.trim();
     if (formData.employeeId?.trim()) memberToSave.employeeId = formData.employeeId.trim();
     if (formData.joinDate) memberToSave.joinDate = formData.joinDate;
     if (formData.birthDate) memberToSave.birthDate = formData.birthDate;
