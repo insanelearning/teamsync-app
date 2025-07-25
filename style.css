@@ -1972,8 +1972,8 @@ footer.app-footer {
     color: #d1d5db;
 }
 .view-toggle-button.active {
-    background-color: #ffffff;
-    color: #4f46e5;
+    background-color: #4f46e5;
+    color: #ffffff;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 .dark .view-toggle-button.active {
