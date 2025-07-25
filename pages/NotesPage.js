@@ -151,10 +151,10 @@ export function renderNotesPage(container, props) {
   
   if (isManager) {
     actionsWrapper.append(
-      Button({ children: 'Export Notes', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>', onClick: onExport }),
+      Button({ children: 'Export Notes', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>', onClick: () => onExport('notes') }),
       FileUploadButton({
           children: 'Import Notes', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-import"></i>', accept: '.csv',
-          onFileSelect: (file) => { if (file) onImport(file); }
+          onFileSelect: (file) => { if (file) onImport(file, 'notes'); }
       })
     );
   }
@@ -187,6 +187,7 @@ export function renderNotesPage(container, props) {
   searchInput.type = 'text';
   searchInput.placeholder = 'Search by title or content...';
   searchInput.className = "form-input";
+  searchInput.value = searchTerm;
   searchInput.oninput = (e) => {
     searchTerm = e.target.value.toLowerCase();
     rerenderNotesList();
@@ -196,11 +197,25 @@ export function renderNotesPage(container, props) {
   const statusSelect = document.createElement('select');
   statusSelect.className = "form-select";
   statusSelect.innerHTML = `<option value="">All Statuses</option>` + noteStatuses.map(s => `<option value="${s}">${s}</option>`).join('');
+  statusSelect.value = statusFilter;
   statusSelect.onchange = (e) => {
     statusFilter = e.target.value;
     rerenderNotesList();
   };
   filterGrid.appendChild(statusSelect);
+
+  const resetButton = Button({
+      children: 'Reset',
+      variant: 'ghost',
+      size: 'sm',
+      onClick: () => {
+          searchTerm = '';
+          statusFilter = '';
+          rerenderNotesPage(container, props); // Easiest way to reset the whole page state
+      }
+  });
+  filterGrid.appendChild(resetButton);
+
 
   filtersDiv.appendChild(filterGrid);
   notesMainContent.appendChild(filtersDiv);
