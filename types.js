@@ -28,6 +28,7 @@ export const TeamMemberRole = {
 //   id: string;
 //   name: string;
 //   email?: string;
+//   phoneNumber?: string;
 //   employeeId?: string;
 //   joinDate?: string; // ISO date string YYYY-MM-DD
 //   birthDate?: string; // ISO date string YYYY-MM-DD
