@@ -1,4 +1,5 @@
 
+
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { WorkLogForm } from '../components/WorkLogForm.js';
@@ -358,19 +359,7 @@ export function renderWorkLogPage(container, props) {
         rightCol.className = 'analysis-dashboard-right kpi-insights-panel';
         rightCol.innerHTML = `<h3 class="kpi-panel-title"><i class="fas fa-chart-line"></i> KPIs & Insights</h3>`;
 
-        // 1. Billable Hours
-        const billableData = filteredLogs.reduce((acc, log) => {
-            const isBillable = taskMap.get(log.taskName)?.billable;
-            const key = isBillable ? 'billable' : 'nonBillable';
-            acc[key] += log.timeSpentMinutes;
-            return acc;
-        }, { billable: 0, nonBillable: 0 });
-        rightCol.appendChild(createDonutChart('Billable Hours', [
-            { label: 'Billable', value: billableData.billable, color: '#16a34a' },
-            { label: 'Non-Billable', value: billableData.nonBillable, color: '#ef4444' },
-        ]));
-
-        // 2. Top Contributors
+        // 1. Top Contributors
         const timeByMember = filteredLogs.reduce((acc, log) => {
             acc[log.memberId] = (acc[log.memberId] || 0) + log.timeSpentMinutes;
             return acc;
@@ -380,7 +369,7 @@ export function renderWorkLogPage(container, props) {
             .sort((a, b) => b.value - a.value);
         rightCol.appendChild(createInsightList('Top Contributors', topContributors));
 
-        // 3. Project Focus
+        // 2. Project Focus
         const timeByProject = filteredLogs.reduce((acc, log) => {
             acc[log.projectId] = (acc[log.projectId] || 0) + log.timeSpentMinutes;
             return acc;
