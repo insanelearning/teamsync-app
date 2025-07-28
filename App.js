@@ -395,6 +395,7 @@ const handleExport = (dataType) => {
       id: m.id,
       name: m.name,
       email: m.email,
+      mobileNumber: m.mobileNumber || '',
       employeeId: m.employeeId || '',
       joinDate: m.joinDate || '',
       birthDate: m.birthDate || '',
