@@ -573,7 +573,9 @@ const loadInitialData = async (seedDataIfEmpty = true) => {
         maxTeamMembers: 20,
         welcomeMessage: 'Welcome back,',
         defaultProjectPriority: 'Medium',
-        defaultTheme: 'User Choice'
+        defaultTheme: 'User Choice',
+        primaryColor: '#4F46E5',
+        primaryColorHover: '#4338CA',
     };
 
     // Check for missing keys and add defaults
@@ -613,7 +615,11 @@ const loadInitialData = async (seedDataIfEmpty = true) => {
         currentUser = teamMembers.find(m => m.id === currentUserId) || null;
     }
     
-    // Theme application logic
+    // --- Apply dynamic theme and colors ---
+    const rootStyle = document.documentElement.style;
+    if (appSettings.primaryColor) rootStyle.setProperty('--color-primary', appSettings.primaryColor);
+    if (appSettings.primaryColorHover) rootStyle.setProperty('--color-primary-hover', appSettings.primaryColorHover);
+
     const theme = appSettings.defaultTheme || 'User Choice';
     if (theme === 'Dark') {
         document.documentElement.classList.add('dark');
