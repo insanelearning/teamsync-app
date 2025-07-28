@@ -304,20 +304,67 @@ export function renderAttendancePage(container, props) {
   function renderTeamMemberDetailView(member) {
     const detailView = document.createElement('div');
     detailView.className = 'member-detail-view';
+
+    const detailGrid = document.createElement('div');
+    detailGrid.className = 'detail-grid';
+
+    const createDetailItem = (label, value) => {
+        const item = document.createElement('div');
+        item.className = 'detail-item';
+        const labelEl = document.createElement('h4');
+        labelEl.className = 'detail-label';
+        labelEl.textContent = label;
+        item.appendChild(labelEl);
+        
+        if (typeof value === 'string') {
+            const valueEl = document.createElement('p');
+            valueEl.className = 'detail-value';
+            valueEl.textContent = value;
+            item.appendChild(valueEl);
+        } else if (value instanceof HTMLElement) {
+            item.appendChild(value);
+        }
+        return item;
+    };
+
+    detailGrid.appendChild(createDetailItem('Email', member.email || 'N/A'));
     
-    // Member Info
-    detailView.innerHTML = `
-      <div class="detail-grid">
-        <div class="detail-item"><h4 class="detail-label">Email</h4><p class="detail-value">${member.email || 'N/A'}</p></div>
-        <div class="detail-item"><h4 class="detail-label">Employee ID</h4><p class="detail-value">${member.employeeId || 'N/A'}</p></div>
-        <div class="detail-item"><h4 class="detail-label">Designation</h4><p class="detail-value">${member.designation || 'N/A'}</p></div>
-        <div class="detail-item"><h4 class="detail-label">Department</h4><p class="detail-value">${member.department || 'N/A'}</p></div>
-        <div class="detail-item"><h4 class="detail-label">Internal Team</h4><p class="detail-value">${member.internalTeam || 'N/A'}</p></div>
-        <div class="detail-item"><h4 class="detail-label">Join Date</h4><p class="detail-value">${member.joinDate ? new Date(member.joinDate + 'T00:00').toLocaleDateString() : 'N/A'}</p></div>
-        <div class="detail-item"><h4 class="detail-label">Birth Date</h4><p class="detail-value">${member.birthDate ? new Date(member.birthDate + 'T00:00').toLocaleDateString() : 'N/A'}</p></div>
-        <div class="detail-item"><h4 class="detail-label">Company</h4><p class="detail-value">${member.company || 'N/A'}</p></div>
-      </div>
-    `;
+    // Mobile Number Item with Buttons
+    const mobileItem = document.createElement('div');
+    mobileItem.className = 'detail-item';
+    mobileItem.innerHTML = `<h4 class="detail-label">Mobile Number</h4>`;
+    if (member.mobileNumber) {
+        const valueContainer = document.createElement('div');
+        valueContainer.style.display = 'flex';
+        valueContainer.style.alignItems = 'center';
+        valueContainer.style.gap = '0.5rem';
+
+        const valueP = document.createElement('p');
+        valueP.className = 'detail-value';
+        valueP.style.margin = '0';
+        valueP.textContent = member.mobileNumber;
+
+        const callBtn = Button({ variant: 'ghost', size: 'sm', children: '<i class="fas fa-phone-alt"></i>', ariaLabel: 'Call', onClick: () => window.open(`tel:${member.mobileNumber}`) });
+        const whatsappNumber = member.mobileNumber.replace(/\D/g, '');
+        const whatsappBtn = Button({ variant: 'ghost', size: 'sm', children: '<i class="fab fa-whatsapp"></i>', ariaLabel: 'WhatsApp', onClick: () => window.open(`https://wa.me/${whatsappNumber}`, '_blank') });
+
+        valueContainer.append(valueP, callBtn, whatsappBtn);
+        mobileItem.appendChild(valueContainer);
+    } else {
+        mobileItem.innerHTML += `<p class="detail-value">N/A</p>`;
+    }
+    detailGrid.appendChild(mobileItem);
+    
+    detailGrid.appendChild(createDetailItem('Employee ID', member.employeeId || 'N/A'));
+    detailGrid.appendChild(createDetailItem('Designation', member.designation || 'N/A'));
+    detailGrid.appendChild(createDetailItem('Department', member.department || 'N/A'));
+    detailGrid.appendChild(createDetailItem('Internal Team', member.internalTeam || 'N/A'));
+    detailGrid.appendChild(createDetailItem('Join Date', member.joinDate ? new Date(member.joinDate + 'T00:00').toLocaleDateString() : 'N/A'));
+    detailGrid.appendChild(createDetailItem('Birth Date', member.birthDate ? new Date(member.birthDate + 'T00:00').toLocaleDateString() : 'N/A'));
+    detailGrid.appendChild(createDetailItem('Company', member.company || 'N/A'));
+    
+    detailView.appendChild(detailGrid);
+
 
     // Active Projects
     const activeProjects = projects.filter(p => p.status !== 'Done' && (p.assignees || []).includes(member.id));
