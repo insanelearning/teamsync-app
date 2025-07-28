@@ -11,7 +11,7 @@ function formatMinutes(minutes) {
 
 export function WorkDistributionChart({ title, data, onBarClick, drilldownTitle, onBackClick }) {
     const container = document.createElement('div');
-    container.className = 'work-distribution-analysis';
+    // The parent container in WorkLogPage will have the .work-distribution-analysis class
 
     const header = document.createElement('div');
     header.className = 'chart-header-container';
@@ -36,12 +36,12 @@ export function WorkDistributionChart({ title, data, onBarClick, drilldownTitle,
     header.appendChild(titleElement);
     container.appendChild(header);
 
-    const chartContainer = document.createElement('div');
-    chartContainer.className = 'bar-chart-container';
+    const scrollContainer = document.createElement('div');
+    scrollContainer.className = 'bar-chart-scroll-container';
 
     if (!data || data.length === 0) {
-        chartContainer.innerHTML = `<p class="bar-chart-empty">No data to display for the selected filters.</p>`;
-        container.appendChild(chartContainer);
+        scrollContainer.innerHTML = `<p class="bar-chart-empty">No data to display for the selected filters.</p>`;
+        container.appendChild(scrollContainer);
         return container;
     }
 
@@ -77,9 +77,9 @@ export function WorkDistributionChart({ title, data, onBarClick, drilldownTitle,
         valueLabel.innerHTML = `${formatMinutes(item.value)} <span class="percentage">(${percentage}%)</span>`;
 
         itemElement.append(label, barWrapper, valueLabel);
-        chartContainer.appendChild(itemElement);
+        scrollContainer.appendChild(itemElement);
     });
 
-    container.appendChild(chartContainer);
+    container.appendChild(scrollContainer);
     return container;
 }
