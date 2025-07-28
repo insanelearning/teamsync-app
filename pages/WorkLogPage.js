@@ -205,7 +205,7 @@ export function renderWorkLogPage(container, props) {
     }
     
     function updateSummaries(logsToSummarize, todaysTotalMinutes) {
-        const totalMinutes = logsToSummarize.reduce((acc, log) => acc + (log.timeSpentMinutes || 0), 0);
+        const totalMinutes = logsToSummarize.reduce((acc, log) => acc + (Number(log.timeSpentMinutes) || 0), 0);
         const personDays = new Set(logsToSummarize.map(log => `${log.memberId}|${log.date}`)).size;
         
         const start = new Date(filterState.startDate + 'T00:00:00');
@@ -256,7 +256,7 @@ export function renderWorkLogPage(container, props) {
             const tasksInCategory = filteredLogs
                 .filter(log => taskMap.get(log.taskName)?.category === selectedCategory)
                 .reduce((acc, log) => {
-                    acc[log.taskName] = (acc[log.taskName] || 0) + log.timeSpentMinutes;
+                    acc[log.taskName] = (acc[log.taskName] || 0) + (Number(log.timeSpentMinutes) || 0);
                     return acc;
                 }, {});
 
@@ -282,7 +282,7 @@ export function renderWorkLogPage(container, props) {
         } else {
             const timeByCategory = filteredLogs.reduce((acc, log) => {
                 const category = taskMap.get(log.taskName)?.category || 'Uncategorized';
-                acc[category] = (acc[category] || 0) + log.timeSpentMinutes;
+                acc[category] = (acc[category] || 0) + (Number(log.timeSpentMinutes) || 0);
                 return acc;
             }, {});
 
@@ -316,7 +316,7 @@ export function renderWorkLogPage(container, props) {
         }
 
         const timeByMember = logsForInsights.reduce((acc, log) => {
-            acc[log.memberId] = (acc[log.memberId] || 0) + log.timeSpentMinutes;
+            acc[log.memberId] = (acc[log.memberId] || 0) + (Number(log.timeSpentMinutes) || 0);
             return acc;
         }, {});
         const topContributors = Object.entries(timeByMember)
@@ -325,7 +325,7 @@ export function renderWorkLogPage(container, props) {
         rightCol.appendChild(createInsightList('Top Contributors', topContributors));
 
         const timeByProject = logsForInsights.reduce((acc, log) => {
-            acc[log.projectId] = (acc[log.projectId] || 0) + log.timeSpentMinutes;
+            acc[log.projectId] = (acc[log.projectId] || 0) + (Number(log.timeSpentMinutes) || 0);
             return acc;
         }, {});
         const projectFocus = Object.entries(timeByProject)
@@ -435,7 +435,7 @@ export function renderWorkLogPage(container, props) {
             const isProjectMatch = !filterState.projectId || log.projectId === filterState.projectId;
             return isMemberMatch && isProjectMatch && log.date === todaysDate;
         });
-        const todaysTotalMinutes = todaysLogs.reduce((acc, log) => acc + (log.timeSpentMinutes || 0), 0);
+        const todaysTotalMinutes = todaysLogs.reduce((acc, log) => acc + (Number(log.timeSpentMinutes) || 0), 0);
         
         updateSummaries(filteredLogs, todaysTotalMinutes);
         renderAnalysisSection(filteredLogs);
