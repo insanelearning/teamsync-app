@@ -18,74 +18,6 @@ function formatMinutes(minutes) {
     return `${h}h ${m}m`;
 }
 
-// --- Analysis Helper Components ---
-function createDonutChart(title, data) {
-    const container = document.createElement('div');
-    container.className = 'donut-chart-wrapper';
-
-    const chartTitle = document.createElement('h4');
-    chartTitle.className = 'kpi-panel-section-title';
-    chartTitle.textContent = title;
-    container.appendChild(chartTitle);
-
-    const chartAndLegend = document.createElement('div');
-    chartAndLegend.className = 'donut-chart-and-legend';
-
-    const svgContainer = document.createElement('div');
-    svgContainer.className = 'donut-chart-svg-container';
-
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('viewBox', '0 0 100 100');
-    svg.setAttribute('class', 'donut-chart-svg');
-    
-    const totalValue = data.reduce((sum, item) => sum + item.value, 0);
-
-    if (totalValue > 0) {
-        const radius = 40;
-        const circumference = 2 * Math.PI * radius;
-        let offset = 0;
-
-        data.forEach(item => {
-            if (item.value === 0) return;
-            const percent = (item.value / totalValue) * 100;
-            const strokeDasharray = `${(percent / 100) * circumference} ${circumference}`;
-            
-            const segment = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-            segment.setAttribute('cx', '50');
-            segment.setAttribute('cy', '50');
-            segment.setAttribute('r', String(radius));
-            segment.setAttribute('fill', 'none');
-            segment.setAttribute('stroke', item.color);
-            segment.setAttribute('stroke-width', '15');
-            segment.setAttribute('stroke-dasharray', strokeDasharray);
-            segment.setAttribute('stroke-dashoffset', String(-offset));
-            segment.setAttribute('transform', 'rotate(-90 50 50)');
-            svg.appendChild(segment);
-            offset += (percent / 100) * circumference;
-        });
-    }
-
-    svg.innerHTML += `<circle cx="50" cy="50" r="32" fill="var(--donut-center-color)" />`;
-
-    svgContainer.appendChild(svg);
-    chartAndLegend.appendChild(svgContainer);
-
-    const legend = document.createElement('div');
-    legend.className = 'donut-chart-legend';
-    data.forEach(item => {
-        const percent = totalValue > 0 ? (item.value / totalValue * 100).toFixed(1) : 0;
-        legend.innerHTML += `
-            <div class="donut-legend-item">
-                <span class="legend-color-box" style="background-color: ${item.color};"></span>
-                <span class="legend-label">${item.label}</span>
-                <span class="legend-value">${formatMinutes(item.value)} (${percent}%)</span>
-            </div>`;
-    });
-    chartAndLegend.appendChild(legend);
-    container.appendChild(chartAndLegend);
-    return container;
-}
-
 function createInsightList(title, items) {
     const container = document.createElement('div');
     container.className = 'insight-list-wrapper';
@@ -102,14 +34,14 @@ function createInsightList(title, items) {
 
     const list = document.createElement('ul');
     list.className = 'insight-list';
-    const totalValue = items.reduce((sum, item) => sum + item.value, 0);
+    const maxValue = items.length > 0 ? Math.max(...items.map(item => item.value)) : 0;
 
     items.slice(0, 5).forEach(item => { // Show top 5
-        const percentage = totalValue > 0 ? (item.value / totalValue) * 100 : 0;
+        const percentage = maxValue > 0 ? (item.value / maxValue) * 100 : 0;
         const li = document.createElement('li');
         li.className = 'insight-list-item';
         li.innerHTML = `
-            <div class="insight-item-label">${item.label}</div>
+            <div class="insight-item-label" title="${item.label}">${item.label}</div>
             <div class="insight-item-bar-container">
                 <div class="insight-item-bar" style="width: ${percentage}%; background-color: ${item.color || 'var(--color-primary)'};"></div>
             </div>
@@ -129,7 +61,8 @@ export function renderWorkLogPage(container, props) {
     const isManager = currentUser.role === TeamMemberRole.Manager;
     let currentPage = 1;
     let rowsPerPage = 10;
-    let selectedCategory = null; // For chart drilldown
+    let selectedCategory = null;
+    let selectedTask = null;
 
     let filterState = {
         memberId: isManager ? '' : currentUser.id,
@@ -243,19 +176,22 @@ export function renderWorkLogPage(container, props) {
     filtersDiv.appendChild(filterGrid);
     contentSection.appendChild(filtersDiv);
 
-    // Analysis section (new)
+    // Analysis section
     const analysisContainer = document.createElement('div');
     contentSection.appendChild(analysisContainer);
 
-    // Table
+    // Table Section Wrapper
+    const tableSectionWrapper = document.createElement('div');
+    tableSectionWrapper.className = 'work-log-table-section';
+    contentSection.appendChild(tableSectionWrapper);
+
     const tableContainer = document.createElement('div');
     tableContainer.className = 'data-table-container';
-    contentSection.appendChild(tableContainer);
+    tableSectionWrapper.appendChild(tableContainer);
 
-    // Pagination
     const paginationContainer = document.createElement('div');
     paginationContainer.className = 'pagination-controls';
-    contentSection.appendChild(paginationContainer);
+    tableSectionWrapper.appendChild(paginationContainer);
 
     pageWrapper.appendChild(contentSection);
 
@@ -312,8 +248,8 @@ export function renderWorkLogPage(container, props) {
         // --- Left Column: Chart ---
         const leftCol = document.createElement('div');
         leftCol.className = 'analysis-dashboard-left';
-
         const taskMap = new Map(props.workLogTasks.map(task => [task.name, task]));
+        
         let chartProps = {};
 
         if (selectedCategory) {
@@ -327,7 +263,16 @@ export function renderWorkLogPage(container, props) {
             chartProps = {
                 title: 'Hours by Task',
                 drilldownTitle: `Category: ${selectedCategory}`,
-                onBackClick: () => { selectedCategory = null; rerenderPage(); },
+                selectedItem: selectedTask,
+                onBackClick: () => {
+                    if (selectedTask) { selectedTask = null; } 
+                    else { selectedCategory = null; }
+                    rerenderPage();
+                },
+                onBarClick: (taskName) => {
+                    selectedTask = selectedTask === taskName ? null : taskName;
+                    rerenderPage();
+                },
                 data: Object.entries(tasksInCategory).map(([taskName, minutes]) => ({
                     label: taskName,
                     value: minutes,
@@ -343,7 +288,11 @@ export function renderWorkLogPage(container, props) {
 
             chartProps = {
                 title: 'Hours by Category',
-                onBarClick: (category) => { selectedCategory = category; rerenderPage(); },
+                onBarClick: (category) => {
+                    selectedCategory = category;
+                    selectedTask = null;
+                    rerenderPage();
+                },
                 data: Object.entries(timeByCategory).map(([category, minutes]) => ({
                     label: category,
                     value: minutes,
@@ -359,8 +308,14 @@ export function renderWorkLogPage(container, props) {
         rightCol.className = 'analysis-dashboard-right kpi-insights-panel';
         rightCol.innerHTML = `<h3 class="kpi-panel-title"><i class="fas fa-chart-line"></i> KPIs & Insights</h3>`;
 
-        // 1. Top Contributors
-        const timeByMember = filteredLogs.reduce((acc, log) => {
+        let logsForInsights = filteredLogs;
+        if (selectedTask) {
+            logsForInsights = filteredLogs.filter(log => log.taskName === selectedTask);
+        } else if (selectedCategory) {
+            logsForInsights = filteredLogs.filter(log => (taskMap.get(log.taskName)?.category || 'Uncategorized') === selectedCategory);
+        }
+
+        const timeByMember = logsForInsights.reduce((acc, log) => {
             acc[log.memberId] = (acc[log.memberId] || 0) + log.timeSpentMinutes;
             return acc;
         }, {});
@@ -369,8 +324,7 @@ export function renderWorkLogPage(container, props) {
             .sort((a, b) => b.value - a.value);
         rightCol.appendChild(createInsightList('Top Contributors', topContributors));
 
-        // 2. Project Focus
-        const timeByProject = filteredLogs.reduce((acc, log) => {
+        const timeByProject = logsForInsights.reduce((acc, log) => {
             acc[log.projectId] = (acc[log.projectId] || 0) + log.timeSpentMinutes;
             return acc;
         }, {});
