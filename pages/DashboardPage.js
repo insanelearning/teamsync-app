@@ -241,7 +241,7 @@ function renderActivityFeed(props) {
             <li class="activity-item type-${event.type}">
                 <div class="activity-icon"><i class="fas ${iconMap[event.type]}"></i></div>
                 <div class="activity-text">${event.text}</div>
-                <div class="activity-time">${event.date.toLocaleDateString()}</div>
+                <div class="activity-time">${event.date.toLocaleString()}</div>
             </li>`).join('');
     }
     container.appendChild(list);
