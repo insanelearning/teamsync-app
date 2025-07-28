@@ -330,7 +330,7 @@ export function renderProjectsPage(container, props) {
       Button({ children: 'Export CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>', onClick: () => onExport('projects') }),
       FileUploadButton({
           children: 'Import CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-import"></i>', accept: '.csv',
-          onFileSelect: (file) => { if (file) onImport(file); }
+          onFileSelect: (file) => { if (file) onImport(file, 'projects'); }
       }),
       Button({ children: 'Add Project', size: 'sm', leftIcon: '<i class="fas fa-plus"></i>', onClick: openModalForNew })
     );
