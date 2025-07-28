@@ -418,8 +418,10 @@ const handleImport = async (file, dataType) => {
       return;
     }
     
-    if (!importedData.every(item => item.id)) {
-        alert("Import failed: Each row in the CSV must have a unique 'id' column.");
+    // For most data types, an ID is required to prevent duplicates.
+    // We make an exception for 'worklogs' as requested.
+    if (dataType !== 'worklogs' && !importedData.every(item => item.id)) {
+        alert(`Import failed: Each row in the CSV must have a unique 'id' column for ${dataType}.`);
         return;
     }
 
@@ -432,17 +434,24 @@ const handleImport = async (file, dataType) => {
             assignees: typeof p.assignees === 'string' ? p.assignees.split(';').filter(Boolean) : [],
             tags: typeof p.tags === 'string' ? p.tags.split(';').filter(Boolean) : [],
         }));
-    } else if (dataType === 'attendance') collectionName = 'attendance';
-    else if (dataType === 'notes') {
+    } else if (dataType === 'attendance') {
+        collectionName = 'attendance';
+    } else if (dataType === 'notes') {
         collectionName = 'notes';
         importedData.forEach(note => {
             note.userId = currentUser.id;
             note.tags = typeof note.tags === 'string' ? note.tags.split(';').filter(Boolean) : [];
         });
-    }
-    else if (dataType === 'worklogs') collectionName = 'worklogs';
-    else if (dataType === 'team') collectionName = 'teamMembers';
-    else {
+    } else if (dataType === 'worklogs') {
+        collectionName = 'worklogs';
+        // As requested, automatically generate IDs for work logs if they are missing.
+        importedData = importedData.map(log => ({
+            ...log,
+            id: log.id || crypto.randomUUID(),
+        }));
+    } else if (dataType === 'team') {
+        collectionName = 'teamMembers';
+    } else {
         alert("Unknown data type for import.");
         return;
     }
