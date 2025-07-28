@@ -120,6 +120,73 @@ const createImageUploader = (currentLogoUrl, onImageSelect) => {
     return container;
 };
 
+const createColorField = (labelText, value, onChange) => {
+    const container = document.createElement('div');
+
+    const label = document.createElement('label');
+    label.className = 'form-label';
+    label.textContent = labelText;
+    container.appendChild(label);
+
+    const inputWrapper = document.createElement('div');
+    inputWrapper.style.display = 'flex';
+    inputWrapper.style.alignItems = 'center';
+    inputWrapper.style.gap = '0.5rem';
+    inputWrapper.style.border = '1px solid #d1d5db';
+    inputWrapper.style.borderRadius = '0.375rem';
+    inputWrapper.style.paddingLeft = '0.25rem';
+    inputWrapper.style.backgroundColor = '#ffffff';
+
+    const isDark = document.documentElement.classList.contains('dark');
+    if (isDark) {
+        inputWrapper.style.borderColor = '#4b5563';
+        inputWrapper.style.backgroundColor = '#374151';
+    }
+
+    const colorInput = document.createElement('input');
+    colorInput.type = 'color';
+    colorInput.value = value;
+    colorInput.style.width = '2rem';
+    colorInput.style.height = '2rem';
+    colorInput.style.border = 'none';
+    colorInput.style.padding = '0';
+    colorInput.style.background = 'none';
+    colorInput.style.cursor = 'pointer';
+
+    const hexInput = document.createElement('input');
+    hexInput.type = 'text';
+    hexInput.className = 'form-input';
+    hexInput.value = value.toUpperCase();
+    hexInput.style.border = 'none';
+    hexInput.style.boxShadow = 'none';
+    hexInput.style.backgroundColor = 'transparent';
+    hexInput.style.padding = '0.5rem 0.25rem';
+
+    colorInput.addEventListener('input', (e) => {
+        const newValue = e.target.value;
+        hexInput.value = newValue.toUpperCase();
+        onChange(newValue);
+    });
+
+    hexInput.addEventListener('change', (e) => {
+        let newValue = e.target.value.trim();
+        if (!newValue.startsWith('#')) {
+            newValue = '#' + newValue;
+        }
+        if (/^#[0-9A-F]{6}$/i.test(newValue)) {
+            colorInput.value = newValue;
+            onChange(newValue);
+        } else {
+            hexInput.value = value.toUpperCase(); // Revert to last valid color
+        }
+    });
+
+    inputWrapper.append(colorInput, hexInput);
+    container.appendChild(inputWrapper);
+
+    return container;
+};
+
 // --- Modal Forms ---
 function openTaskFormModal(task, onSave) {
     const isEditMode = !!task;
@@ -325,6 +392,10 @@ export function renderAdminPage(container, { appSettings, onUpdateSettings }) {
         generalFieldset.appendChild(generalGrid);
         form.appendChild(generalFieldset);
 
+        // --- Holiday and Color Grid ---
+        const twoColumnGrid = document.createElement('div');
+        twoColumnGrid.className = 'admin-two-column-grid';
+
         // --- Holiday Management ---
         const holidayFieldset = createFieldset('Holiday Management', 'Define company-wide non-working days.');
         const holidayList = document.createElement('div');
@@ -372,11 +443,26 @@ export function renderAdminPage(container, { appSettings, onUpdateSettings }) {
         });
         addHolidayContainer.append(holidayNameInput, holidayDateInput, addHolidayBtn);
         holidayFieldset.appendChild(addHolidayContainer);
-        form.appendChild(holidayFieldset);
+        twoColumnGrid.appendChild(holidayFieldset);
+
+        // --- Color Controls ---
+        const colorFieldset = createFieldset('Theme & Color Controls', 'Set the primary colors for the application UI.');
+        const colorGrid = document.createElement('div');
+        colorGrid.className = 'admin-form-grid';
+        colorGrid.style.gridTemplateColumns = '1fr'; // Stack them in the column
+        colorGrid.append(
+            createColorField('Primary Color', localSettings.primaryColor, val => localSettings.primaryColor = val),
+            createColorField('Primary Hover Color', localSettings.primaryColorHover, val => localSettings.primaryColorHover = val)
+        );
+        colorFieldset.appendChild(colorGrid);
+        twoColumnGrid.appendChild(colorFieldset);
+
+        form.appendChild(twoColumnGrid);
+
 
         // --- Two Column Layout for Teams & Leave Types ---
-        const twoColumnGrid = document.createElement('div');
-        twoColumnGrid.className = 'admin-two-column-grid';
+        const twoColumnGrid2 = document.createElement('div');
+        twoColumnGrid2.className = 'admin-two-column-grid';
 
         // --- Internal Teams ---
         const teamsFieldset = createFieldset('Internal Teams');
@@ -417,7 +503,7 @@ export function renderAdminPage(container, { appSettings, onUpdateSettings }) {
         });
         addTeamContainer.append(addTeamInput, addTeamBtn);
         teamsFieldset.appendChild(addTeamContainer);
-        twoColumnGrid.appendChild(teamsFieldset);
+        twoColumnGrid2.appendChild(teamsFieldset);
 
         // --- Leave Types ---
         const leaveTypesFieldset = createFieldset('Leave Types');
@@ -458,9 +544,9 @@ export function renderAdminPage(container, { appSettings, onUpdateSettings }) {
         });
         addLeaveTypeContainer.append(addLeaveTypeInput, addLeaveTypeBtn);
         leaveTypesFieldset.appendChild(addLeaveTypeContainer);
-        twoColumnGrid.appendChild(leaveTypesFieldset);
+        twoColumnGrid2.appendChild(leaveTypesFieldset);
 
-        form.appendChild(twoColumnGrid);
+        form.appendChild(twoColumnGrid2);
 
 
         // --- Work Log Tasks ---
