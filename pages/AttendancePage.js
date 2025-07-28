@@ -1,6 +1,4 @@
 
-
-
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { TeamMemberForm } from '../components/TeamMemberForm.js';
@@ -152,7 +150,7 @@ export function renderAttendancePage(container, props) {
     const logActionsDiv = document.createElement('div');
     logActionsDiv.className = "daily-log-actions";
     logActionsDiv.append(
-      Button({ children: 'Export All Logs', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>', onClick: onExport }),
+      Button({ children: 'Export All Logs', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>', onClick: () => onExport('attendance') }),
       FileUploadButton({ children: 'Import Logs', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-import"></i>', accept: '.csv', onFileSelect: (f) => handleFileImport(f, 'attendance') }),
       Button({ children: 'View Attendance Logs', variant: 'primary', size: 'sm', leftIcon: '<i class="fas fa-history"></i>', onClick: openLogViewerModal })
     );
