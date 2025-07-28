@@ -153,7 +153,7 @@ export function renderNotesPage(container, props) {
       Button({ children: 'Export Notes', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>', onClick: () => onExport('notes') }),
       FileUploadButton({
           children: 'Import Notes', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-import"></i>', accept: '.csv',
-          onFileSelect: (file) => { if (file) onImport(file); }
+          onFileSelect: (file) => { if (file) onImport(file, 'notes'); }
       })
     );
   }
