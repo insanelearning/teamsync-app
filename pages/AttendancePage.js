@@ -1,5 +1,6 @@
 
 
+
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { TeamMemberForm } from '../components/TeamMemberForm.js';
@@ -327,7 +328,35 @@ export function renderAttendancePage(container, props) {
         return item;
     };
 
-    detailGrid.appendChild(createDetailItem('Email', member.email || 'N/A'));
+    // Email Item with Button
+    const emailItem = document.createElement('div');
+    emailItem.className = 'detail-item';
+    emailItem.innerHTML = `<h4 class="detail-label">Email</h4>`;
+    if (member.email) {
+        const valueContainer = document.createElement('div');
+        valueContainer.style.display = 'flex';
+        valueContainer.style.alignItems = 'center';
+        valueContainer.style.gap = '0.5rem';
+
+        const valueP = document.createElement('p');
+        valueP.className = 'detail-value';
+        valueP.style.margin = '0';
+        valueP.textContent = member.email;
+
+        const emailBtn = Button({ 
+            variant: 'ghost', 
+            size: 'sm', 
+            children: '<i class="fas fa-envelope"></i>', 
+            ariaLabel: 'Email', 
+            onClick: () => window.open(`mailto:${member.email}`) 
+        });
+
+        valueContainer.append(valueP, emailBtn);
+        emailItem.appendChild(valueContainer);
+    } else {
+        emailItem.innerHTML += `<p class="detail-value">N/A</p>`;
+    }
+    detailGrid.appendChild(emailItem);
     
     // Mobile Number Item with Buttons
     const mobileItem = document.createElement('div');
