@@ -19,9 +19,9 @@ export const INITIAL_LEAVE_TYPES = [
 ];
 
 export const INITIAL_TEAM_MEMBERS = [
-    { id: 'user1', name: 'Alex Manager', email: 'alex@example.com', role: TeamMemberRole.Manager, designation: 'Team Lead', internalTeam: 'Engineering', joinDate: '2022-01-15', birthDate: '1990-05-20' },
-    { id: 'user2', name: 'Bob Member', email: 'bob@example.com', role: TeamMemberRole.Member, designation: 'Sr. Developer', internalTeam: 'Engineering', joinDate: '2022-08-01', birthDate: '1992-11-10' },
-    { id: 'user3', name: 'Charlie Member', email: 'charlie@example.com', role: TeamMemberRole.Member, designation: 'QA Engineer', internalTeam: 'QA', joinDate: '2023-03-20', birthDate: '1995-02-25' },
+    { id: 'user1', name: 'Alex Manager', email: 'alex@example.com', role: TeamMemberRole.Manager, designation: 'Team Lead', internalTeam: 'Engineering', joinDate: '2022-01-15', birthDate: '1990-05-20', mobileNumber: '+15551234567' },
+    { id: 'user2', name: 'Bob Member', email: 'bob@example.com', role: TeamMemberRole.Member, designation: 'Sr. Developer', internalTeam: 'Engineering', joinDate: '2022-08-01', birthDate: '1992-11-10', mobileNumber: '+15551234568' },
+    { id: 'user3', name: 'Charlie Member', email: 'charlie@example.com', role: TeamMemberRole.Member, designation: 'QA Engineer', internalTeam: 'QA', joinDate: '2023-03-20', birthDate: '1995-02-25', mobileNumber: '+15551234569' },
 ];
 
 export const WORK_LOG_TASKS = [
