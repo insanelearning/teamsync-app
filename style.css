@@ -20,6 +20,7 @@ body, html {
   --color-primary-focus-ring: rgba(79, 70, 229, 0.3);
   --color-primary-light-bg: #EEF2FF;
   --color-primary-dark-text: #4338CA;
+  --donut-center-color: #ffffff;
 }
 
 
@@ -35,6 +36,7 @@ body, html {
   --color-primary-focus-ring: rgba(129, 140, 248, 0.3);
   --color-primary-light-bg: #3730A3;
   --color-primary-dark-text: #A5B4FC;
+  --donut-center-color: #1f2937;
 }
 
 
@@ -3694,10 +3696,6 @@ footer.app-footer {
 .pagination-rows-selector .form-select {
     width: auto;
 }
-.pagination-nav span {
-    font-size: 0.875rem;
-    font-weight: 500;
-}
 
 /* Work Log Form (Multi-add) */
 .worklog-form-top-fields {
@@ -4028,6 +4026,147 @@ footer.app-footer {
     word-break: break-word;
 }
 
+/* --- NEW: Work Log Analysis Dashboard --- */
+.analysis-dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #e5e7eb;
+}
+.dark .analysis-dashboard-grid {
+    border-top-color: #374151;
+}
+@media (min-width: 1024px) {
+    .analysis-dashboard-grid {
+        grid-template-columns: 2fr 1fr;
+    }
+}
+
+.kpi-insights-panel {
+    background-color: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+.dark .kpi-insights-panel {
+    background-color: #1f2937;
+    border-color: #374151;
+}
+.kpi-panel-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.kpi-panel-section-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #4b5563;
+    text-transform: uppercase;
+    margin: 0 0 0.75rem 0;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+.dark .kpi-panel-section-title {
+    color: #9ca3af;
+    border-color: #374151;
+}
+
+.donut-chart-wrapper {
+    display: flex;
+    flex-direction: column;
+}
+.donut-chart-and-legend {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+.donut-chart-svg-container {
+    width: 100px;
+    height: 100px;
+    flex-shrink: 0;
+}
+.donut-chart-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+.donut-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.donut-legend-item .legend-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    flex-grow: 1;
+}
+.donut-legend-item .legend-value {
+    font-size: 0.8rem;
+    color: #6b7280;
+}
+.dark .donut-legend-item .legend-value {
+    color: #9ca3af;
+}
+
+.insight-list-wrapper {
+    display: flex;
+    flex-direction: column;
+}
+.insight-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+.insight-list-item {
+    display: grid;
+    grid-template-columns: minmax(80px, 1fr) 2fr 80px;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.8rem;
+}
+.insight-item-label {
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.insight-item-bar-container {
+    height: 8px;
+    background-color: #e5e7eb;
+    border-radius: 4px;
+    width: 100%;
+}
+.dark .insight-item-bar-container {
+    background-color: #374151;
+}
+.insight-item-bar {
+    height: 100%;
+    border-radius: 4px;
+}
+.insight-item-value {
+    font-weight: 600;
+    text-align: right;
+}
+.insight-list-empty {
+    font-size: 0.8rem;
+    color: #6b7280;
+    font-style: italic;
+}
+.dark .insight-list-empty {
+    color: #9ca3af;
+}
+
 /* --- NEW: Work Distribution Chart --- */
 .work-distribution-analysis {
     padding: 1rem;
@@ -4069,7 +4208,10 @@ footer.app-footer {
     background-color: #374151;
 }
 
-.bar-chart-container {
+.bar-chart-scroll-container {
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: .5rem;
     display: flex;
     flex-direction: column;
     gap: .75rem;
@@ -4087,6 +4229,7 @@ footer.app-footer {
 }
 .bar-chart-item.clickable:hover .bar-chart-label {
     color: var(--color-primary);
+    text-decoration: underline;
 }
 .dark .bar-chart-item.clickable:hover .bar-chart-label {
     color: var(--color-primary);
@@ -4118,7 +4261,7 @@ footer.app-footer {
 .bar-chart-bar-fill {
     height: 100%;
     border-radius: .25rem;
-    transition: width .3s ease-in-out;
+    transition: width .3s ease-in-out, opacity .2s ease;
 }
 .bar-chart-item.clickable:hover .bar-chart-bar-fill {
     opacity: .8;
