@@ -1,4 +1,3 @@
-
 import { Button } from './Button.js';
 
 function formatMinutes(minutes) {
@@ -9,7 +8,7 @@ function formatMinutes(minutes) {
     return `${h}h ${m}m`;
 }
 
-export function WorkDistributionChart({ title, data, onBarClick, drilldownTitle, onBackClick }) {
+export function WorkDistributionChart({ title, data, onBarClick, drilldownTitle, onBackClick, selectedItem }) {
     const container = document.createElement('div');
     // The parent container in WorkLogPage will have the .work-distribution-analysis class
 
@@ -53,6 +52,9 @@ export function WorkDistributionChart({ title, data, onBarClick, drilldownTitle,
         if (onBarClick) {
             itemElement.classList.add('clickable');
             itemElement.onclick = () => onBarClick(item.label);
+        }
+        if (selectedItem === item.label) {
+            itemElement.classList.add('highlight');
         }
 
         const label = document.createElement('div');
