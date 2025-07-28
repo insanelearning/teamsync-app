@@ -1,5 +1,4 @@
 
-
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { NoteCard } from '../components/NoteCard.js';
@@ -151,7 +150,7 @@ export function renderNotesPage(container, props) {
   
   if (isManager) {
     actionsWrapper.append(
-      Button({ children: 'Export Notes', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>', onClick: onExport }),
+      Button({ children: 'Export Notes', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>', onClick: () => onExport('notes') }),
       FileUploadButton({
           children: 'Import Notes', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-import"></i>', accept: '.csv',
           onFileSelect: (file) => { if (file) onImport(file); }
