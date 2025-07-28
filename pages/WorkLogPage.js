@@ -1,5 +1,4 @@
 
-
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { WorkLogForm } from '../components/WorkLogForm.js';
@@ -47,7 +46,7 @@ export function renderWorkLogPage(container, props) {
 
     if (isManager) {
         actionsWrapper.append(
-            Button({ children: 'Export CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>', onClick: onExport }),
+            Button({ children: 'Export CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>', onClick: () => onExport('worklogs') }),
             FileUploadButton({
                 children: 'Import CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-import"></i>', accept: '.csv',
                 onFileSelect: (file) => { if (file) onImport(file); }
