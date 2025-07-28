@@ -17,6 +17,111 @@ function formatMinutes(minutes) {
     return `${h}h ${m}m`;
 }
 
+// --- Analysis Helper Components ---
+function createDonutChart(title, data) {
+    const container = document.createElement('div');
+    container.className = 'donut-chart-wrapper';
+
+    const chartTitle = document.createElement('h4');
+    chartTitle.className = 'kpi-panel-section-title';
+    chartTitle.textContent = title;
+    container.appendChild(chartTitle);
+
+    const chartAndLegend = document.createElement('div');
+    chartAndLegend.className = 'donut-chart-and-legend';
+
+    const svgContainer = document.createElement('div');
+    svgContainer.className = 'donut-chart-svg-container';
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 100 100');
+    svg.setAttribute('class', 'donut-chart-svg');
+    
+    const totalValue = data.reduce((sum, item) => sum + item.value, 0);
+
+    if (totalValue > 0) {
+        const radius = 40;
+        const circumference = 2 * Math.PI * radius;
+        let offset = 0;
+
+        data.forEach(item => {
+            if (item.value === 0) return;
+            const percent = (item.value / totalValue) * 100;
+            const strokeDasharray = `${(percent / 100) * circumference} ${circumference}`;
+            
+            const segment = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            segment.setAttribute('cx', '50');
+            segment.setAttribute('cy', '50');
+            segment.setAttribute('r', String(radius));
+            segment.setAttribute('fill', 'none');
+            segment.setAttribute('stroke', item.color);
+            segment.setAttribute('stroke-width', '15');
+            segment.setAttribute('stroke-dasharray', strokeDasharray);
+            segment.setAttribute('stroke-dashoffset', String(-offset));
+            segment.setAttribute('transform', 'rotate(-90 50 50)');
+            svg.appendChild(segment);
+            offset += (percent / 100) * circumference;
+        });
+    }
+
+    svg.innerHTML += `<circle cx="50" cy="50" r="32" fill="var(--donut-center-color)" />`;
+
+    svgContainer.appendChild(svg);
+    chartAndLegend.appendChild(svgContainer);
+
+    const legend = document.createElement('div');
+    legend.className = 'donut-chart-legend';
+    data.forEach(item => {
+        const percent = totalValue > 0 ? (item.value / totalValue * 100).toFixed(1) : 0;
+        legend.innerHTML += `
+            <div class="donut-legend-item">
+                <span class="legend-color-box" style="background-color: ${item.color};"></span>
+                <span class="legend-label">${item.label}</span>
+                <span class="legend-value">${formatMinutes(item.value)} (${percent}%)</span>
+            </div>`;
+    });
+    chartAndLegend.appendChild(legend);
+    container.appendChild(chartAndLegend);
+    return container;
+}
+
+function createInsightList(title, items) {
+    const container = document.createElement('div');
+    container.className = 'insight-list-wrapper';
+
+    const listTitle = document.createElement('h4');
+    listTitle.className = 'kpi-panel-section-title';
+    listTitle.textContent = title;
+    container.appendChild(listTitle);
+
+    if (items.length === 0) {
+        container.innerHTML += `<p class="insight-list-empty">No data available.</p>`;
+        return container;
+    }
+
+    const list = document.createElement('ul');
+    list.className = 'insight-list';
+    const totalValue = items.reduce((sum, item) => sum + item.value, 0);
+
+    items.slice(0, 5).forEach(item => { // Show top 5
+        const percentage = totalValue > 0 ? (item.value / totalValue) * 100 : 0;
+        const li = document.createElement('li');
+        li.className = 'insight-list-item';
+        li.innerHTML = `
+            <div class="insight-item-label">${item.label}</div>
+            <div class="insight-item-bar-container">
+                <div class="insight-item-bar" style="width: ${percentage}%; background-color: ${item.color || 'var(--color-primary)'};"></div>
+            </div>
+            <div class="insight-item-value">${formatMinutes(item.value)}</div>
+        `;
+        list.appendChild(li);
+    });
+
+    container.appendChild(list);
+    return container;
+}
+
+
 export function renderWorkLogPage(container, props) {
     const { workLogs, teamMembers, projects, currentUser, onAddMultipleWorkLogs, onUpdateWorkLog, onDeleteWorkLog, onExport, onImport, workLogTasks } = props;
 
@@ -200,13 +305,19 @@ export function renderWorkLogPage(container, props) {
         analysisContainer.innerHTML = '';
         if (filteredLogs.length === 0) return;
 
-        const taskCategoryMap = new Map(props.workLogTasks.map(task => [task.name, task.category]));
+        const analysisDashboard = document.createElement('div');
+        analysisDashboard.className = 'analysis-dashboard-grid';
 
+        // --- Left Column: Chart ---
+        const leftCol = document.createElement('div');
+        leftCol.className = 'analysis-dashboard-left';
+
+        const taskMap = new Map(props.workLogTasks.map(task => [task.name, task]));
         let chartProps = {};
 
         if (selectedCategory) {
             const tasksInCategory = filteredLogs
-                .filter(log => taskCategoryMap.get(log.taskName) === selectedCategory)
+                .filter(log => taskMap.get(log.taskName)?.category === selectedCategory)
                 .reduce((acc, log) => {
                     acc[log.taskName] = (acc[log.taskName] || 0) + log.timeSpentMinutes;
                     return acc;
@@ -224,7 +335,7 @@ export function renderWorkLogPage(container, props) {
             };
         } else {
             const timeByCategory = filteredLogs.reduce((acc, log) => {
-                const category = taskCategoryMap.get(log.taskName) || 'Uncategorized';
+                const category = taskMap.get(log.taskName)?.category || 'Uncategorized';
                 acc[category] = (acc[category] || 0) + log.timeSpentMinutes;
                 return acc;
             }, {});
@@ -239,8 +350,48 @@ export function renderWorkLogPage(container, props) {
                 })).sort((a, b) => b.value - a.value),
             };
         }
-        
-        analysisContainer.appendChild(WorkDistributionChart(chartProps));
+        leftCol.appendChild(WorkDistributionChart(chartProps));
+        analysisDashboard.appendChild(leftCol);
+
+        // --- Right Column: KPIs & Insights ---
+        const rightCol = document.createElement('div');
+        rightCol.className = 'analysis-dashboard-right kpi-insights-panel';
+        rightCol.innerHTML = `<h3 class="kpi-panel-title"><i class="fas fa-chart-line"></i> KPIs & Insights</h3>`;
+
+        // 1. Billable Hours
+        const billableData = filteredLogs.reduce((acc, log) => {
+            const isBillable = taskMap.get(log.taskName)?.billable;
+            const key = isBillable ? 'billable' : 'nonBillable';
+            acc[key] += log.timeSpentMinutes;
+            return acc;
+        }, { billable: 0, nonBillable: 0 });
+        rightCol.appendChild(createDonutChart('Billable Hours', [
+            { label: 'Billable', value: billableData.billable, color: '#16a34a' },
+            { label: 'Non-Billable', value: billableData.nonBillable, color: '#ef4444' },
+        ]));
+
+        // 2. Top Contributors
+        const timeByMember = filteredLogs.reduce((acc, log) => {
+            acc[log.memberId] = (acc[log.memberId] || 0) + log.timeSpentMinutes;
+            return acc;
+        }, {});
+        const topContributors = Object.entries(timeByMember)
+            .map(([memberId, minutes]) => ({ label: teamMembers.find(m => m.id === memberId)?.name || 'Unknown', value: minutes }))
+            .sort((a, b) => b.value - a.value);
+        rightCol.appendChild(createInsightList('Top Contributors', topContributors));
+
+        // 3. Project Focus
+        const timeByProject = filteredLogs.reduce((acc, log) => {
+            acc[log.projectId] = (acc[log.projectId] || 0) + log.timeSpentMinutes;
+            return acc;
+        }, {});
+        const projectFocus = Object.entries(timeByProject)
+            .map(([projectId, minutes]) => ({ label: projects.find(p => p.id === projectId)?.name || 'Unknown', value: minutes, color: '#8b5cf6' }))
+            .sort((a, b) => b.value - a.value);
+        rightCol.appendChild(createInsightList('Project Focus', projectFocus));
+
+        analysisDashboard.appendChild(rightCol);
+        analysisContainer.appendChild(analysisDashboard);
     }
 
     function rerenderTableAndPagination(allFilteredLogs) {
