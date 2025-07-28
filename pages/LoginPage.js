@@ -1,20 +1,33 @@
 
 
-export function renderLoginPage(container, { onLogin, teamMembers }) {
+export function renderLoginPage(container, { onLogin, teamMembers, appSettings }) {
     container.innerHTML = '';
     container.className = 'login-page-container';
 
     const loginBox = document.createElement('div');
     loginBox.className = 'login-box';
 
-    loginBox.innerHTML = `
-        <div class="login-logo">
-            <i class="fas fa-sync-alt navbar-logo-icon"></i>
-            <span>TeamSync</span>
-        </div>
-        <h2 class="login-title">Sign in to your account</h2>
-        <p class="login-subtitle">Enter your email address to continue.</p>
-    `;
+    const loginLogoDiv = document.createElement('div');
+    loginLogoDiv.className = 'login-logo';
+    
+    // Dynamic branding logic similar to Navbar
+    const appName = appSettings?.appName || 'TeamSync';
+    if (appSettings?.appLogoUrl) {
+        // Using navbar-logo-image class to ensure consistent styling
+        loginLogoDiv.innerHTML = `<img src="${appSettings.appLogoUrl}" alt="Logo" class="navbar-logo-image"/> <span>${appName}</span>`;
+    } else {
+        loginLogoDiv.innerHTML = `<i class="fas fa-sync-alt navbar-logo-icon"></i> <span>${appName}</span>`;
+    }
+
+    const titleElement = document.createElement('h2');
+    titleElement.className = 'login-title';
+    titleElement.textContent = 'Sign in to your account';
+
+    const subtitleElement = document.createElement('p');
+    subtitleElement.className = 'login-subtitle';
+    subtitleElement.textContent = 'Enter your email address to continue.';
+
+    loginBox.append(loginLogoDiv, titleElement, subtitleElement);
 
     const form = document.createElement('form');
     form.className = 'login-form';
