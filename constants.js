@@ -55,3 +55,12 @@ export const MEMBER_COLORS = [
   '#4f46e5', '#db2777', '#16a34a', '#f97316', '#0891b2', '#6d28d9', '#ca8a04',
   '#dc2626', '#059669', '#2563eb', '#c026d3', '#7c2d12', '#1e40af', '#b91c1c'
 ];
+
+export const CATEGORY_COLORS = {
+    'Engineering': '#3b82f6',
+    'Quality Assurance': '#10b981',
+    'Design': '#ec4899',
+    'Project Management': '#8b5cf6',
+    'General': '#6b7280',
+    'Uncategorized': '#9ca3af',
+};
