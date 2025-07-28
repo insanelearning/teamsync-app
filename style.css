@@ -4308,3 +4308,23 @@ footer.app-footer {
 .dark .bar-chart-empty {
     color: #9ca3af;
 }
+
+/* --- NEW: Unified Work Log Filter/Analysis Panel --- */
+.worklog-filters-container {
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+.dark .worklog-filters-container {
+    border-color: #374151;
+}
+.worklog-filters-container .form-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #4b5563;
+    text-transform: uppercase;
+    margin-bottom: 0.25rem;
+}
+.dark .worklog-filters-container .form-label {
+    color: #9ca3af;
+}
