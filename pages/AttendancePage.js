@@ -498,7 +498,15 @@ export function renderAttendancePage(container, props) {
     renderContent();
   }
 
-  function handleFileImport(file, type) { if (file) (type === 'attendance' ? onImport : onImportTeam)(file); }
+  function handleFileImport(file, type) {
+    if (file) {
+      if (type === 'attendance') {
+        onImport(file, 'attendance');
+      } else {
+        onImportTeam(file);
+      }
+    }
+  }
 
   function handleDeleteLog(recordId) {
     if (window.confirm('Are you sure you want to delete this log entry? This cannot be undone.')) {
