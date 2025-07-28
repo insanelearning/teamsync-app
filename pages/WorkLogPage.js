@@ -200,8 +200,7 @@ export function renderWorkLogPage(container, props) {
         analysisContainer.innerHTML = '';
         if (filteredLogs.length === 0) return;
 
-        const allTasks = props.workLogTasks.flatMap(group => group.tasks);
-        const taskCategoryMap = new Map(allTasks.map(task => [task.name, task.category]));
+        const taskCategoryMap = new Map(props.workLogTasks.map(task => [task.name, task.category]));
 
         let chartProps = {};
 
