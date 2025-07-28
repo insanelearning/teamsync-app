@@ -4027,3 +4027,128 @@ footer.app-footer {
     white-space: normal;
     word-break: break-word;
 }
+
+/* --- NEW: Work Distribution Chart --- */
+.work-distribution-analysis {
+    padding: 1rem;
+    margin-top: 1.5rem;
+    border: 1px solid #e5e7eb;
+    border-radius: .5rem;
+}
+.dark .work-distribution-analysis {
+    border-color: #374151;
+}
+
+.chart-header-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.chart-back-button {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    font-size: .875rem;
+    color: #6b7280;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: .25rem .5rem;
+    border-radius: .25rem;
+    transition: background-color .2s ease;
+}
+.dark .chart-back-button {
+    color: #9ca3af;
+}
+.chart-back-button:hover {
+    background-color: #f3f4f6;
+}
+.dark .chart-back-button:hover {
+    background-color: #374151;
+}
+
+.bar-chart-container {
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+}
+
+.bar-chart-item {
+    display: grid;
+    grid-template-columns: 150px 1fr 100px;
+    gap: 1rem;
+    align-items: center;
+    padding: .25rem 0;
+}
+.bar-chart-item.clickable {
+    cursor: pointer;
+}
+.bar-chart-item.clickable:hover .bar-chart-label {
+    color: var(--color-primary);
+}
+.dark .bar-chart-item.clickable:hover .bar-chart-label {
+    color: var(--color-primary);
+}
+
+.bar-chart-label {
+    font-size: .875rem;
+    font-weight: 500;
+    color: #374151;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color .2s ease;
+}
+.dark .bar-chart-label {
+    color: #d1d5db;
+}
+
+.bar-chart-bar-wrapper {
+    width: 100%;
+    background-color: #e5e7eb;
+    border-radius: .25rem;
+    height: 20px;
+}
+.dark .bar-chart-bar-wrapper {
+    background-color: #374151;
+}
+
+.bar-chart-bar-fill {
+    height: 100%;
+    border-radius: .25rem;
+    transition: width .3s ease-in-out;
+}
+.bar-chart-item.clickable:hover .bar-chart-bar-fill {
+    opacity: .8;
+}
+
+.bar-chart-value-label {
+    font-size: .875rem;
+    font-weight: 500;
+    text-align: right;
+    color: #1f2937;
+}
+.dark .bar-chart-value-label {
+    color: #f3f4f6;
+}
+
+.bar-chart-value-label .percentage {
+    font-size: .75rem;
+    color: #6b7280;
+    margin-left: .5rem;
+}
+.dark .bar-chart-value-label .percentage {
+    color: #9ca3af;
+}
+
+.bar-chart-empty {
+    text-align: center;
+    padding: 2rem 0;
+    color: #6b7280;
+    font-style: italic;
+}
+.dark .bar-chart-empty {
+    color: #9ca3af;
+}
