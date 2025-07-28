@@ -471,7 +471,7 @@ const renderApp = () => {
   rootElement.removeAttribute('class'); 
 
   if (!currentUser) {
-    renderLoginPage(rootElement, { onLogin: handleLogin, teamMembers });
+    renderLoginPage(rootElement, { onLogin: handleLogin, teamMembers, appSettings });
     return;
   }
   
