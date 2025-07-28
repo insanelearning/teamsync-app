@@ -25,13 +25,13 @@ export const INITIAL_TEAM_MEMBERS = [
 ];
 
 export const WORK_LOG_TASKS = [
-    { id: 'task1', name: 'Development', category: 'Engineering', teams: ['Engineering'] },
-    { id: 'task2', name: 'Code Review', category: 'Engineering', teams: ['Engineering'] },
-    { id: 'task3', name: 'Testing - Manual', category: 'Quality Assurance', teams: ['QA'] },
-    { id: 'task4', name: 'Testing - Automated', category: 'Quality Assurance', teams: ['QA'] },
-    { id: 'task5', name: 'UI/UX Design', category: 'Design', teams: ['Design'] },
-    { id: 'task6', name: 'Client Meeting', category: 'Project Management', teams: ['Engineering', 'Product Management', 'Design'] },
-    { id: 'task7', name: 'Documentation', category: 'General', teams: ['Engineering', 'QA', 'Product Management'] },
+    { id: 'task1', name: 'Development', category: 'Engineering', teams: ['Engineering'], billable: true },
+    { id: 'task2', name: 'Code Review', category: 'Engineering', teams: ['Engineering'], billable: true },
+    { id: 'task3', name: 'Testing - Manual', category: 'Quality Assurance', teams: ['QA'], billable: true },
+    { id: 'task4', name: 'Testing - Automated', category: 'Quality Assurance', teams: ['QA'], billable: true },
+    { id: 'task5', name: 'UI/UX Design', category: 'Design', teams: ['Design'], billable: true },
+    { id: 'task6', name: 'Client Meeting', category: 'Project Management', teams: ['Engineering', 'Product Management', 'Design'], billable: true },
+    { id: 'task7', name: 'Documentation', category: 'General', teams: ['Engineering', 'QA', 'Product Management'], billable: false },
 ];
 
 export const INITIAL_HOLIDAYS = [
