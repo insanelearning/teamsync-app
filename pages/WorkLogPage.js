@@ -247,7 +247,7 @@ export function renderWorkLogPage(container, props) {
 
         // --- Left Column: Chart ---
         const leftCol = document.createElement('div');
-        leftCol.className = 'analysis-dashboard-left';
+        leftCol.className = 'analysis-dashboard-left  kpi-insights-panel';
         const taskMap = new Map(props.workLogTasks.map(task => [task.name, task]));
         
         let chartProps = {};
