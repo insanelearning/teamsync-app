@@ -6,6 +6,7 @@ import { TeamMemberRole } from '../types.js';
 const getDefaultTeamMember = () => ({
   name: '',
   email: '',
+  mobileNumber: '',
   employeeId: '',
   joinDate: new Date().toISOString().split('T')[0],
   birthDate: '',
@@ -70,27 +71,34 @@ export function TeamMemberForm({ member, onSave, onCancel, internalTeams }) {
   nameEmailGrid.appendChild(createField('Email', 'email', 'email', formData.email, true));
   form.appendChild(nameEmailGrid);
 
+  const mobileIdGrid = document.createElement('div');
+  mobileIdGrid.className = "form-grid-cols-2";
+  mobileIdGrid.appendChild(createField('Mobile Number', 'tel', 'mobileNumber', formData.mobileNumber, false, { placeholder: '+1234567890' }));
+  mobileIdGrid.appendChild(createField('Employee ID', 'text', 'employeeId', formData.employeeId));
+  form.appendChild(mobileIdGrid);
+  
   const idDesignationGrid = document.createElement('div');
   idDesignationGrid.className = "form-grid-cols-2";
-  idDesignationGrid.appendChild(createField('Employee ID', 'text', 'employeeId', formData.employeeId));
   idDesignationGrid.appendChild(createField('Designation', 'text', 'designation', formData.designation));
+  idDesignationGrid.appendChild(createField('Role', 'select', 'role', formData.role, true, {
+      options: Object.values(TeamMemberRole).map(r => ({ value: r, label: r }))
+  }));
   form.appendChild(idDesignationGrid);
   
   const roleDepartmentGrid = document.createElement('div');
   roleDepartmentGrid.className = 'form-grid-cols-2';
-  roleDepartmentGrid.appendChild(createField('Role', 'select', 'role', formData.role, true, {
-      options: Object.values(TeamMemberRole).map(r => ({ value: r, label: r }))
-  }));
   roleDepartmentGrid.appendChild(createField('Internal Team', 'select', 'internalTeam', formData.internalTeam, false, {
     options: (internalTeams || []).map(t => ({ value: t, label: t }))
   }));
+  roleDepartmentGrid.appendChild(createField('Department', 'text', 'department', formData.department));
   form.appendChild(roleDepartmentGrid);
   
   const departmentCompanyGrid = document.createElement('div');
   departmentCompanyGrid.className = "form-grid-cols-2";
-  departmentCompanyGrid.appendChild(createField('Department', 'text', 'department', formData.department));
   departmentCompanyGrid.appendChild(createField('Company', 'text', 'company', formData.company));
+  form.appendChild(document.createElement('div')); // Empty div for grid alignment
   form.appendChild(departmentCompanyGrid);
+
 
   const datesGrid = document.createElement('div');
   datesGrid.className = "form-grid-cols-2";
@@ -120,6 +128,7 @@ export function TeamMemberForm({ member, onSave, onCancel, internalTeams }) {
     
     // Add optional fields only if they have a value
     if (formData.email?.trim()) memberToSave.email = formData.email.trim().toLowerCase();
+    if (formData.mobileNumber?.trim()) memberToSave.mobileNumber = formData.mobileNumber.trim();
     if (formData.employeeId?.trim()) memberToSave.employeeId = formData.employeeId.trim();
     if (formData.joinDate) memberToSave.joinDate = formData.joinDate;
     if (formData.birthDate) memberToSave.birthDate = formData.birthDate;
