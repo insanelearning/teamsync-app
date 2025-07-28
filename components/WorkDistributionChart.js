@@ -66,7 +66,10 @@ export function WorkDistributionChart({ title, data, onBarClick, drilldownTitle,
         barWrapper.className = 'bar-chart-bar-wrapper';
         const barFill = document.createElement('div');
         barFill.className = 'bar-chart-bar-fill';
-        barFill.style.backgroundColor = item.color || 'var(--color-primary)';
+        
+        // Use primary color for the selected bar, otherwise use the item's color
+        barFill.style.backgroundColor = selectedItem === item.label ? 'var(--color-primary)' : (item.color || 'var(--color-primary)');
+        
         // Defer width setting for transition effect
         setTimeout(() => {
             barFill.style.width = totalValue > 0 ? `${(item.value / totalValue) * 100}%` : '0%';
