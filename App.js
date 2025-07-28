@@ -445,9 +445,11 @@ const handleImport = async (file, dataType) => {
     } else if (dataType === 'worklogs') {
         collectionName = 'worklogs';
         // As requested, automatically generate IDs for work logs if they are missing.
+        // Also ensure timeSpentMinutes is a number.
         importedData = importedData.map(log => ({
             ...log,
             id: log.id || crypto.randomUUID(),
+            timeSpentMinutes: Number(log.timeSpentMinutes) || 0,
         }));
     } else if (dataType === 'team') {
         collectionName = 'teamMembers';
