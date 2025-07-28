@@ -4,6 +4,8 @@ import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { WorkLogForm } from '../components/WorkLogForm.js';
 import { FileUploadButton } from '../components/FileUploadButton.js';
 import { TeamMemberRole } from '../types.js';
+import { WorkDistributionChart } from '../components/WorkDistributionChart.js';
+import { CATEGORY_COLORS } from '../constants.js';
 
 let currentModalInstance = null;
 
@@ -21,6 +23,7 @@ export function renderWorkLogPage(container, props) {
     const isManager = currentUser.role === TeamMemberRole.Manager;
     let currentPage = 1;
     let rowsPerPage = 10;
+    let selectedCategory = null; // For chart drilldown
 
     let filterState = {
         memberId: isManager ? '' : currentUser.id,
@@ -72,7 +75,7 @@ export function renderWorkLogPage(container, props) {
     summaryContainer.append(rangeTotalCard, avgHoursCard, efficiencyCard);
     pageWrapper.appendChild(summaryContainer);
 
-    // --- Filters & Table Section ---
+    // --- Analysis & Table Section ---
     const contentSection = document.createElement('div');
     contentSection.className = 'attendance-page-section'; // Reuse styles
     
@@ -82,7 +85,6 @@ export function renderWorkLogPage(container, props) {
     const filterGrid = document.createElement('div');
     filterGrid.className = "worklog-filters-grid";
     
-    // Member Filter (Only for Managers)
     if (isManager) {
         const memberFilterContainer = document.createElement('div');
         memberFilterContainer.innerHTML = `<label for="memberFilter" class="form-label">Member</label>`;
@@ -96,7 +98,6 @@ export function renderWorkLogPage(container, props) {
         filterGrid.appendChild(memberFilterContainer);
     }
 
-    // Project Filter
     const projectFilterContainer = document.createElement('div');
     projectFilterContainer.innerHTML = `<label for="projectFilter" class="form-label">Project</label>`;
     const projectFilter = document.createElement('select');
@@ -108,11 +109,9 @@ export function renderWorkLogPage(container, props) {
     projectFilterContainer.appendChild(projectFilter);
     filterGrid.appendChild(projectFilterContainer);
 
-    // Date Range Filter
     const dateRangeOuterContainer = document.createElement('div');
     dateRangeOuterContainer.className = "filter-date-range-container";
     dateRangeOuterContainer.innerHTML = `<label class="form-label">Date Range</label>`;
-
     const dateRangeInnerContainer = document.createElement('div');
     dateRangeInnerContainer.className = "filter-date-range-inner";
     
@@ -138,6 +137,10 @@ export function renderWorkLogPage(container, props) {
     filtersDiv.appendChild(filterGrid);
     contentSection.appendChild(filtersDiv);
 
+    // Analysis section (new)
+    const analysisContainer = document.createElement('div');
+    contentSection.appendChild(analysisContainer);
+
     // Table
     const tableContainer = document.createElement('div');
     tableContainer.className = 'data-table-container';
@@ -151,26 +154,20 @@ export function renderWorkLogPage(container, props) {
     pageWrapper.appendChild(contentSection);
 
     function getFilteredLogs() {
-        // Use simple string comparison for YYYY-MM-DD format, which is robust against timezone issues.
         return workLogs.filter(log => {
             const isMemberMatch = !filterState.memberId || log.memberId === filterState.memberId;
             const isProjectMatch = !filterState.projectId || log.projectId === filterState.projectId;
             const isDateMatch = log.date >= filterState.startDate && log.date <= filterState.endDate;
-
             return isMemberMatch && isProjectMatch && isDateMatch;
         }).sort((a,b) => new Date(b.date) - new Date(a.date));
     }
     
     function updateSummaries(logsToSummarize, todaysTotalMinutes) {
         const totalMinutes = logsToSummarize.reduce((acc, log) => acc + (log.timeSpentMinutes || 0), 0);
-
-        // --- Calculation for person-days (unique member+date combinations) ---
         const personDays = new Set(logsToSummarize.map(log => `${log.memberId}|${log.date}`)).size;
-
-        // --- Card 1: Selected Range Total ---
+        
         const start = new Date(filterState.startDate + 'T00:00:00');
         const end = new Date(filterState.endDate + 'T00:00:00');
-        // Calculate number of days in the selected range
         const timeDiff = end.getTime() - start.getTime();
         const dayDiff = timeDiff >= 0 ? Math.round(timeDiff / (1000 * 3600 * 24)) + 1 : 0;
         const dayDiffText = dayDiff > 0 ? `(${dayDiff} day${dayDiff !== 1 ? 's' : ''})` : '';
@@ -183,63 +180,86 @@ export function renderWorkLogPage(container, props) {
             <div class="value">${formatMinutes(totalMinutes)}</div>
             <div class="sub-label">${start.toLocaleDateString()} - ${end.toLocaleDateString()} ${dayDiffText}</div>`;
         
-        // --- Card 2: Average Hours / Day ---
         const avgMinutesPerPersonDay = personDays > 0 ? (totalMinutes / personDays) : 0;
-        
         avgHoursCard.innerHTML = `
             <div class="label">Average Hours / Day</div>
             <div class="value">${formatMinutes(avgMinutesPerPersonDay)}</div>
             <div class="sub-label">Avg. per person per workday</div>`;
 
-        // --- Card 3: Efficiency ---
-        const expectedMinutes = personDays * 8 * 60; // 8 hours goal for each person-day
+        const expectedMinutes = personDays * 8 * 60;
         const efficiency = expectedMinutes > 0 ? Math.round((totalMinutes / expectedMinutes) * 100) : 0;
-        
         efficiencyCard.innerHTML = `
             <div class="label">Efficiency</div>
             <div class="efficiency-dial" style="--progress: ${efficiency}%;">
-                <div class="dial-center">
-                    <span class="value">${efficiency}%</span>
-                </div>
+                <div class="dial-center"><span class="value">${efficiency}%</span></div>
             </div>
             <div class="sub-label">Against 8h/day goal</div>`;
     }
 
-    function rerenderTableAndPagination(allFilteredLogs) {
-        // Pagination logic
-        const totalRows = allFilteredLogs.length;
-        const totalPages = Math.ceil(totalRows / rowsPerPage) || 1;
-        if (currentPage > totalPages) {
-            currentPage = totalPages;
+    function renderAnalysisSection(filteredLogs) {
+        analysisContainer.innerHTML = '';
+        if (filteredLogs.length === 0) return;
+
+        const allTasks = props.workLogTasks.flatMap(group => group.tasks);
+        const taskCategoryMap = new Map(allTasks.map(task => [task.name, task.category]));
+
+        let chartProps = {};
+
+        if (selectedCategory) {
+            const tasksInCategory = filteredLogs
+                .filter(log => taskCategoryMap.get(log.taskName) === selectedCategory)
+                .reduce((acc, log) => {
+                    acc[log.taskName] = (acc[log.taskName] || 0) + log.timeSpentMinutes;
+                    return acc;
+                }, {});
+
+            chartProps = {
+                title: 'Hours by Task',
+                drilldownTitle: `Category: ${selectedCategory}`,
+                onBackClick: () => { selectedCategory = null; rerenderPage(); },
+                data: Object.entries(tasksInCategory).map(([taskName, minutes]) => ({
+                    label: taskName,
+                    value: minutes,
+                    color: CATEGORY_COLORS[selectedCategory] || CATEGORY_COLORS['Uncategorized'],
+                })).sort((a, b) => b.value - a.value),
+            };
+        } else {
+            const timeByCategory = filteredLogs.reduce((acc, log) => {
+                const category = taskCategoryMap.get(log.taskName) || 'Uncategorized';
+                acc[category] = (acc[category] || 0) + log.timeSpentMinutes;
+                return acc;
+            }, {});
+
+            chartProps = {
+                title: 'Hours by Category',
+                onBarClick: (category) => { selectedCategory = category; rerenderPage(); },
+                data: Object.entries(timeByCategory).map(([category, minutes]) => ({
+                    label: category,
+                    value: minutes,
+                    color: CATEGORY_COLORS[category] || CATEGORY_COLORS['Uncategorized'],
+                })).sort((a, b) => b.value - a.value),
+            };
         }
         
-        const startIndex = (currentPage - 1) * rowsPerPage;
-        const endIndex = startIndex + rowsPerPage;
-        const logsForPage = allFilteredLogs.slice(startIndex, endIndex);
+        analysisContainer.appendChild(WorkDistributionChart(chartProps));
+    }
 
-        // Render Table
+    function rerenderTableAndPagination(allFilteredLogs) {
+        const totalRows = allFilteredLogs.length;
+        const totalPages = Math.ceil(totalRows / rowsPerPage) || 1;
+        if (currentPage > totalPages) currentPage = totalPages;
+        
+        const startIndex = (currentPage - 1) * rowsPerPage;
+        const logsForPage = allFilteredLogs.slice(startIndex, startIndex + rowsPerPage);
+
         tableContainer.innerHTML = '';
         if (logsForPage.length === 0) {
-            tableContainer.innerHTML = `
-                <div class="no-data-placeholder">
-                    <i class="fas fa-folder-open icon"></i>
-                    <p class="primary-text">No work logs found.</p>
-                    <p class="secondary-text">Try adjusting the filters or add a new log.</p>
-                </div>`;
+            tableContainer.innerHTML = `<div class="no-data-placeholder"><i class="fas fa-folder-open icon"></i><p class="primary-text">No work logs found.</p><p class="secondary-text">Try adjusting filters.</p></div>`;
         } else {
             const table = document.createElement('table');
             table.className = 'data-table work-log-table';
-            table.innerHTML = `<thead><tr>
-                <th>Date</th>
-                <th>Member</th>
-                <th>Project</th>
-                <th>Task</th>
-                <th>Comments</th>
-                <th>Time Spent</th>
-                <th class="action-cell">Actions</th>
-            </tr></thead>`;
+            table.innerHTML = `<thead><tr><th>Date</th><th>Member</th><th>Project</th><th>Task</th><th>Comments</th><th>Time Spent</th><th class="action-cell">Actions</th></tr></thead>`;
             const tbody = document.createElement('tbody');
-            
             const getMemberName = (id) => teamMembers.find(m => m.id === id)?.name || 'N/A';
             const getProjectName = (id) => projects.find(p => p.id === id)?.name || 'N/A';
 
@@ -251,17 +271,14 @@ export function renderWorkLogPage(container, props) {
                     <td>${getProjectName(log.projectId)}</td>
                     <td class="truncate" title="${log.taskName}">${log.taskName}</td>
                     <td class="truncate" title="${log.comments || ''}">${log.comments || '-'}</td>
-                    <td>${formatMinutes(log.timeSpentMinutes)}</td>
-                `;
+                    <td>${formatMinutes(log.timeSpentMinutes)}</td>`;
 
                 const actionCell = document.createElement('td');
                 actionCell.className = 'action-cell';
                 if (isManager || currentUser.id === log.memberId) {
                     actionCell.append(
                         Button({ variant: 'ghost', size: 'sm', onClick: () => openModal(log), children: '<i class="fas fa-edit"></i>' }),
-                        Button({ variant: 'danger', size: 'sm', onClick: () => {
-                            if (confirm('Delete this log entry?')) onDeleteWorkLog(log.id);
-                        }, children: '<i class="fas fa-trash"></i>' })
+                        Button({ variant: 'danger', size: 'sm', onClick: () => { if (confirm('Delete this log entry?')) onDeleteWorkLog(log.id); }, children: '<i class="fas fa-trash"></i>' })
                     );
                 }
                 tr.appendChild(actionCell);
@@ -271,86 +288,45 @@ export function renderWorkLogPage(container, props) {
             tableContainer.appendChild(table);
         }
 
-        // Render Pagination Controls
         paginationContainer.innerHTML = '';
-        if (totalRows > 0) {
+        if (totalRows > rowsPerPage) {
             const rowsSelectorContainer = document.createElement('div');
             rowsSelectorContainer.className = 'pagination-rows-selector';
             rowsSelectorContainer.innerHTML = `<label for="rowsPerPageSelect" class="form-label mb-0">Rows:</label>`;
             const rowsSelect = document.createElement('select');
             rowsSelect.id = 'rowsPerPageSelect';
             rowsSelect.className = 'form-select';
-            rowsSelect.innerHTML = `
-                <option value="5">5</option>
-                <option value="10">10</option>
-                <option value="20">20</option>
-                <option value="30">30</option>`;
+            rowsSelect.innerHTML = `<option value="10">10</option><option value="20">20</option><option value="50">50</option>`;
             rowsSelect.value = rowsPerPage;
-            rowsSelect.onchange = (e) => {
-                rowsPerPage = Number(e.target.value);
-                currentPage = 1;
-                rerenderPage();
-            };
+            rowsSelect.onchange = (e) => { rowsPerPage = Number(e.target.value); currentPage = 1; rerenderPage(); };
             rowsSelectorContainer.appendChild(rowsSelect);
 
             const navContainer = document.createElement('div');
             navContainer.className = 'pagination-nav';
             const pageInfo = document.createElement('span');
             pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
-
-            const prevButton = Button({ children: 'Prev', variant: 'secondary', size: 'sm', disabled: currentPage === 1, onClick: () => {
-                if(currentPage > 1) { currentPage--; rerenderPage(); }
-            }});
-            const nextButton = Button({ children: 'Next', variant: 'secondary', size: 'sm', disabled: currentPage >= totalPages, onClick: () => {
-                if(currentPage < totalPages) { currentPage++; rerenderPage(); }
-            }});
-
+            const prevButton = Button({ children: 'Prev', variant: 'secondary', size: 'sm', disabled: currentPage === 1, onClick: () => { if(currentPage > 1) { currentPage--; rerenderPage(); } }});
+            const nextButton = Button({ children: 'Next', variant: 'secondary', size: 'sm', disabled: currentPage >= totalPages, onClick: () => { if(currentPage < totalPages) { currentPage++; rerenderPage(); } }});
             navContainer.append(prevButton, pageInfo, nextButton);
             paginationContainer.append(rowsSelectorContainer, navContainer);
         }
     }
     
     function openModal(log = null) {
-        // Find the member for whom the log is being added/edited
-        const targetMemberId = log ? log.memberId : currentUser.id;
+        const targetMemberId = log ? log.memberId : (filterState.memberId || currentUser.id);
         const targetMember = teamMembers.find(m => m.id === targetMemberId);
         const userTeam = targetMember ? targetMember.internalTeam : '';
 
-        // Filter and group tasks for the target member's team
-        const availableTasksForUser = workLogTasks.filter(task => 
-            (task.teams || []).includes(userTeam)
-        );
-
+        const availableTasksForUser = workLogTasks.filter(task => (task.teams || []).includes(userTeam));
         const tasksGroupedByCategory = availableTasksForUser.reduce((acc, task) => {
             const category = task.category || 'Uncategorized';
-            if (!acc[category]) {
-                acc[category] = [];
-            }
+            if (!acc[category]) acc[category] = [];
             acc[category].push(task);
             return acc;
         }, {});
 
-
-        const form = WorkLogForm({
-            log, currentUser, teamMembers, projects,
-            workLogTasks: tasksGroupedByCategory, // Pass filtered and grouped tasks
-            onSave: (logData) => { // For single edits
-                onUpdateWorkLog(logData);
-                closeModal();
-            },
-            onSaveAll: (logsData) => { // For multi-add
-                onAddMultipleWorkLogs(logsData);
-                closeModal();
-            },
-            onCancel: closeModal,
-        });
-        currentModalInstance = Modal({
-            isOpen: true,
-            onClose: closeModal,
-            title: log ? 'Edit Work Log' : 'Add Work Log(s)',
-            children: form,
-            size: 'xl'
-        });
+        const form = WorkLogForm({ log, currentUser, teamMembers, projects, workLogTasks: tasksGroupedByCategory, onSave: onUpdateWorkLog, onSaveAll: onAddMultipleWorkLogs, onCancel: closeModal });
+        currentModalInstance = Modal({ isOpen: true, onClose: closeModal, title: log ? 'Edit Work Log' : 'Add Work Log(s)', children: form, size: 'xl' });
     }
 
     function closeModal() {
@@ -360,18 +336,16 @@ export function renderWorkLogPage(container, props) {
 
     function rerenderPage() {
         const filteredLogs = getFilteredLogs();
-
-        // Calculate today's hours using current member/project filters, but ignoring date filter
         const todaysDate = new Date().toISOString().split('T')[0];
         const todaysLogs = workLogs.filter(log => {
             const isMemberMatch = !filterState.memberId || log.memberId === filterState.memberId;
             const isProjectMatch = !filterState.projectId || log.projectId === filterState.projectId;
-            const isToday = log.date === todaysDate;
-            return isMemberMatch && isProjectMatch && isToday;
+            return isMemberMatch && isProjectMatch && log.date === todaysDate;
         });
         const todaysTotalMinutes = todaysLogs.reduce((acc, log) => acc + (log.timeSpentMinutes || 0), 0);
         
         updateSummaries(filteredLogs, todaysTotalMinutes);
+        renderAnalysisSection(filteredLogs);
         rerenderTableAndPagination(filteredLogs);
     }
 
