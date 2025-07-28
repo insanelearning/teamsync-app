@@ -34,7 +34,7 @@ function createInsightList(title, items) {
 
     const list = document.createElement('ul');
     list.className = 'insight-list';
-    const maxValue = items.length > 0 ? Math.max(...items.map(item => item.value)) : 0;
+    const maxValue = items.length > 0 ? items[0].value : 0; // Items are pre-sorted
 
     items.slice(0, 5).forEach(item => { // Show top 5
         const percentage = maxValue > 0 ? (item.value / maxValue) * 100 : 0;
@@ -120,7 +120,7 @@ export function renderWorkLogPage(container, props) {
     
     // Filters
     const filtersDiv = document.createElement('div');
-    filtersDiv.className = "filters-container";
+    filtersDiv.className = "worklog-filters-container";
     const filterGrid = document.createElement('div');
     filterGrid.className = "worklog-filters-grid";
     
