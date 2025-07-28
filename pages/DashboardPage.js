@@ -144,16 +144,25 @@ function renderDailyStandup(props) {
                 acc[log.memberId] = (acc[log.memberId] || 0) + log.timeSpentMinutes;
                 return acc;
             }, {});
+            
+            const listItemsHtml = teamMembers.map(m => {
+                const record = todaysRecords.find(r => r.memberId === m.id);
+                const logStatusHtml = memberTimeMap[m.id] 
+                    ? `<span class="log-status-time">${formatMinutes(memberTimeMap[m.id])}</span>` 
+                    : (record && record.status === 'Leave') 
+                        ? `<span style="font-size:0.8rem;color:#f97316;">On Leave</span>`
+                        : `<span style="font-size:0.8rem;color:#f97316;">Pending</span>`;
+
+                return `
+                    <li class="log-status-item">
+                        <span>${m.name}</span>
+                        ${logStatusHtml}
+                    </li>`;
+            }).join('');
 
             contentDiv.innerHTML = `
                 <h4 style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin: 0 0 0.5rem 0;">Work Log Status</h4>
-                <ul class="log-status-list">
-                    ${teamMembers.map(m => `
-                        <li class="log-status-item">
-                            <span>${m.name}</span>
-                            ${memberTimeMap[m.id] ? `<span class="log-status-time">${formatMinutes(memberTimeMap[m.id])}</span>` : `<span style="font-size:0.8rem;color:#f97316;">Pending</span>`}
-                        </li>`).join('')}
-                </ul>`;
+                <ul class="log-status-list">${listItemsHtml}</ul>`;
         }
     };
 
