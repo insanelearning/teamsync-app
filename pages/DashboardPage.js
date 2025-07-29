@@ -1,4 +1,4 @@
-import { TeamMemberRole, ProjectStatus, NoteStatus } from '../types.js';
+import { TeamMemberRole, ProjectStatus, NoteStatus, AttendanceStatus } from '../types.js';
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { WorkLogForm } from '../components/WorkLogForm.js';
@@ -540,6 +540,108 @@ function renderMyActionableNotes(props) {
     return container;
 }
 
+function renderMyAttendanceWidget(props) {
+    const { currentUser, attendanceRecords } = props;
+    const container = document.createElement('div');
+    container.className = 'dashboard-widget';
+    container.innerHTML = `<h3><i class="fas fa-user-check widget-icon"></i>My Attendance (Last 90 Days)</h3>`;
+
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    const dateLimitString = ninetyDaysAgo.toISOString().split('T')[0];
+
+    const myRecentRecords = attendanceRecords.filter(r => r.memberId === currentUser.id && r.date >= dateLimitString);
+
+    const stats = {
+        [AttendanceStatus.Present]: 0,
+        [AttendanceStatus.WorkFromHome]: 0,
+        [AttendanceStatus.Leave]: 0,
+    };
+
+    myRecentRecords.forEach(record => {
+        if (stats.hasOwnProperty(record.status)) {
+            stats[record.status]++;
+        }
+    });
+
+    const content = document.createElement('div');
+    content.className = 'widget-content attendance-performance-grid';
+    content.innerHTML = `
+        <div class="attendance-stat-item">
+            <div class="stat-value">${stats[AttendanceStatus.Present]}</div>
+            <div class="stat-label"><i class="fas fa-user-check"></i> Present</div>
+        </div>
+        <div class="attendance-stat-item">
+            <div class="stat-value">${stats[AttendanceStatus.WorkFromHome]}</div>
+            <div class="stat-label"><i class="fas fa-laptop-house"></i> WFH</div>
+        </div>
+        <div class="attendance-stat-item">
+            <div class="stat-value">${stats[AttendanceStatus.Leave]}</div>
+            <div class="stat-label"><i class="fas fa-umbrella-beach"></i> Leave</div>
+        </div>
+    `;
+    container.appendChild(content);
+    return container;
+}
+
+function renderMyTimeDistributionWidget(props) {
+    const { currentUser, workLogs, projects } = props;
+    const container = document.createElement('div');
+    container.className = 'dashboard-widget';
+    container.innerHTML = `<h3><i class="fas fa-chart-pie widget-icon"></i>My Time Distribution (Last 30 Days)</h3>`;
+    
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const dateLimitString = thirtyDaysAgo.toISOString().split('T')[0];
+
+    const myRecentLogs = workLogs.filter(log => log.memberId === currentUser.id && log.date >= dateLimitString);
+
+    const timeByProject = myRecentLogs.reduce((acc, log) => {
+        acc[log.projectId] = (acc[log.projectId] || 0) + (parseFloat(log.timeSpentMinutes) || 0);
+        return acc;
+    }, {});
+
+    const sortedProjects = Object.entries(timeByProject)
+        .map(([projectId, minutes]) => ({
+            projectId,
+            minutes,
+            name: projects.find(p => p.id === projectId)?.name || 'Unknown Project'
+        }))
+        .sort((a, b) => b.minutes - a.minutes)
+        .slice(0, 5);
+
+    const content = document.createElement('div');
+    content.className = 'widget-content';
+    
+    if (sortedProjects.length === 0) {
+        content.innerHTML = `<p class="activity-empty">No time logged in the last 30 days.</p>`;
+    } else {
+        const maxMinutes = sortedProjects[0].minutes;
+        const list = document.createElement('ul');
+        list.className = 'distribution-list';
+        sortedProjects.forEach(item => {
+            const percentage = maxMinutes > 0 ? (item.minutes / maxMinutes) * 100 : 0;
+            const li = document.createElement('li');
+            li.innerHTML = `
+                <div class="distribution-item-header">
+                    <span class="project-name" title="${item.name}">${item.name}</span>
+                    <span class="time-logged">${formatMinutes(item.minutes)}</span>
+                </div>
+                <div class="distribution-bar-container">
+                    <div class="distribution-bar-fill" style="width: ${percentage}%;"></div>
+                </div>
+            `;
+            list.appendChild(li);
+        });
+        content.appendChild(list);
+    }
+    
+    container.appendChild(content);
+    return container;
+}
+
+
+
 // --- Dashboard Main Render Functions ---
 
 function renderManagerDashboard(container, props) {
@@ -677,7 +779,11 @@ function renderMemberDashboard(container, props) {
     sideCol.className = 'dashboard-side-col';
     
     mainCol.appendChild(renderMyFocusWidget(props, onAddLogClick));
-    sideCol.appendChild(renderMyActionableNotes(props));
+    sideCol.append(
+        renderMyActionableNotes(props),
+        renderMyAttendanceWidget(props),
+        renderMyTimeDistributionWidget(props)
+    );
 
     memberWidgetsLayout.append(mainCol, sideCol);
     container.appendChild(memberWidgetsLayout);
