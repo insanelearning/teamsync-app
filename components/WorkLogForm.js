@@ -1,8 +1,7 @@
-
 import { Button } from './Button.js';
 import { TeamMemberRole } from '../types.js';
 
-export function WorkLogForm({ log, currentUser, teamMembers, projects, workLogTasks, onSave, onSaveAll, onCancel }) {
+export function WorkLogForm({ log, currentUser, teamMembers, projects, workLogTasks, onSave, onSaveAll, onCancel, initialEntryData }) {
     const isEditMode = !!log;
 
     let commonData = {
@@ -16,9 +15,11 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, workLogTa
         ? workLogTasks[categories[0]][0].name
         : '';
 
+    const defaultEntry = { _id: crypto.randomUUID(), projectId: '', taskName: defaultTaskName, timeSpentMinutes: 0, requestedFrom: '', comments: '' };
+
     let formEntries = isEditMode
         ? [{ ...log, _id: crypto.randomUUID() }] // Add a temporary client-side ID for editing
-        : [{ _id: crypto.randomUUID(), projectId: '', taskName: defaultTaskName, timeSpentMinutes: 0, requestedFrom: '', comments: '' }];
+        : [ initialEntryData ? { ...defaultEntry, ...initialEntryData } : defaultEntry ];
 
     const form = document.createElement('form');
     form.className = 'project-form'; // Reuse styles
