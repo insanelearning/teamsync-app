@@ -1,4 +1,5 @@
 
+
 import { ProjectForm } from '../components/ProjectForm.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { Button } from '../components/Button.js';
@@ -473,11 +474,22 @@ export function renderProjectsPage(container, props) {
             table.appendChild(tbody);
             projectsContainer.appendChild(table);
         } else {
-          projectsContainer.className = "no-projects-placeholder";
-          projectsContainer.innerHTML = `
-            <i class="fas fa-folder-open icon"></i>
-            <p class="primary-text">No projects found.</p>
-            <p class="secondary-text">Try adjusting filters or add a new project.</p>`;
+            projectsContainer.className = "no-projects-placeholder";
+            projectsContainer.innerHTML = `
+                <i class="fas fa-folder-open icon"></i>
+                <p class="primary-text">No projects found.</p>
+                <p class="secondary-text">Try adjusting filters or add a new project.</p>`;
+            
+            if (isManager) {
+                const addBtn = Button({
+                    children: 'Create New Project',
+                    leftIcon: '<i class="fas fa-plus"></i>',
+                    onClick: openModalForNew,
+                    className: 'mt-4' // Tailwind class for margin-top
+                });
+                addBtn.style.marginTop = '1rem';
+                projectsContainer.appendChild(addBtn);
+            }
         }
         mainContentContainer.appendChild(projectsContainer);
     } else { // 'board' view
