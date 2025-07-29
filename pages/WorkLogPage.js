@@ -405,6 +405,11 @@ export function renderWorkLogPage(container, props) {
         }
     }
     
+    function closeModal() {
+        closeGlobalModal();
+        currentModalInstance = null;
+    }
+
     function openModal(log = null) {
         const targetMemberId = log ? log.memberId : (filterState.memberId || currentUser.id);
         const targetMember = teamMembers.find(m => m.id === targetMemberId);
@@ -418,13 +423,27 @@ export function renderWorkLogPage(container, props) {
             return acc;
         }, {});
 
-        const form = WorkLogForm({ log, currentUser, teamMembers, projects, workLogTasks: tasksGroupedByCategory, onSave: onUpdateWorkLog, onSaveAll: onAddMultipleWorkLogs, onCancel: closeModal });
-        currentModalInstance = Modal({ isOpen: true, onClose: closeModal, title: log ? 'Edit Work Log' : 'Add Work Log(s)', children: form, size: 'xl' });
-    }
+        const form = WorkLogForm({
+            log, ...props,
+            workLogTasks: tasksGroupedByCategory,
+            onSave: (logData) => {
+                onUpdateWorkLog(logData);
+                closeModal();
+            },
+            onSaveAll: (logsData) => {
+                onAddMultipleWorkLogs(logsData);
+                closeModal();
+            },
+            onCancel: closeModal
+        });
 
-    function closeModal() {
-        closeGlobalModal();
-        currentModalInstance = null;
+        currentModalInstance = Modal({
+            isOpen: true,
+            onClose: closeModal,
+            title: log ? 'Edit Work Log' : 'Add Work Log(s)',
+            children: form,
+            size: 'xl'
+        });
     }
 
     function rerenderPage() {
