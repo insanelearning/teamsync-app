@@ -64,7 +64,7 @@ function renderManagerKPIs(props, onKpiClick) {
     container.className = 'dashboard-kpis';
 
     const startOfWeekString = getStartOfWeek().toISOString().split('T')[0];
-    const hoursThisWeek = workLogs.filter(log => log.date >= startOfWeekString).reduce((sum, log) => sum + (log.timeSpentMinutes || 0), 0);
+    const hoursThisWeek = workLogs.filter(log => log.date >= startOfWeekString).reduce((sum, log) => sum + (Number(log.timeSpentMinutes) || 0), 0);
     const activeProjects = projects.filter(p => p.status !== ProjectStatus.Done).length;
     const overdueProjects = projects.filter(p => p.status !== ProjectStatus.Done && new Date(p.dueDate) < new Date());
     const onLeaveRecords = attendanceRecords.filter(r => r.date === new Date().toISOString().split('T')[0] && r.status === 'Leave');
@@ -141,7 +141,7 @@ function renderDailyStandup(props) {
         } else { // 'worklogs' tab
             const logsForDate = workLogs.filter(log => log.date === selectedDate);
             const memberTimeMap = logsForDate.reduce((acc, log) => {
-                acc[log.memberId] = (acc[log.memberId] || 0) + log.timeSpentMinutes;
+                acc[log.memberId] = (acc[log.memberId] || 0) + (Number(log.timeSpentMinutes) || 0);
                 return acc;
             }, {});
             
@@ -246,12 +246,15 @@ function renderActivityFeed(props) {
         list.innerHTML = `<li class="activity-empty">No recent activity.</li>`;
     } else {
         const iconMap = { log: 'fa-clock', completion: 'fa-check-circle', login: 'fa-sign-in-alt' };
-        list.innerHTML = events.map(event => `
+        list.innerHTML = events.map(event => {
+            const dateString = !isNaN(event.date.getTime()) ? event.date.toLocaleString() : 'Date not available';
+            return `
             <li class="activity-item type-${event.type}">
                 <div class="activity-icon"><i class="fas ${iconMap[event.type]}"></i></div>
                 <div class="activity-text">${event.text}</div>
-                <div class="activity-time">${event.date.toLocaleString()}</div>
-            </li>`).join('');
+                <div class="activity-time">${dateString}</div>
+            </li>`;
+        }).join('');
     }
     container.appendChild(list);
     return container;
@@ -280,12 +283,12 @@ function renderProjectInsights(props) {
 
         activeProjects.forEach(project => {
             const logsForDate = selectedDateFilter ? workLogs.filter(log => log.projectId === project.id && log.date === selectedDateFilter) : workLogs.filter(log => log.projectId === project.id);
-            const totalMinutes = logsForDate.reduce((sum, log) => sum + log.timeSpentMinutes, 0);
+            const totalMinutes = logsForDate.reduce((sum, log) => sum + (Number(log.timeSpentMinutes) || 0), 0);
 
             const contributionData = (project.assignees || []).map(id => {
                 const member = teamMembers.find(tm => tm.id === id);
                 if (!member) return null;
-                const memberMinutes = logsForDate.filter(log => log.memberId === id).reduce((sum, log) => sum + log.timeSpentMinutes, 0);
+                const memberMinutes = logsForDate.filter(log => log.memberId === id).reduce((sum, log) => sum + (Number(log.timeSpentMinutes) || 0), 0);
                 return { name: member.name, color: member.color, percentage: totalMinutes > 0 ? (memberMinutes / totalMinutes) * 100 : 0 };
             }).filter(d => d && d.percentage > 0).sort((a, b) => b.percentage - a.percentage);
 
@@ -335,8 +338,10 @@ function renderMemberStats(props) {
     const myOverdueCount = myActiveProjects.filter(p => new Date(p.dueDate) < new Date()).length;
     const nextDeadline = myActiveProjects.filter(p => new Date(p.dueDate) >= new Date()).sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate))[0];
     
+    const myWeeklyMinutes = myWeeklyLogs.reduce((sum, log) => sum + (Number(log.timeSpentMinutes) || 0), 0);
+
     container.innerHTML = `
-        <div class="member-stat-card"><div class="stat-card-header"><div class="stat-card-icon"><i class="fas fa-clock"></i></div><span class="stat-card-label">Time Logged (Week)</span></div><div class="stat-card-body"><p class="stat-card-value">${formatMinutes(myWeeklyLogs.reduce((sum, log) => sum + log.timeSpentMinutes, 0))}</p></div></div>
+        <div class="member-stat-card"><div class="stat-card-header"><div class="stat-card-icon"><i class="fas fa-clock"></i></div><span class="stat-card-label">Time Logged (Week)</span></div><div class="stat-card-body"><p class="stat-card-value">${formatMinutes(myWeeklyMinutes)}</p></div></div>
         <div class="member-stat-card"><div class="stat-card-header"><div class="stat-card-icon"><i class="fas fa-tasks"></i></div><span class="stat-card-label">Active Projects</span></div><div class="stat-card-body"><p class="stat-card-value">${myActiveProjects.length}</p></div></div>
         <div class="member-stat-card ${myOverdueCount > 0 ? 'warning' : ''}"><div class="stat-card-header"><div class="stat-card-icon"><i class="fas fa-exclamation-triangle"></i></div><span class="stat-card-label">Overdue</span></div><div class="stat-card-body"><p class="stat-card-value">${myOverdueCount}</p></div></div>
         <div class="member-stat-card"><div class="stat-card-header"><div class="stat-card-icon"><i class="fas fa-calendar-check"></i></div><span class="stat-card-label">Next Deadline</span></div><div class="stat-card-body"><p class="stat-card-value">${nextDeadline ? new Date(nextDeadline.dueDate + 'T00:00').toLocaleDateString() : 'N/A'}</p><p class="stat-card-detail">${nextDeadline?.name || 'All clear!'}</p></div></div>`;
@@ -353,7 +358,7 @@ function renderMyContributions(props) {
     const myWeeklyLogs = workLogs.filter(log => log.memberId === currentUser.id && log.date >= startOfWeekString);
     
     const projectContributionMap = myWeeklyLogs.reduce((acc, log) => {
-        acc[log.projectId] = (acc[log.projectId] || 0) + log.timeSpentMinutes;
+        acc[log.projectId] = (acc[log.projectId] || 0) + (Number(log.timeSpentMinutes) || 0);
         return acc;
     }, {});
 
