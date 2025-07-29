@@ -427,12 +427,12 @@ export function renderWorkLogPage(container, props) {
             log, ...props,
             workLogTasks: tasksGroupedByCategory,
             onSave: (logData) => {
-                onUpdateWorkLog(logData);
                 closeModal();
+                onUpdateWorkLog(logData);
             },
             onSaveAll: (logsData) => {
-                onAddMultipleWorkLogs(logsData);
                 closeModal();
+                onAddMultipleWorkLogs(logsData);
             },
             onCancel: closeModal
         });
