@@ -369,10 +369,11 @@ export function renderProjectsPage(container, props) {
     const filterGrid = document.createElement('div');
     filterGrid.className = "filters-grid";
 
-    function createFilterInput(type, placeholder, onUpdate) {
+    function createFilterInput(type, placeholder, onUpdate, currentValue = '') {
       const input = document.createElement('input');
       input.type = type; input.placeholder = placeholder;
       input.className = "form-input";
+      input.value = currentValue;
       input.oninput = (e) => { onUpdate(e.target.value); rerenderMainContent(); };
       return input;
     }
@@ -394,12 +395,12 @@ export function renderProjectsPage(container, props) {
     ];
 
     filterGrid.append(
-      createFilterInput('text', 'Search projects...', val => searchTerm = val),
-      createFilterSelect(projectStatuses.map(s => ({value: s, label: s})), 'All Statuses', val => statusFilter = val),
-      createFilterSelect(teamMembers.map(m => ({value: m.id, label: m.name})), 'Any Assignee', val => assigneeFilter = val),
-      createFilterSelect(teamMembers.map(m => ({value: m.id, label: m.name})), 'Any Team Lead', val => teamLeadFilter = val),
-      createFilterSelect(uniqueProjectTypes.map(t => ({value: t, label: t})), 'All Types', val => projectTypeFilter = val),
-      createFilterSelect(uniqueProjectCategories.map(c => ({value: c, label: c})), 'All Categories', val => projectCategoryFilter = val),
+      createFilterInput('text', 'Search projects...', val => searchTerm = val, searchTerm),
+      createFilterSelect(projectStatuses.map(s => ({value: s, label: s})), 'All Statuses', val => statusFilter = val, statusFilter),
+      createFilterSelect(teamMembers.map(m => ({value: m.id, label: m.name})), 'Any Assignee', val => assigneeFilter = val, assigneeFilter),
+      createFilterSelect(teamMembers.map(m => ({value: m.id, label: m.name})), 'Any Team Lead', val => teamLeadFilter = val, teamLeadFilter),
+      createFilterSelect(uniqueProjectTypes.map(t => ({value: t, label: t})), 'All Types', val => projectTypeFilter = val, projectTypeFilter),
+      createFilterSelect(uniqueProjectCategories.map(c => ({value: c, label: c})), 'All Categories', val => projectCategoryFilter = val, projectCategoryFilter),
       createFilterSelect(sortOptions, '', val => sortOrder = val, sortOrder)
     );
     filtersDiv.appendChild(filterGrid);
