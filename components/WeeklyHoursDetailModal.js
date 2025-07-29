@@ -1,4 +1,3 @@
-
 function formatMinutes(minutes) {
     const totalMinutes = Math.round(minutes);
     if (isNaN(totalMinutes) || totalMinutes < 0) return '0h 0m';
@@ -40,7 +39,7 @@ export function WeeklyHoursDetailModal(props) {
     const weeklyLogs = workLogs.filter(log => log.date >= startOfWeekStr && log.date <= endOfWeekStr);
     const weeklyAttendance = attendanceRecords.filter(rec => rec.date >= startOfWeekStr && rec.date <= endOfWeekStr);
     
-    const totalLoggedMinutes = weeklyLogs.reduce((sum, log) => sum + log.timeSpentMinutes, 0);
+    const totalLoggedMinutes = weeklyLogs.reduce((sum, log) => sum + (Number(log.timeSpentMinutes) || 0), 0);
     const totalLoggedHours = totalLoggedMinutes / 60;
     
     const variance = totalLoggedHours - (actualWorkableHours * teamMembers.length);
@@ -107,7 +106,7 @@ export function WeeklyHoursDetailModal(props) {
         const expectedMemberHours = (memberWorkableDays - memberLeaveDays.size) * 8;
         const loggedMemberMinutes = weeklyLogs
             .filter(log => log.memberId === member.id)
-            .reduce((sum, log) => sum + log.timeSpentMinutes, 0);
+            .reduce((sum, log) => sum + (Number(log.timeSpentMinutes) || 0), 0);
 
         let reasonText = '';
         if (loggedMemberMinutes < expectedMemberHours * 60) {
