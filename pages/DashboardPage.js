@@ -1,4 +1,3 @@
-
 import { TeamMemberRole, ProjectStatus, NoteStatus } from '../types.js';
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
@@ -595,17 +594,23 @@ function renderMemberDashboard(container, props) {
     const { currentUser, onAddNote, appSettings } = props;
 
     const onAddLogClick = (projectId = null) => {
+        const userTeam = currentUser ? currentUser.internalTeam : '';
+        const availableTasksForUser = props.workLogTasks.filter(task => (task.teams || []).includes(userTeam));
+        const tasksGroupedByCategory = availableTasksForUser.reduce((acc, task) => {
+            const category = task.category || 'Uncategorized';
+            if (!acc[category]) acc[category] = [];
+            acc[category].push(task);
+            return acc;
+        }, {});
+
         const form = WorkLogForm({
             log: null,
-            // Explicitly pass required props to avoid potential conflicts
-            currentUser: props.currentUser,
-            teamMembers: props.teamMembers,
-            projects: props.projects,
-            workLogTasks: props.workLogTasks,
+            ...props,
+            workLogTasks: tasksGroupedByCategory,
             initialEntryData: projectId ? { projectId } : null,
             onSaveAll: (logsData) => {
+                closeModal(); // Close modal before async operation
                 props.onAddMultipleWorkLogs(logsData);
-                closeModal();
             },
             onCancel: closeModal,
         });
