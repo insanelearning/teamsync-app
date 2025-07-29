@@ -228,32 +228,58 @@ function renderDailyStandup(props) {
 }
 
 function renderActivityFeed(props) {
-    const { workLogs, projects, teamMembers, activities } = props;
+    const { projects, teamMembers, activities } = props;
     const container = document.createElement('div');
     container.className = 'dashboard-widget';
     container.innerHTML = '<h3><i class="fas fa-stream widget-icon"></i>Team Activity</h3>';
 
     const getMemberName = (id) => teamMembers.find(m => m.id === id)?.name || 'Unknown';
     const getProjectName = (id) => projects.find(p => p.id === id)?.name || 'a project';
-    
-    const events = [
-        ...workLogs.map(log => ({ type: 'log', date: new Date(log.updatedAt), text: `<strong>${getMemberName(log.memberId)}</strong> logged ${formatMinutes(log.timeSpentMinutes)} on <em>${getProjectName(log.projectId)}</em>.` })),
-        ...projects.filter(p => p.status === ProjectStatus.Done && p.completionDate).map(p => ({ type: 'completion', date: new Date(p.completionDate), text: `<strong>${(p.assignees || []).map(getMemberName).join(', ')}</strong> completed project <em>${p.name}</em>.` })),
-        ...(activities || []).filter(a => a.type === 'login').map(a => ({ type: 'login', date: new Date(a.timestamp), text: `<strong>${getMemberName(a.userId)}</strong> logged in.` }))
-    ].sort((a, b) => b.date - a.date).slice(0, 10);
+
+    const events = (activities || [])
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+        .slice(0, 10)
+        .map(activity => {
+            let text = '';
+            let icon = 'fa-question-circle';
+            const date = new Date(activity.timestamp);
+
+            switch (activity.type) {
+                case 'login':
+                    text = `<strong>${getMemberName(activity.userId)}</strong> logged in.`;
+                    icon = 'fa-sign-in-alt';
+                    break;
+                case 'worklog_add':
+                    text = `<strong>${getMemberName(activity.userId)}</strong> logged ${formatMinutes(activity.details.timeSpentMinutes)} on <em>${getProjectName(activity.details.projectId)}</em>.`;
+                    icon = 'fa-clock';
+                    break;
+                case 'project_completed':
+                    const assigneeNames = (activity.details.assigneeIds || [])
+                        .map(getMemberName)
+                        .filter(Boolean); // Filter out any 'Unknown' if member deleted
+                    const nameString = assigneeNames.length > 0 ? assigneeNames.join(', ') : 'Someone';
+                    text = `<strong>${nameString}</strong> completed project <em>${activity.details.projectName}</em>.`;
+                    icon = 'fa-check-circle';
+                    break;
+            }
+
+            if (!text) return null; // Skip unknown activity types
+
+            return { type: activity.type, date, text, icon };
+        })
+        .filter(Boolean); // remove nulls
 
     const list = document.createElement('ul');
     list.className = 'activity-feed';
     if (events.length === 0) {
         list.innerHTML = `<li class="activity-empty">No recent activity.</li>`;
     } else {
-        const iconMap = { log: 'fa-clock', completion: 'fa-check-circle', login: 'fa-sign-in-alt' };
         list.innerHTML = events.map(event => {
             const isValidDate = event.date instanceof Date && !isNaN(event.date);
             const dateString = isValidDate ? event.date.toLocaleString() : 'Date not available';
             return `
             <li class="activity-item type-${event.type}">
-                <div class="activity-icon"><i class="fas ${iconMap[event.type]}"></i></div>
+                <div class="activity-icon"><i class="fas ${event.icon}"></i></div>
                 <div class="activity-text">${event.text}</div>
                 <div class="activity-time">${dateString}</div>
             </li>`;
