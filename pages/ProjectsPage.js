@@ -272,6 +272,11 @@ export function renderProjectsPage(container, props) {
   
   const isManager = currentUser.role === TeamMemberRole.Manager;
 
+  // ** FIX: Filter projects based on user role at the beginning **
+  const projectsToDisplay = isManager 
+    ? projects 
+    : projects.filter(p => (p.assignees || []).includes(currentUser.id));
+
   let viewType = 'list'; // 'list' or 'board'
   let searchTerm = '';
   let statusFilter = '';
@@ -339,14 +344,15 @@ export function renderProjectsPage(container, props) {
   headerDiv.append(headerTitle, headerActionsContainer);
   pageWrapper.appendChild(headerDiv);
   
-  // Render the new overview section, passing the function to open a project modal
-  pageWrapper.appendChild(renderProjectsOverview(projects, projectStatuses, openModalWithProject));
+  // ** FIX: Pass the correctly filtered list to the overview section **
+  pageWrapper.appendChild(renderProjectsOverview(projectsToDisplay, projectStatuses, openModalWithProject));
 
   const mainContentContainer = document.createElement('div');
   pageWrapper.appendChild(mainContentContainer);
 
   function getFilteredAndSortedProjects() {
-    return projects.filter(p => {
+    // ** FIX: Filter from projectsToDisplay, not the original projects array **
+    return projectsToDisplay.filter(p => {
       const sTerm = searchTerm.toLowerCase();
       return (p.name.toLowerCase().includes(sTerm) || (p.description||'').toLowerCase().includes(sTerm) || (p.stakeholderName && p.stakeholderName.toLowerCase().includes(sTerm))) &&
              (!statusFilter || p.status === statusFilter) &&
@@ -387,8 +393,9 @@ export function renderProjectsPage(container, props) {
       return select;
     }
     
-    const uniqueProjectTypes = Array.from(new Set(projects.map(p => p.projectType).filter(Boolean)));
-    const uniqueProjectCategories = Array.from(new Set(projects.map(p => p.projectCategory).filter(Boolean)));
+    // ** FIX: Derive unique types/categories from projectsToDisplay **
+    const uniqueProjectTypes = Array.from(new Set(projectsToDisplay.map(p => p.projectType).filter(Boolean)));
+    const uniqueProjectCategories = Array.from(new Set(projectsToDisplay.map(p => p.projectCategory).filter(Boolean)));
     const sortOptions = [
         {value: 'dueDateAsc', label: 'Sort: Due Date (Asc)'},{value: 'dueDateDesc', label: 'Sort: Due Date (Desc)'},
         {value: 'nameAsc', label: 'Sort: Name (A-Z)'},{value: 'nameDesc', label: 'Sort: Name (Z-A)'}
