@@ -1,3 +1,4 @@
+
 import { TeamMemberRole, ProjectStatus, NoteStatus } from '../types.js';
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
@@ -591,13 +592,21 @@ function renderManagerDashboard(container, props) {
 }
 
 function renderMemberDashboard(container, props) {
-    const { currentUser, onAddMultipleWorkLogs, onAddNote, appSettings } = props;
+    const { currentUser, onAddNote, appSettings } = props;
 
     const onAddLogClick = (projectId = null) => {
         const form = WorkLogForm({
-            log: null, ...props,
+            log: null,
+            // Explicitly pass required props to avoid potential conflicts
+            currentUser: props.currentUser,
+            teamMembers: props.teamMembers,
+            projects: props.projects,
+            workLogTasks: props.workLogTasks,
             initialEntryData: projectId ? { projectId } : null,
-            onSaveAll: (logsData) => { onAddMultipleWorkLogs(logsData); closeModal(); },
+            onSaveAll: (logsData) => {
+                props.onAddMultipleWorkLogs(logsData);
+                closeModal();
+            },
             onCancel: closeModal,
         });
         currentModalInstance = Modal({ isOpen: true, onClose: closeModal, title: 'Add Work Log', children: form, size: 'xl' });
