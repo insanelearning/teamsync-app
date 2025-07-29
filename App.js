@@ -35,17 +35,16 @@ const handleLogin = async (member) => {
     
     // Track login activity
     try {
-        const activityId = await addDocument('activities', {
+        const activity = {
             type: 'login',
             userId: member.id,
             timestamp: new Date().toISOString(),
-        });
+        };
+        const activityId = await addDocument('activities', activity);
         // Add to local state to avoid a full reload
         activities.push({
+            ...activity,
             id: activityId,
-            type: 'login',
-            userId: member.id,
-            timestamp: new Date().toISOString(),
         });
     } catch (error) {
         console.error("Failed to log login activity:", error);
@@ -98,6 +97,18 @@ const updateProject = async (updatedProject) => {
     const originalProject = projects.find(p => p.id === updatedProject.id);
     if (originalProject && originalProject.status !== ProjectStatus.Done && updatedProject.status === ProjectStatus.Done) {
         updatedProject.completionDate = new Date().toISOString();
+        // Create an activity for project completion
+        const activity = {
+            type: 'project_completed',
+            userId: currentUser.id, // User who marked it as done
+            timestamp: updatedProject.completionDate,
+            details: {
+                projectName: updatedProject.name,
+                assigneeIds: updatedProject.assignees || []
+            }
+        };
+        const activityId = await addDocument('activities', activity);
+        activities.push({ ...activity, id: activityId });
     }
 
     const { id, ...data } = updatedProject;
@@ -208,6 +219,22 @@ const addMultipleWorkLogs = async (workLogsToAdd) => {
         
         await batchWrite('worklogs', processedLogs);
         workLogs.push(...processedLogs);
+
+        // Also create activity entries for the feed
+        const activityPromises = processedLogs.map(log => {
+            const activity = {
+                type: 'worklog_add',
+                userId: log.memberId,
+                timestamp: now,
+                details: {
+                    projectId: log.projectId,
+                    timeSpentMinutes: log.timeSpentMinutes
+                }
+            };
+            return addDocument('activities', activity).then(id => activities.push({ ...activity, id }));
+        });
+        await Promise.all(activityPromises);
+        
         renderApp();
     } catch (error) {
         console.error("Failed to add work logs:", error);
