@@ -1,4 +1,4 @@
-import { TeamMemberRole, ProjectStatus } from '../types.js';
+import { TeamMemberRole, ProjectStatus, NoteStatus } from '../types.js';
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { WorkLogForm } from '../components/WorkLogForm.js';
@@ -55,6 +55,25 @@ function getTodaysCelebrations(teamMembers) {
         }
     });
     return celebrations;
+}
+
+function formatDueDate(dueDateString) {
+    const dueDate = new Date(dueDateString + 'T00:00:00');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Normalize today's date
+
+    const diffTime = dueDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) {
+        return `<span class="focus-due-date overdue">Overdue by ${Math.abs(diffDays)} day(s)</span>`;
+    } else if (diffDays === 0) {
+        return `<span class="focus-due-date due-today">Due Today</span>`;
+    } else if (diffDays === 1) {
+        return `<span class="focus-due-date due-soon">Due Tomorrow</span>`;
+    } else {
+        return `<span class="focus-due-date">Due in ${diffDays} days</span>`;
+    }
 }
 
 
@@ -356,7 +375,7 @@ function renderProjectInsights(props) {
 
 // --- Member Dashboard Widgets ---
 
-function renderMemberStats(props) {
+function renderMemberStats(props, onKpiClick) {
     const { currentUser, workLogs, projects } = props;
     const container = document.createElement('div');
     container.className = 'member-stats-grid';
@@ -364,77 +383,162 @@ function renderMemberStats(props) {
     const startOfWeekString = getStartOfWeek().toISOString().split('T')[0];
     const myWeeklyLogs = workLogs.filter(log => log.memberId === currentUser.id && log.date >= startOfWeekString);
     const myActiveProjects = projects.filter(p => (p.assignees || []).includes(currentUser.id) && p.status !== 'Done');
-    const myOverdueCount = myActiveProjects.filter(p => new Date(p.dueDate) < new Date()).length;
+    const myOverdueProjects = myActiveProjects.filter(p => new Date(p.dueDate) < new Date());
     const nextDeadline = myActiveProjects.filter(p => new Date(p.dueDate) >= new Date()).sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate))[0];
-    
     const myWeeklyMinutes = myWeeklyLogs.reduce((sum, log) => sum + (parseFloat(log.timeSpentMinutes) || 0), 0);
 
-    container.innerHTML = `
-        <div class="member-stat-card"><div class="stat-card-header"><div class="stat-card-icon"><i class="fas fa-clock"></i></div><span class="stat-card-label">Time Logged (Week)</span></div><div class="stat-card-body"><p class="stat-card-value">${formatMinutes(myWeeklyMinutes)}</p></div></div>
-        <div class="member-stat-card"><div class="stat-card-header"><div class="stat-card-icon"><i class="fas fa-tasks"></i></div><span class="stat-card-label">Active Projects</span></div><div class="stat-card-body"><p class="stat-card-value">${myActiveProjects.length}</p></div></div>
-        <div class="member-stat-card ${myOverdueCount > 0 ? 'warning' : ''}"><div class="stat-card-header"><div class="stat-card-icon"><i class="fas fa-exclamation-triangle"></i></div><span class="stat-card-label">Overdue</span></div><div class="stat-card-body"><p class="stat-card-value">${myOverdueCount}</p></div></div>
-        <div class="member-stat-card"><div class="stat-card-header"><div class="stat-card-icon"><i class="fas fa-calendar-check"></i></div><span class="stat-card-label">Next Deadline</span></div><div class="stat-card-body"><p class="stat-card-value">${nextDeadline ? new Date(nextDeadline.dueDate + 'T00:00').toLocaleDateString() : 'N/A'}</p><p class="stat-card-detail">${nextDeadline?.name || 'All clear!'}</p></div></div>`;
+    const kpis = [
+        { type: 'weekly_hours', value: formatMinutes(myWeeklyMinutes), label: 'Time Logged (Week)', icon: 'fas fa-clock', clickable: false },
+        { type: 'active_projects', value: myActiveProjects.length, label: 'Active Projects', icon: 'fas fa-tasks', clickable: myActiveProjects.length > 0, data: myActiveProjects },
+        { type: 'overdue_projects', value: myOverdueProjects.length, label: 'Overdue', icon: 'fas fa-exclamation-triangle', className: myOverdueProjects.length > 0 ? 'warning' : '', clickable: myOverdueProjects.length > 0, data: myOverdueProjects },
+        { type: 'next_deadline', value: nextDeadline ? new Date(nextDeadline.dueDate + 'T00:00').toLocaleDateString() : 'N/A', label: 'Next Deadline', detail: nextDeadline?.name || 'All clear!', icon: 'fas fa-calendar-check', clickable: false }
+    ];
+
+    kpis.forEach(kpi => {
+        const card = document.createElement('div');
+        card.className = `member-stat-card ${kpi.className || ''}`;
+        card.innerHTML = `
+            <div class="stat-card-header">
+                <div class="stat-card-icon"><i class="${kpi.icon}"></i></div>
+                <span class="stat-card-label">${kpi.label}</span>
+            </div>
+            <div class="stat-card-body">
+                <p class="stat-card-value">${kpi.value}</p>
+                ${kpi.detail ? `<p class="stat-card-detail">${kpi.detail}</p>` : ''}
+            </div>`;
+        if (kpi.clickable) {
+            card.classList.add('clickable');
+            card.onclick = () => onKpiClick(kpi);
+        }
+        container.appendChild(card);
+    });
+
     return container;
 }
 
-function renderMyContributions(props) {
-    const { currentUser, workLogs, projects } = props;
+function renderMyFocusWidget(props, onLogTime) {
+    const { currentUser, projects } = props;
     const container = document.createElement('div');
     container.className = 'dashboard-widget';
-    container.innerHTML = '<h3><i class="fas fa-history widget-icon"></i>My Contributions (This Week)</h3>';
+    container.innerHTML = `<h3><i class="fas fa-bullseye widget-icon"></i>My Focus for Today</h3>`;
 
-    const startOfWeekString = getStartOfWeek().toISOString().split('T')[0];
-    const myWeeklyLogs = workLogs.filter(log => log.memberId === currentUser.id && log.date >= startOfWeekString);
+    const myActiveProjects = projects.filter(p => (p.assignees || []).includes(currentUser.id) && p.status !== 'Done');
     
-    const projectContributionMap = myWeeklyLogs.reduce((acc, log) => {
-        acc[log.projectId] = (acc[log.projectId] || 0) + (parseFloat(log.timeSpentMinutes) || 0);
-        return acc;
-    }, {});
-
-    if (Object.keys(projectContributionMap).length === 0) {
-        container.innerHTML += `<p class="activity-empty">No hours logged this week.</p>`;
-    } else {
-        const list = document.createElement('ul');
-        list.className = 'contributions-list';
-        for (const projectId in projectContributionMap) {
-            const projectName = projects.find(p => p.id === projectId)?.name || 'Unknown Project';
-            const item = document.createElement('li');
-            item.className = 'contribution-item';
-            item.innerHTML = `<span class="contribution-project-name">${projectName}</span>
-            <div class="contribution-stats"><div class="contribution-stat-item"><div class="label">Time Logged</div><div class="value">${formatMinutes(projectContributionMap[projectId])}</div></div></div>`;
-            list.appendChild(item);
-        }
-        container.appendChild(list);
+    if (myActiveProjects.length === 0) {
+        container.innerHTML += `<p class="activity-empty">No active projects assigned. Enjoy the quiet time!</p>`;
+        return container;
     }
+
+    const priorityOrder = { 'High': 3, 'Medium': 2, 'Low': 1 };
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    myActiveProjects.sort((a, b) => {
+        const aDueDate = new Date(a.dueDate);
+        const bDueDate = new Date(b.dueDate);
+        const aIsOverdue = aDueDate < today;
+        const bIsOverdue = bDueDate < today;
+
+        if (aIsOverdue && !bIsOverdue) return -1;
+        if (!aIsOverdue && bIsOverdue) return 1;
+
+        const dateDiff = aDueDate - bDueDate;
+        if (dateDiff !== 0) return dateDiff;
+        
+        return (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0);
+    });
+
+    const list = document.createElement('ul');
+    list.className = 'focus-widget-list';
+
+    myActiveProjects.slice(0, 5).forEach(project => {
+        const item = document.createElement('li');
+        item.className = 'focus-list-item';
+        if (new Date(project.dueDate) < today) {
+            item.classList.add('overdue');
+        }
+
+        const name = document.createElement('span');
+        name.className = 'focus-project-name';
+        name.textContent = project.name;
+
+        const meta = document.createElement('div');
+        meta.className = 'focus-meta';
+        meta.innerHTML = `
+            ${formatDueDate(project.dueDate)}
+            <span class="priority-${(project.priority || 'default').toLowerCase()}">${project.priority || ''}</span>
+        `;
+        
+        const logTimeBtn = Button({
+            children: 'Log Time',
+            variant: 'secondary',
+            size: 'sm',
+            className: 'focus-log-time-btn',
+            leftIcon: '<i class="fas fa-clock"></i>',
+            onClick: () => onLogTime(project.id)
+        });
+
+        item.append(name, logTimeBtn, meta);
+        list.appendChild(item);
+    });
+
+    container.appendChild(list);
     return container;
 }
 
-function renderMyRecentNotes(props) {
+function renderMyActionableNotes(props) {
     const { notes } = props;
     const container = document.createElement('div');
     container.className = 'dashboard-widget';
-    container.innerHTML = `<h3><i class="fas fa-sticky-note widget-icon"></i>My Recent Notes</h3>`;
+    container.innerHTML = `<h3><i class="fas fa-sticky-note widget-icon"></i>My Actionable Notes</h3>`;
     
-    const recentNotes = notes
-        .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
-        .slice(0, 5);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-    if (recentNotes.length === 0) {
-        container.innerHTML += `<p class="activity-empty">No notes yet.</p>`;
+    const pendingNotes = notes
+        .filter(n => n.status === NoteStatus.Pending)
+        .sort((a, b) => {
+            const aDueDate = a.dueDate ? new Date(a.dueDate) : null;
+            const bDueDate = b.dueDate ? new Date(b.dueDate) : null;
+            
+            if (!aDueDate && !bDueDate) return new Date(b.updatedAt) - new Date(a.updatedAt);
+            if (!aDueDate) return 1;
+            if (!bDueDate) return -1;
+            
+            const aIsOverdue = aDueDate < today;
+            const bIsOverdue = bDueDate < today;
+            if (aIsOverdue && !bIsOverdue) return -1;
+            if (!aIsOverdue && bIsOverdue) return 1;
+
+            return aDueDate - bDueDate;
+        });
+
+    if (pendingNotes.length === 0) {
+        container.innerHTML += `<p class="activity-empty">No pending notes.</p>`;
     } else {
         const list = document.createElement('ul');
-        list.className = 'widget-list-condensed';
-        recentNotes.forEach(note => {
+        list.className = 'widget-content';
+        pendingNotes.slice(0, 7).forEach(note => {
             const item = document.createElement('li');
-            item.className = 'list-item';
-            item.innerHTML = `<span class="item-title">${note.title}</span><span class="item-meta">${new Date(note.updatedAt).toLocaleDateString()}</span>`;
+            item.className = 'note-list-item-actionable';
+            const title = document.createElement('span');
+            title.className = 'item-title';
+            title.textContent = note.title;
+
+            const meta = document.createElement('span');
+            meta.className = 'item-meta';
+            if (note.dueDate) {
+                const dueDate = new Date(note.dueDate + 'T00:00:00');
+                const isOverdue = dueDate < today;
+                meta.innerHTML = `<i class="fas fa-calendar-alt"></i> <span class="${isOverdue ? 'due-date-overdue' : ''}">Due: ${dueDate.toLocaleDateString(undefined, {month: 'short', day: 'numeric'})}</span>`;
+            }
+            item.append(title, meta);
             list.appendChild(item);
         });
         container.appendChild(list);
     }
     return container;
 }
-
 
 // --- Dashboard Main Render Functions ---
 
@@ -487,11 +591,12 @@ function renderManagerDashboard(container, props) {
 }
 
 function renderMemberDashboard(container, props) {
-    const { currentUser, onAddMultipleWorkLogs, onAddNote, workLogTasks, appSettings } = props;
+    const { currentUser, onAddMultipleWorkLogs, onAddNote, appSettings } = props;
 
-    const onAddLogClick = () => {
+    const onAddLogClick = (projectId = null) => {
         const form = WorkLogForm({
             log: null, ...props,
+            initialEntryData: projectId ? { projectId } : null,
             onSaveAll: (logsData) => { onAddMultipleWorkLogs(logsData); closeModal(); },
             onCancel: closeModal,
         });
@@ -506,6 +611,29 @@ function renderMemberDashboard(container, props) {
         });
         currentModalInstance = Modal({ isOpen: true, onClose: closeModal, title: 'Add New Note', children: form, size: 'lg' });
     };
+    
+    const onMemberKpiClick = (kpi) => {
+        let title = '';
+        const content = document.createElement('ul');
+        content.className = 'kpi-modal-list';
+
+        if (kpi.type === 'active_projects') {
+            title = 'My Active Projects';
+        } else if (kpi.type === 'overdue_projects') {
+            title = 'My Overdue Projects';
+        }
+
+        content.innerHTML = kpi.data.map(p => `<li class="kpi-modal-list-item"><strong>${p.name}</strong><span>Due: ${new Date(p.dueDate).toLocaleDateString()}</span></li>`).join('');
+
+        currentModalInstance = Modal({
+            isOpen: true,
+            onClose: closeModal,
+            title,
+            children: content,
+            footer: [Button({ children: 'Close', variant: 'secondary', onClick: closeModal })],
+            size: 'md'
+        });
+    };
 
     const header = document.createElement('div');
     header.className = 'member-welcome-header';
@@ -513,13 +641,13 @@ function renderMemberDashboard(container, props) {
     const actions = document.createElement('div');
     actions.className = 'member-hero-actions';
     actions.append(
-        Button({ children: 'Add Work Log', leftIcon: '<i class="fas fa-clock"></i>', onClick: onAddLogClick }),
+        Button({ children: 'Add Work Log', leftIcon: '<i class="fas fa-clock"></i>', onClick: () => onAddLogClick() }),
         Button({ children: 'Add Note', variant: 'secondary', leftIcon: '<i class="fas fa-plus"></i>', onClick: onAddNoteClick })
     );
     header.appendChild(actions);
     container.appendChild(header);
 
-    container.appendChild(renderMemberStats(props));
+    container.appendChild(renderMemberStats(props, onMemberKpiClick));
 
     const celebrations = getTodaysCelebrations(props.teamMembers);
     if (celebrations.length > 0) {
@@ -528,7 +656,16 @@ function renderMemberDashboard(container, props) {
 
     const memberWidgetsLayout = document.createElement('div');
     memberWidgetsLayout.className = 'dashboard-layout-member';
-    memberWidgetsLayout.append(renderMyContributions(props), renderMyRecentNotes(props));
+    
+    const mainCol = document.createElement('div');
+    mainCol.className = 'dashboard-main-col';
+    const sideCol = document.createElement('div');
+    sideCol.className = 'dashboard-side-col';
+    
+    mainCol.appendChild(renderMyFocusWidget(props, onAddLogClick));
+    sideCol.appendChild(renderMyActionableNotes(props));
+
+    memberWidgetsLayout.append(mainCol, sideCol);
     container.appendChild(memberWidgetsLayout);
 }
 
