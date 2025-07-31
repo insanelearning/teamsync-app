@@ -138,6 +138,10 @@ export function renderLoginPage(container, { onLogin, teamMembers, appSettings }
                 pupils[index].style.transform = `translate(${pupilX}px, ${pupilY}px)`;
             });
         };
+        
+        // This event listener is scoped to the app's lifecycle.
+        // When the login page is replaced by another page, the container's
+        // contents are cleared, garbage collecting this listener.
         window.addEventListener('mousemove', moveEyes);
     }
 }
