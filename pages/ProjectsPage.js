@@ -1,4 +1,5 @@
 
+
 import { ProjectForm } from '../components/ProjectForm.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { Button } from '../components/Button.js';
@@ -7,6 +8,47 @@ import { TeamMemberRole } from '../types.js';
 import { KanbanBoard } from '../components/KanbanBoard.js';
 
 let currentModalInstance = null; 
+
+// Helper function to create an ID field with a copy button
+function createIdFieldWithCopy(label, id) {
+    const item = document.createElement('div');
+    item.className = 'detail-item detail-item-id';
+
+    const labelEl = document.createElement('h4');
+    labelEl.className = 'detail-label';
+    labelEl.textContent = label;
+
+    const valueContainer = document.createElement('div');
+    valueContainer.className = 'id-value-container';
+    
+    const valueEl = document.createElement('code');
+    valueEl.className = 'id-value-code';
+    valueEl.textContent = id;
+    
+    const copyBtn = Button({
+        variant: 'ghost',
+        size: 'sm',
+        children: '<i class="fas fa-copy"></i>',
+        ariaLabel: `Copy ${label}`,
+        onClick: () => {
+            navigator.clipboard.writeText(id).then(() => {
+                const icon = copyBtn.querySelector('i');
+                if (icon) {
+                    icon.className = 'fas fa-check';
+                    copyBtn.disabled = true;
+                    setTimeout(() => {
+                        icon.className = 'fas fa-copy';
+                        copyBtn.disabled = false;
+                    }, 2000);
+                }
+            });
+        }
+    });
+
+    valueContainer.append(valueEl, copyBtn);
+    item.append(labelEl, valueContainer);
+    return item;
+}
 
 // Helper to get status/priority classes, can be moved if needed elsewhere
 const getStatusClass = (status) => {
@@ -531,6 +573,7 @@ export function renderProjectsPage(container, props) {
     
     const detailView = document.createElement('div');
     detailView.className = 'project-detail-view';
+
     detailView.innerHTML = `
         <div class="detail-group">
             <h4 class="detail-label">Overall Progress</h4>
@@ -540,17 +583,22 @@ export function renderProjectsPage(container, props) {
             <h4 class="detail-label">Description</h4>
             <p class="detail-value">${project.description || 'No description provided.'}</p>
         </div>
-        <div class="detail-grid">
-            <div class="detail-item"><h4 class="detail-label">Stakeholder</h4><p class="detail-value">${project.stakeholderName || 'N/A'}</p></div>
-            <div class="detail-item"><h4 class="detail-label">Status</h4><p class="detail-value"><span class="project-status-badge ${getStatusClass(project.status)}">${project.status}</span></p></div>
-            <div class="detail-item"><h4 class="detail-label">Assignees</h4><p class="detail-value">${assigneesNames}</p></div>
-            <div class="detail-item"><h4 class="detail-label">Team Lead</h4><p class="detail-value">${teamLeadName}</p></div>
-            <div class="detail-item"><h4 class="detail-label">Due Date</h4><p class="detail-value">${new Date(project.dueDate).toLocaleDateString()}</p></div>
-            <div class="detail-item"><h4 class="detail-label">Priority</h4><p class="detail-value"><span class="${getPriorityClass(project.priority)}">${project.priority}</span></p></div>
-            <div class="detail-item"><h4 class="detail-label">Project Type</h4><p class="detail-value">${project.projectType || 'N/A'}</p></div>
-            <div class="detail-item"><h4 class="detail-label">Category</h4><p class="detail-value">${project.projectCategory || 'N/A'}</p></div>
-        </div>
     `;
+
+    const detailGrid = document.createElement('div');
+    detailGrid.className = 'detail-grid';
+    detailGrid.innerHTML = `
+        <div class="detail-item"><h4 class="detail-label">Stakeholder</h4><p class="detail-value">${project.stakeholderName || 'N/A'}</p></div>
+        <div class="detail-item"><h4 class="detail-label">Status</h4><p class="detail-value"><span class="project-status-badge ${getStatusClass(project.status)}">${project.status}</span></p></div>
+        <div class="detail-item"><h4 class="detail-label">Assignees</h4><p class="detail-value">${assigneesNames}</p></div>
+        <div class="detail-item"><h4 class="detail-label">Team Lead</h4><p class="detail-value">${teamLeadName}</p></div>
+        <div class="detail-item"><h4 class="detail-label">Due Date</h4><p class="detail-value">${new Date(project.dueDate).toLocaleDateString()}</p></div>
+        <div class="detail-item"><h4 class="detail-label">Priority</h4><p class="detail-value"><span class="${getPriorityClass(project.priority)}">${project.priority}</span></p></div>
+        <div class="detail-item"><h4 class="detail-label">Project Type</h4><p class="detail-value">${project.projectType || 'N/A'}</p></div>
+        <div class="detail-item"><h4 class="detail-label">Category</h4><p class="detail-value">${project.projectCategory || 'N/A'}</p></div>
+    `;
+    detailGrid.appendChild(createIdFieldWithCopy('Project ID', project.id));
+    detailView.appendChild(detailGrid);
 
     const hasPilotDetails = project.mediaProduct || project.pilotScope || project.clientNames || project.projectApproach || project.deliverables || project.resultsAchieved;
     if (hasPilotDetails) {
