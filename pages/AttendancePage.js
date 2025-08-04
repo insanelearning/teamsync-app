@@ -11,6 +11,47 @@ import { TeamMemberRole } from '../types.js';
 let currentTeamModalInstance = null;
 let currentLogModalInstance = null;
 
+// Helper function to create an ID field with a copy button
+function createIdFieldWithCopy(label, id) {
+    const item = document.createElement('div');
+    item.className = 'detail-item detail-item-id';
+
+    const labelEl = document.createElement('h4');
+    labelEl.className = 'detail-label';
+    labelEl.textContent = label;
+
+    const valueContainer = document.createElement('div');
+    valueContainer.className = 'id-value-container';
+    
+    const valueEl = document.createElement('code');
+    valueEl.className = 'id-value-code';
+    valueEl.textContent = id;
+    
+    const copyBtn = Button({
+        variant: 'ghost',
+        size: 'sm',
+        children: '<i class="fas fa-copy"></i>',
+        ariaLabel: `Copy ${label}`,
+        onClick: () => {
+            navigator.clipboard.writeText(id).then(() => {
+                const icon = copyBtn.querySelector('i');
+                if (icon) {
+                    icon.className = 'fas fa-check';
+                    copyBtn.disabled = true;
+                    setTimeout(() => {
+                        icon.className = 'fas fa-copy';
+                        copyBtn.disabled = false;
+                    }, 2000);
+                }
+            });
+        }
+    });
+
+    valueContainer.append(valueEl, copyBtn);
+    item.append(labelEl, valueContainer);
+    return item;
+}
+
 export function renderAttendancePage(container, props) {
   const {
     attendanceRecords, teamMembers, projects, currentUser,
@@ -293,308 +334,225 @@ export function renderAttendancePage(container, props) {
 
   function closeTeamModal() { closeGlobalModal(); currentTeamModalInstance = null; }
   
-  function handleDeleteMember(memberId) { 
-    if (window.confirm('Delete member? This also removes their attendance logs and unassigns them from projects.')) {
+  function handleDeleteMember(memberId) {
+    if (window.confirm('Delete this member and all their associated data (attendance, work logs)? This cannot be undone.')) {
       onDeleteTeamMember(memberId);
       closeTeamModal();
     }
   }
+
+  function handleFileImport(file, type) {
+      if (type === 'attendance') {
+          onImport(file, 'attendance');
+      } else if (type === 'team') {
+          onImportTeam(file);
+      }
+  }
   
-  function renderTeamMemberDetailView(member) {
+  function renderTeamMemberDetailView(member, projects) {
     const detailView = document.createElement('div');
-    detailView.className = 'member-detail-view';
+    detailView.className = 'member-detail-view'; // Re-use project detail view styles
 
-    const detailGrid = document.createElement('div');
-    detailGrid.className = 'detail-grid';
-
-    const createDetailItem = (label, value) => {
-        const item = document.createElement('div');
-        item.className = 'detail-item';
-        const labelEl = document.createElement('h4');
-        labelEl.className = 'detail-label';
-        labelEl.textContent = label;
-        item.appendChild(labelEl);
-        
-        if (typeof value === 'string') {
-            const valueEl = document.createElement('p');
-            valueEl.className = 'detail-value';
-            valueEl.textContent = value;
-            item.appendChild(valueEl);
-        } else if (value instanceof HTMLElement) {
-            item.appendChild(value);
+    const formatDate = (dateString) => dateString ? new Date(dateString + 'T00:00:00').toLocaleDateString() : 'N/A';
+    const calculateAge = (birthDate) => {
+        if (!birthDate) return 'N/A';
+        const today = new Date();
+        const birth = new Date(birthDate);
+        let age = today.getFullYear() - birth.getFullYear();
+        const m = today.getMonth() - birth.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+            age--;
         }
-        return item;
+        return `${age} years`;
     };
 
-    // Email Item with Button
-    const emailItem = document.createElement('div');
-    emailItem.className = 'detail-item';
-    emailItem.innerHTML = `<h4 class="detail-label">Email</h4>`;
-    if (member.email) {
-        const valueContainer = document.createElement('div');
-        valueContainer.style.display = 'flex';
-        valueContainer.style.alignItems = 'center';
-        valueContainer.style.gap = '0.5rem';
-
-        const valueP = document.createElement('p');
-        valueP.className = 'detail-value';
-        valueP.style.margin = '0';
-        valueP.textContent = member.email;
-
-        const emailBtn = Button({ 
-            variant: 'ghost', 
-            size: 'sm', 
-            children: '<i class="fas fa-envelope"></i>', 
-            ariaLabel: 'Email', 
-            onClick: () => window.open(`mailto:${member.email}`) 
-        });
-
-        valueContainer.append(valueP, emailBtn);
-        emailItem.appendChild(valueContainer);
-    } else {
-        emailItem.innerHTML += `<p class="detail-value">N/A</p>`;
-    }
-    detailGrid.appendChild(emailItem);
-    
-    // Mobile Number Item with Buttons
-    const mobileItem = document.createElement('div');
-    mobileItem.className = 'detail-item';
-    mobileItem.innerHTML = `<h4 class="detail-label">Mobile Number</h4>`;
-    if (member.mobileNumber) {
-        const valueContainer = document.createElement('div');
-        valueContainer.style.display = 'flex';
-        valueContainer.style.alignItems = 'center';
-        valueContainer.style.gap = '0.5rem';
-
-        const valueP = document.createElement('p');
-        valueP.className = 'detail-value';
-        valueP.style.margin = '0';
-        valueP.textContent = member.mobileNumber;
-
-        const callBtn = Button({ variant: 'ghost', size: 'sm', children: '<i class="fas fa-phone-alt"></i>', ariaLabel: 'Call', onClick: () => window.open(`tel:${member.mobileNumber}`) });
-        const whatsappNumber = member.mobileNumber.replace(/\D/g, '');
-        const whatsappBtn = Button({ variant: 'ghost', size: 'sm', children: '<i class="fab fa-whatsapp"></i>', ariaLabel: 'WhatsApp', onClick: () => window.open(`https://wa.me/${whatsappNumber}`, '_blank') });
-
-        valueContainer.append(valueP, callBtn, whatsappBtn);
-        mobileItem.appendChild(valueContainer);
-    } else {
-        mobileItem.innerHTML += `<p class="detail-value">N/A</p>`;
-    }
-    detailGrid.appendChild(mobileItem);
-    
-    detailGrid.appendChild(createDetailItem('Employee ID', member.employeeId || 'N/A'));
-    detailGrid.appendChild(createDetailItem('Designation', member.designation || 'N/A'));
-    detailGrid.appendChild(createDetailItem('Department', member.department || 'N/A'));
-    detailGrid.appendChild(createDetailItem('Internal Team', member.internalTeam || 'N/A'));
-    detailGrid.appendChild(createDetailItem('Join Date', member.joinDate ? new Date(member.joinDate + 'T00:00').toLocaleDateString() : 'N/A'));
-    detailGrid.appendChild(createDetailItem('Birth Date', member.birthDate ? new Date(member.birthDate + 'T00:00').toLocaleDateString() : 'N/A'));
-    detailGrid.appendChild(createDetailItem('Company', member.company || 'N/A'));
-    
-    detailView.appendChild(detailGrid);
-
-
-    // Active Projects
-    const activeProjects = projects.filter(p => p.status !== 'Done' && (p.assignees || []).includes(member.id));
-    const projectsSection = document.createElement('div');
-    projectsSection.className = 'detail-section';
-    projectsSection.innerHTML = `<h4 class="detail-label">Active Projects (${activeProjects.length})</h4>`;
-    if (activeProjects.length > 0) {
-      const ul = document.createElement('ul');
-      ul.className = 'detail-list';
-      activeProjects.forEach(p => {
-        const li = document.createElement('li');
-        li.textContent = p.name;
-        ul.appendChild(li);
-      });
-      projectsSection.appendChild(ul);
-    } else {
-      projectsSection.innerHTML += `<p class="detail-value-small">No active projects.</p>`;
-    }
-    detailView.appendChild(projectsSection);
-
-    // Attendance Summary (Last 30 Days)
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const recentRecords = attendanceRecords.filter(r => r.memberId === member.id && new Date(r.date) >= thirtyDaysAgo);
-    
-    const wfhDays = recentRecords.filter(r => r.status === 'Work From Home').length;
-    const leaveDays = recentRecords.filter(r => r.status === 'Leave').length;
-
-    const attendanceSection = document.createElement('div');
-    attendanceSection.className = 'detail-section';
-    attendanceSection.innerHTML = `<h4 class="detail-label">Attendance Summary (Last 30 Days)</h4>`;
-    const summaryGrid = document.createElement('div');
-    summaryGrid.className = 'detail-grid-small';
-    summaryGrid.innerHTML = `
-      <div class="detail-item"><p class="detail-value-small">Work From Home: ${wfhDays} days</p></div>
-      <div class="detail-item"><p class="detail-value-small">On Leave: ${leaveDays} days</p></div>
+    const mainDetailsGrid = document.createElement('div');
+    mainDetailsGrid.className = 'detail-grid';
+    mainDetailsGrid.innerHTML = `
+        <div class="detail-item"><h4 class="detail-label">Email</h4><p class="detail-value">${member.email || 'N/A'}</p></div>
+        <div class="detail-item"><h4 class="detail-label">Mobile</h4><p class="detail-value">${member.mobileNumber || 'N/A'}</p></div>
+        <div class="detail-item"><h4 class="detail-label">Designation</h4><p class="detail-value">${member.designation || 'N/A'}</p></div>
+        <div class="detail-item"><h4 class="detail-label">Role</h4><p class="detail-value">${member.role}</p></div>
+        <div class="detail-item"><h4 class="detail-label">Internal Team</h4><p class="detail-value">${member.internalTeam || 'N/A'}</p></div>
+        <div class="detail-item"><h4 class="detail-label">Department</h4><p class="detail-value">${member.department || 'N/A'}</p></div>
+        <div class="detail-item"><h4 class="detail-label">Join Date</h4><p class="detail-value">${formatDate(member.joinDate)}</p></div>
+        <div class="detail-item"><h4 class="detail-label">Age</h4><p class="detail-value">${calculateAge(member.birthDate)}</p></div>
     `;
-    attendanceSection.appendChild(summaryGrid);
-    detailView.appendChild(attendanceSection);
+    mainDetailsGrid.appendChild(createIdFieldWithCopy('Member ID', member.id));
+    detailView.appendChild(mainDetailsGrid);
 
+    const activeProjects = projects.filter(p => p.status !== 'Done' && (p.assignees || []).includes(member.id));
+    if (activeProjects.length > 0) {
+        const projectsSection = document.createElement('div');
+        projectsSection.className = 'detail-section';
+        projectsSection.innerHTML = `<h4 class="detail-label">Active Projects (${activeProjects.length})</h4>`;
+        const projectList = document.createElement('ul');
+        projectList.className = 'detail-list';
+        projectList.innerHTML = activeProjects.map(p => `<li>${p.name}</li>`).join('');
+        projectsSection.appendChild(projectList);
+        detailView.appendChild(projectsSection);
+    }
+    
     return detailView;
   }
 
-  function openTeamMemberDetailModal(member, isViewing = false) {
-    if (!member && isViewing) return; 
-    
-    // Non-managers can never be in edit mode.
-    let isEditing = isManager ? !isViewing : false;
-
-    // A manager cannot add a new member if the team is full.
-    if (!member && teamMembers.length >= maxTeamMembers) {
-      alert(`Team size cannot exceed the maximum of ${maxTeamMembers} members.`);
-      return;
+  function openTeamMemberDetailModal(member, isReadOnly = false) {
+    let isEditing = !isReadOnly && isManager; // Only managers can start in edit mode.
+    if (!member && isManager) {
+        isEditing = true; // Always editing for a new member
+    } else if (!isManager) {
+        isEditing = false; // Non-managers can only view
+        isReadOnly = true;
     }
-    
+
     let modalEl, modalBody, modalFooter;
-    
-    const handleSaveTeamMember = (memberData) => {
-      (member ? onUpdateTeamMember : onAddTeamMember)(memberData);
-      closeTeamModal();
-    };
+    const { onAddTeamMember, onUpdateTeamMember, internalTeams, projects, attendanceRecords, holidays } = props;
 
     const renderContent = () => {
-      modalBody.innerHTML = '';
-      modalFooter.innerHTML = '';
+        modalBody.innerHTML = '';
+        modalFooter.innerHTML = '';
 
-      if (isEditing) {
-        // This block will only be reachable by managers
-        const formElement = TeamMemberForm({
-          member,
-          internalTeams,
-          onSave: handleSaveTeamMember,
-          onCancel: member ? () => { isEditing = false; renderContent(); } : closeTeamModal
-        });
-        modalBody.appendChild(formElement);
-        // Form provides its own footer actions
-      } else {
-        modalBody.appendChild(renderTeamMemberDetailView(member));
-        
-        const footerButtons = [];
-        // Edit/Delete buttons are only for managers
-        if (isManager) {
-            footerButtons.push(Button({ children: 'Delete', variant: 'danger', onClick: () => handleDeleteMember(member.id) }));
-            footerButtons.push(Button({ children: 'Edit', variant: 'primary', onClick: () => { isEditing = true; renderContent(); }}));
+        if (isEditing) {
+            const formElement = TeamMemberForm({ 
+                member, 
+                internalTeams,
+                onSave: (memberData) => {
+                    if (member) onUpdateTeamMember(memberData);
+                    else onAddTeamMember(memberData);
+                    closeTeamModal();
+                }, 
+                onCancel: () => {
+                    if (isReadOnly && member) {
+                        isEditing = false;
+                        renderContent();
+                    } else {
+                        closeTeamModal();
+                    }
+                } 
+            });
+            modalBody.appendChild(formElement);
+        } else {
+            modalBody.appendChild(renderTeamMemberDetailView(member, projects, attendanceRecords, holidays));
+            
+            const footerButtons = [];
+            if (isManager) {
+                footerButtons.push(Button({ children: 'Delete', variant: 'danger', onClick: () => handleDeleteMember(member.id) }));
+                footerButtons.push(Button({ children: 'Edit', variant: 'primary', onClick: () => { isEditing = true; renderContent(); } }));
+            }
+            footerButtons.push(Button({ children: 'Close', variant: 'secondary', onClick: closeTeamModal }));
+            
+            modalFooter.append(...footerButtons);
         }
-        footerButtons.push(Button({ children: 'Close', variant: 'secondary', onClick: closeTeamModal }));
-        
-        modalFooter.append(...footerButtons);
-      }
     };
-
-    currentTeamModalInstance = Modal({
-      isOpen: true,
-      onClose: closeTeamModal,
-      title: isEditing ? (member ? 'Edit Team Member' : 'Add New Member') : member.name,
-      children: document.createElement('div'), // placeholder
-      footer: document.createElement('div'), // placeholder
-      size: 'lg'
+    
+    modalEl = Modal({
+        isOpen: true,
+        onClose: closeTeamModal,
+        title: member ? member.name : 'Add New Team Member',
+        children: document.createElement('div'), // Placeholder
+        footer: document.createElement('div'),   // Placeholder
+        size: 'lg'
     });
-
-    modalEl = currentTeamModalInstance;
+    
     modalBody = modalEl.querySelector('.modal-body');
     modalFooter = modalEl.querySelector('.modal-footer');
+    currentTeamModalInstance = modalEl;
     renderContent();
   }
 
-  function handleFileImport(file, type) {
-    if (file) {
-      if (type === 'attendance') {
-        onImport(file, 'attendance');
-      } else {
-        onImportTeam(file);
-      }
-    }
+  function closeLogModal() {
+      closeGlobalModal();
+      currentLogModalInstance = null;
   }
 
-  function handleDeleteLog(recordId) {
-    if (window.confirm('Are you sure you want to delete this log entry? This cannot be undone.')) {
-        onDeleteAttendanceRecord(recordId);
-        // The state update in App.js will cause a re-render.
-        // The modal will be removed from the view as the page component is rebuilt.
-        // Closing it explicitly ensures clean-up.
-        closeLogViewerModal();
-    }
+  function rerenderLogViewer() {
+    if (!currentLogModalInstance) return;
+    const contentContainer = currentLogModalInstance.querySelector('#log-viewer-content-container');
+    if (!contentContainer) return;
+    contentContainer.innerHTML = '';
+    
+    displayLogs = attendanceRecords
+      .filter(log => 
+          (!logMemberFilter || log.memberId === logMemberFilter) &&
+          (!logStartDateFilter || log.date >= logStartDateFilter) &&
+          (!logEndDateFilter || log.date <= logEndDateFilter)
+      )
+      .sort((a,b) => new Date(b.date) - new Date(a.date));
+
+    contentContainer.appendChild(AttendanceLogTable({
+        logs: displayLogs,
+        teamMembers,
+        onDelete: (id) => {
+            if (confirm('Are you sure you want to delete this log entry?')) {
+                onDeleteAttendanceRecord(id);
+                // No need to call rerenderLogViewer from here, as the main state change will trigger it.
+                // We will manually remove the row for immediate feedback.
+                const row = contentContainer.querySelector(`tr[data-log-id="${id}"]`); // Requires adding data-log-id to table rows
+                if (row) row.remove();
+            }
+        }
+    }));
   }
 
-  function openLogViewerModal() { handleFetchLogs(); showLogViewerModal(); }
-  function closeLogViewerModal() { closeGlobalModal(); currentLogModalInstance = null; }
-  function handleFetchLogs() {
-    let logs = attendanceRecords.filter(log => 
-        (!logMemberFilter || log.memberId === logMemberFilter) &&
-        (!logStartDateFilter || new Date(log.date) >= new Date(logStartDateFilter)) &&
-        (!logEndDateFilter || new Date(log.date) <= new Date(logEndDateFilter))
-    );
-    logs.sort((a,b) => new Date(b.date)-new Date(a.date) || (teamMembers.find(tm=>tm.id===a.memberId)?.name||'').localeCompare(teamMembers.find(tm=>tm.id===b.memberId)?.name||''));
-    displayLogs = logs;
-    if (currentLogModalInstance) { 
-      const logTableContainer = currentLogModalInstance.querySelector('#log-table-dynamic-container');
-      if (logTableContainer) {
-        logTableContainer.innerHTML = ''; 
-        logTableContainer.appendChild(AttendanceLogTable({ logs: displayLogs, teamMembers, onDelete: handleDeleteLog }));
+  function openLogViewerModal() {
+    const modalContent = document.createElement('div');
+    modalContent.className = "flex flex-col gap-4";
+    
+    const filterRow = document.createElement('div');
+    filterRow.className = 'log-viewer-filter-row';
+
+    // Member filter
+    const memberSelect = document.createElement('select');
+    memberSelect.className = 'form-select';
+    memberSelect.innerHTML = `<option value="">All Members</option>` + teamMembers.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+    memberSelect.value = logMemberFilter;
+    memberSelect.onchange = (e) => { logMemberFilter = e.target.value; rerenderLogViewer(); };
+    
+    // Start date filter
+    const startDateInput = document.createElement('input');
+    startDateInput.type = 'date';
+    startDateInput.className = 'form-input';
+    startDateInput.value = logStartDateFilter;
+    startDateInput.onchange = (e) => { logStartDateFilter = e.target.value; rerenderLogViewer(); };
+    
+    // End date filter
+    const endDateInput = document.createElement('input');
+    endDateInput.type = 'date';
+    endDateInput.className = 'form-input';
+    endDateInput.value = logEndDateFilter;
+    endDateInput.onchange = (e) => { logEndDateFilter = e.target.value; rerenderLogViewer(); };
+
+    filterRow.append(memberSelect, startDateInput, endDateInput);
+
+    const contentContainer = document.createElement('div');
+    contentContainer.id = 'log-viewer-content-container';
+
+    modalContent.append(filterRow, contentContainer);
+    
+    const exportButton = Button({
+      children: 'Export Filtered Logs', variant: 'secondary', onClick: () => {
+        if (displayLogs.length > 0) {
+          exportDataToCSV(displayLogs, 'filtered_attendance_logs.csv');
+        } else {
+          alert('No logs to export with the current filters.');
+        }
       }
-      const exportBtn = currentLogModalInstance.querySelector('#export-filtered-logs-btn');
-      if (exportBtn) exportBtn.disabled = displayLogs.length === 0;
-    }
-  }
-  function handleExportFilteredLogs() {
-    if (displayLogs.length === 0) { alert("No logs to export."); return; }
-    const logsToExport = displayLogs.map(log => {
-        const member = teamMembers.find(tm => tm.id === log.memberId);
-        return { Date: log.date, MemberName: member?.name || 'N/A', EmployeeID: member?.employeeId || 'N/A', Status: log.status, LeaveType: log.leaveType||'', Notes: log.notes||'' };
     });
-    exportDataToCSV(logsToExport, `attendance_logs_${logStartDateFilter}_to_${logEndDateFilter}.csv`);
-  }
-  function showLogViewerModal() {
-    const modalContent = document.createElement('div'); 
-    modalContent.style.display = 'flex';
-    modalContent.style.flexDirection = 'column';
-    modalContent.style.gap = '1rem';
 
-    const filterRow = document.createElement('div'); 
-    filterRow.className = "log-viewer-filter-row";
+    currentLogModalInstance = Modal({
+      isOpen: true,
+      onClose: closeLogModal,
+      title: 'View All Attendance Logs',
+      children: modalContent,
+      footer: [exportButton, Button({ children: 'Close', variant: 'primary', onClick: closeLogModal })],
+      size: 'xl'
+    });
     
-    const createSelect = (id, labelText, optionsHTML, currentVal, onChange) => {
-        const div = document.createElement('div');
-        const label = document.createElement('label');
-        label.htmlFor = id;
-        label.className = 'form-label';
-        label.textContent = labelText;
-        div.appendChild(label);
-        const sel = document.createElement('select'); sel.id = id; sel.className="form-select";
-        sel.innerHTML = optionsHTML; sel.value = currentVal; sel.onchange = onChange;
-        div.appendChild(sel); return div;
-    };
-    const createDateInput = (id, labelText, currentVal, onChange) => {
-        const div = document.createElement('div');
-        const label = document.createElement('label');
-        label.htmlFor = id;
-        label.className = 'form-label';
-        label.textContent = labelText;
-        div.appendChild(label);
-        const inp = document.createElement('input'); inp.type='date'; inp.id=id; inp.className="form-input";
-        inp.value = currentVal; inp.onchange = onChange;
-        div.appendChild(inp); return div;
-    };
-    filterRow.append(
-        createSelect('logMemberFilter', 'Team Member', `<option value="">All</option>`+teamMembers.map(m=>`<option value="${m.id}">${m.name}</option>`).join(''), logMemberFilter, e=>{logMemberFilter=e.target.value; handleFetchLogs();}),
-        createDateInput('logStartDateFilter', 'Start Date', logStartDateFilter, e=>{logStartDateFilter=e.target.value; handleFetchLogs();}),
-        createDateInput('logEndDateFilter', 'End Date', logEndDateFilter, e=>{logEndDateFilter=e.target.value; handleFetchLogs();})
-    );
-    modalContent.appendChild(filterRow);
-    const tableDiv = document.createElement('div'); tableDiv.id = 'log-table-dynamic-container';
-    tableDiv.appendChild(AttendanceLogTable({ logs: displayLogs, teamMembers, onDelete: handleDeleteLog }));
-    modalContent.appendChild(tableDiv);
-    
-    const footerButtons = [
-        Button({variant: 'secondary', children: 'Close', onClick: closeLogViewerModal }),
-        Button({id: 'export-filtered-logs-btn', variant: 'primary', children: 'Export Filtered', leftIcon: '<i class="fas fa-file-csv"></i>', onClick: handleExportFilteredLogs, disabled: displayLogs.length === 0})
-    ];
-    currentLogModalInstance = Modal({ isOpen: true, onClose: closeLogViewerModal, title: "View Logs", children: modalContent, footer: footerButtons, size: 'xl' });
+    rerenderLogViewer();
   }
 
-  renderTeamList();
+  // Initial renders on page load
   renderDailyLogGrid();
+  renderTeamList();
   container.appendChild(pageWrapper);
 }
