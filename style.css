@@ -4175,7 +4175,7 @@ footer.app-footer {
     font-family: 'Inter', sans-serif;
 }
 .donut-center-value {
-    font-size: 32px;
+    font-size: 16px;
     font-weight: 700;
     fill: #111827;
 }
@@ -4183,7 +4183,7 @@ footer.app-footer {
     fill: #f3f4f6;
 }
 .donut-center-label {
-    font-size: 12px;
+    font-size: 8px;
     fill: #6b7280;
 }
 .dark .donut-center-label {
@@ -4454,7 +4454,7 @@ footer.app-footer {
 
 .bar-chart-item {
     display: grid;
-    grid-template-columns: 200px 1fr 120px;
+/*     grid-template-columns: 200px 1fr 120px; */
     gap: 1rem;
     align-items: center;
     padding: .25rem 0;
