@@ -404,32 +404,92 @@ export function renderAttendancePage(container, props) {
       `;
       analysisSection.appendChild(summaryContainer);
       
-      // Analysis Grid
+      // --- Analysis Grid ---
       const analysisGrid = document.createElement('div');
       analysisGrid.className = 'analysis-dashboard-grid';
       analysisGrid.style.marginTop = '1.5rem';
 
-      // Left Column: Charts
+      // --- Left Column ---
       const leftCol = document.createElement('div');
-      leftCol.className = 'kpi-insights-panel';
-      leftCol.innerHTML = `<h3 class="kpi-panel-title"><i class="fas fa-chart-pie"></i> Work Day Status Distribution</h3>`;
-      
+      leftCol.className = 'analysis-dashboard-left-col';
+
+      // Panel 1: Status Distribution with Unmarked Days List
+      const statusPanel = document.createElement('div');
+      statusPanel.className = 'kpi-insights-panel';
+      statusPanel.innerHTML = `<h3 class="kpi-panel-title"><i class="fas fa-chart-pie"></i> Work Day Status Distribution</h3>`;
+
+      const statusGrid = document.createElement('div');
+      statusGrid.className = 'status-distribution-grid';
+
       const donutData = [
           { label: 'Present', value: statsOnWorkDays.present, color: '#22c55e' },
           { label: 'Work From Home', value: statsOnWorkDays.wfh, color: '#3b82f6' },
           { label: 'Leave', value: statsOnWorkDays.leave, color: '#f97316' },
           { label: 'Not Marked', value: notMarked, color: '#6b7280' },
       ];
-      leftCol.appendChild(createDonutChart(donutData, totalExpectedManDays, 'Total Man-Days'));
+      statusGrid.appendChild(createDonutChart(donutData, totalExpectedManDays, 'Total Man-Days'));
 
+      const unmarkedDaysList = [];
+      if (notMarked > 0) {
+          const recordsSet = new Set(filteredRecords.map(r => `${r.memberId}|${r.date}`));
+          for (let day = new Date(analysisStartDate + 'T00:00:00'); day <= new Date(analysisEndDate + 'T00:00:00'); day.setDate(day.getDate() + 1)) {
+              const dayOfWeek = day.getDay();
+              const dateStr = day.toISOString().split('T')[0];
+              const isWorkDay = dayOfWeek !== 0 && dayOfWeek !== 6 && !holidayDates.has(dateStr);
+              
+              if (isWorkDay) {
+                  for (const member of membersToAnalyze) {
+                      if (!recordsSet.has(`${member.id}|${dateStr}`)) {
+                          unmarkedDaysList.push({ date: dateStr, memberName: member.name });
+                      }
+                  }
+              }
+          }
+      }
+
+      const unmarkedListContainer = document.createElement('div');
+      unmarkedListContainer.className = 'days-not-marked-list-container';
+      const unmarkedListTitle = document.createElement('h4');
+      unmarkedListTitle.className = 'days-not-marked-title';
+      unmarkedListTitle.textContent = `Days Not Marked (${unmarkedDaysList.length})`;
+      unmarkedListContainer.appendChild(unmarkedListTitle);
+      
+      if (unmarkedDaysList.length > 0) {
+          const ul = document.createElement('ul');
+          ul.className = 'days-not-marked-list';
+          unmarkedDaysList.forEach(item => {
+              const li = document.createElement('li');
+              li.textContent = `${item.date} - ${item.memberName}`;
+              ul.appendChild(li);
+          });
+          unmarkedListContainer.appendChild(ul);
+      } else if (notMarked > 0) {
+           const p = document.createElement('p');
+           p.className = 'days-not-marked-empty';
+           p.textContent = 'Calculating unmarked days...';
+           unmarkedListContainer.appendChild(p);
+      } else {
+          const p = document.createElement('p');
+          p.className = 'days-not-marked-empty';
+          p.textContent = 'All work days have been marked. Great job!';
+          unmarkedListContainer.appendChild(p);
+      }
+      statusGrid.appendChild(unmarkedListContainer);
+      statusPanel.appendChild(statusGrid);
+      leftCol.appendChild(statusPanel);
+      
+      // Panel 2: Leave Breakdown Chart
+      const leaveBreakdownPanel = document.createElement('div');
+      leaveBreakdownPanel.className = 'kpi-insights-panel';
       const leaveTypesData = Object.entries(leavesByType)
         .map(([type, count]) => ({ label: type || 'Other', value: count, color: '#ef4444' }))
         .sort((a,b) => b.value - a.value);
-      leftCol.appendChild(createBarChart(leaveTypesData, 'Leave Types Breakdown (All Days)'));
-      
+      leaveBreakdownPanel.appendChild(createBarChart(leaveTypesData, 'Leave Types Breakdown (All Days)'));
+      leftCol.appendChild(leaveBreakdownPanel);
+
       analysisGrid.appendChild(leftCol);
 
-      // Right Column: Insights
+      // --- Right Column: Insights ---
       const rightCol = document.createElement('div');
       rightCol.className = 'kpi-insights-panel';
       rightCol.innerHTML = `<h3 class="kpi-panel-title"><i class="fas fa-chart-line"></i> Member Insights</h3>`;
