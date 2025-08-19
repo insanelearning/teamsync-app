@@ -712,6 +712,7 @@ export function renderAttendancePage(container, props) {
       grid.className = "daily-log-grid";
       const recordsForDate = attendanceRecords.filter(r => r.date === selectedDate);
       membersToDisplay.forEach(member => {
+        const record = recordsForDate.find(r => r.memberId === member.id);
         grid.appendChild(AttendanceCard({ 
             member, 
             date: selectedDate, 
