@@ -143,7 +143,11 @@ export function renderAttendancePage(container, props) {
         
         const header = document.createElement('div');
         header.className = 'daily-log-header';
-        header.innerHTML = `<h2 class="daily-log-title">Daily Log</h2>`;
+        
+        const title = document.createElement('h2');
+        title.className = 'daily-log-title';
+        title.innerHTML = `<i class="fas fa-clipboard-list"></i> Daily Log`;
+        header.appendChild(title);
         
         const datePicker = document.createElement('input');
         datePicker.type = 'date';
@@ -180,7 +184,7 @@ export function renderAttendancePage(container, props) {
     
     function renderTeamManagement() {
         teamManagementSection.innerHTML = ''; // Clear
-        teamManagementSection.innerHTML = `<h2 class="attendance-section-title">Team Management</h2>`;
+        teamManagementSection.innerHTML = `<h2 class="attendance-section-title"><i class="fas fa-users"></i> Team Management</h2>`;
         
         const toolbar = document.createElement('div');
         toolbar.className = 'team-management-toolbar';
@@ -279,7 +283,7 @@ export function renderAttendancePage(container, props) {
         analysisSection.innerHTML = '';
         const title = document.createElement('h2');
         title.className = 'attendance-section-title';
-        title.textContent = 'Attendance Analysis';
+        title.innerHTML = `<i class="fas fa-chart-line"></i> Analysis Dashboard`;
         analysisSection.appendChild(title);
 
         const analysisGrid = document.createElement('div');
@@ -301,41 +305,18 @@ export function renderAttendancePage(container, props) {
             return widget;
         };
 
-        // 1. Work Day Status Distribution Widget
-        const workDayData = getWorkDayStatusData();
-        const donutChartEl = renderDonutChart(workDayData);
-        analysisGrid.appendChild(createWidget('<i class="fas fa-chart-pie widget-icon"></i> Work Day Status Distribution', donutChartEl));
-        
-        // 2. Days Not Marked Widget
-        const daysNotMarkedData = getDaysNotMarkedData();
-        const daysNotMarkedEl = renderDaysNotMarkedList(daysNotMarkedData);
-        analysisGrid.appendChild(createWidget(`<i class="fas fa-exclamation-triangle widget-icon"></i> Days Not Marked (${daysNotMarkedData.length})`, daysNotMarkedEl));
-
-        // 3. Leave Types Breakdown Widget
-        const leaveBreakdownData = getLeaveTypeBreakdown();
-        const leaveBreakdownEl = renderBarChart({
-            data: leaveBreakdownData,
-            onBarClick: (leaveType) => {
-                selectedLeaveTypeFilter = selectedLeaveTypeFilter === leaveType ? null : leaveType;
-                rerender();
-            },
-            selectedItem: selectedLeaveTypeFilter
-        });
-        analysisGrid.appendChild(createWidget('<i class="fas fa-umbrella-beach widget-icon"></i> Leave Types Breakdown', leaveBreakdownEl));
-        
-        // 4. Member Insights Widget
-        const memberInsightsData = getMemberInsightsData();
-        let titleSuffix = ' (All Time)';
-        if (selectedStatusFilter) titleSuffix = ` (${selectedStatusFilter} Only)`;
-        if (selectedLeaveTypeFilter) titleSuffix = ` (${selectedLeaveTypeFilter})`;
-        const memberInsightsEl = renderMemberInsights(memberInsightsData);
-        analysisGrid.appendChild(createWidget(`<i class="fas fa-users-cog widget-icon"></i> Member Insights${titleSuffix}`, memberInsightsEl));
+        // --- Widgets ---
+        analysisGrid.appendChild(renderWorkDayStatusWidget());
+        analysisGrid.appendChild(renderDaysNotMarkedWidget());
+        analysisGrid.appendChild(renderLeaveBreakdownWidget());
+        analysisGrid.appendChild(renderMostLeavesWidget());
+        analysisGrid.appendChild(renderHighestPresenceWidget());
+        analysisGrid.appendChild(renderLeaveByWeekdayWidget());
         
         analysisSection.appendChild(analysisGrid);
     }
     
     // --- Chart Rendering and Data Functions ---
-    
     function renderDonutChart(data) {
         const container = document.createElement('div');
         container.className = 'donut-chart-vertical-container';
@@ -416,45 +397,7 @@ export function renderAttendancePage(container, props) {
 
         return container;
     }
-
-    function getDaysNotMarkedData() {
-        const activeMembers = teamMembers.filter(m => m.status === 'Active');
-        const ninetyDaysAgo = new Date();
-        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-        const endDate = new Date();
-        
-        const daysNotMarked = [];
-        const attendanceSet = new Set(attendanceRecords.map(r => `${r.date}|${r.memberId}`));
-
-        for (let d = ninetyDaysAgo; d <= endDate; d.setDate(d.getDate() + 1)) {
-            const dateStr = d.toISOString().split('T')[0];
-            if (isWorkDay(dateStr, holidays)) {
-                activeMembers.forEach(member => {
-                    if (!attendanceSet.has(`${dateStr}|${member.id}`)) {
-                        daysNotMarked.push({ date: dateStr, name: member.name });
-                    }
-                });
-            }
-        }
-        daysNotMarked.sort((a,b) => b.date.localeCompare(a.date));
-        return daysNotMarked;
-    }
-
-    function renderDaysNotMarkedList(daysNotMarked) {
-        const list = document.createElement('ul');
-        list.className = 'days-not-marked-list';
-        if (daysNotMarked.length === 0) {
-            list.innerHTML = `<li>All work days are marked in the last 90 days. Great job!</li>`;
-        } else {
-            daysNotMarked.slice(0, 100).forEach(item => {
-                const li = document.createElement('li');
-                li.textContent = `${item.date} - ${item.name}`;
-                list.appendChild(li);
-            });
-        }
-        return list;
-    }
-
+    
     function renderBarChart({ data, onBarClick, selectedItem }) {
         const chart = document.createElement('div');
         chart.className = 'bar-chart';
@@ -491,46 +434,15 @@ export function renderAttendancePage(container, props) {
         
         return chart;
     }
-
-    function renderMemberInsights(insights) {
-        const container = document.createElement('div');
-        container.style.display = 'flex';
-        container.style.flexDirection = 'column';
-        container.style.gap = '1.5rem';
-
-        const createSubTitledChart = (subTitle, chartElement) => {
-            const wrapper = document.createElement('div');
-            const h4 = document.createElement('h4');
-            h4.className = 'kpi-panel-section-title';
-            h4.textContent = subTitle;
-            wrapper.append(h4, chartElement);
-            return wrapper;
-        };
-        
-        if (!selectedStatusFilter || selectedStatusFilter === 'Leave') {
-            const chart = renderBarChart({ data: insights.mostLeaves });
-            container.appendChild(createSubTitledChart('Most Leaves Taken', chart));
-        }
-        if (!selectedStatusFilter || selectedStatusFilter === 'Present') {
-            const chart = renderBarChart({ data: insights.highestPresence });
-            container.appendChild(createSubTitledChart('Highest Presence', chart));
-        }
-        
-        const weekdayChart = renderBarChart({ data: insights.leaveByWeekday });
-        container.appendChild(createSubTitledChart('Leave by Weekday', weekdayChart));
-
-        return container;
-    }
     
-    function getWorkDayStatusData() {
-        const data = { 'Present': 0, 'Work From Home': 0, 'Leave': 0 };
-        attendanceRecords.forEach(r => {
-            if (data.hasOwnProperty(r.status)) {
-                data[r.status]++;
-            }
-        });
-        
-        return {
+    // --- Widget Rendering Functions ---
+    function renderWorkDayStatusWidget() {
+        const data = attendanceRecords.reduce((acc, r) => {
+            if (acc.hasOwnProperty(r.status)) acc[r.status]++;
+            return acc;
+        }, { 'Present': 0, 'Work From Home': 0, 'Leave': 0 });
+
+        const chartData = {
             total: data['Present'] + data['Work From Home'] + data['Leave'],
             segments: [
                 { label: 'Present', value: data['Present'], color: '#22c55e' },
@@ -538,9 +450,58 @@ export function renderAttendancePage(container, props) {
                 { label: 'Leave', value: data['Leave'], color: '#f97316' },
             ]
         };
+
+        const widget = document.createElement('div');
+        widget.className = 'dashboard-widget';
+        widget.innerHTML = '<h3><i class="fas fa-chart-pie widget-icon"></i> Work Day Status</h3>';
+        const content = document.createElement('div');
+        content.className = 'widget-content';
+        content.appendChild(renderDonutChart(chartData));
+        widget.appendChild(content);
+        return widget;
     }
     
-    function getLeaveTypeBreakdown() {
+    function renderDaysNotMarkedWidget() {
+        const activeMembers = teamMembers.filter(m => m.status === 'Active');
+        const ninetyDaysAgo = new Date();
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+        const endDate = new Date();
+        
+        const daysNotMarked = [];
+        const attendanceSet = new Set(attendanceRecords.map(r => `${r.date}|${r.memberId}`));
+
+        for (let d = ninetyDaysAgo; d <= endDate; d.setDate(d.getDate() + 1)) {
+            const dateStr = d.toISOString().split('T')[0];
+            if (isWorkDay(dateStr, holidays)) {
+                activeMembers.forEach(member => {
+                    if (!attendanceSet.has(`${dateStr}|${member.id}`)) {
+                        daysNotMarked.push({ date: dateStr, name: member.name });
+                    }
+                });
+            }
+        }
+        daysNotMarked.sort((a,b) => b.date.localeCompare(a.date));
+        
+        const widget = document.createElement('div');
+        widget.className = 'dashboard-widget';
+        widget.innerHTML = `<h3><i class="fas fa-exclamation-triangle widget-icon"></i> Days Not Marked (${daysNotMarked.length})</h3>`;
+        const content = document.createElement('div');
+        content.className = 'widget-content';
+        const list = document.createElement('ul');
+        list.className = 'days-not-marked-list';
+        if (daysNotMarked.length === 0) {
+            list.innerHTML = `<li>All work days are marked in the last 90 days. Great job!</li>`;
+        } else {
+            daysNotMarked.slice(0, 100).forEach(item => {
+                list.innerHTML += `<li>${item.date} - ${item.name}</li>`;
+            });
+        }
+        content.appendChild(list);
+        widget.appendChild(content);
+        return widget;
+    }
+
+    function renderLeaveBreakdownWidget() {
         const breakdown = attendanceRecords
             .filter(r => r.status === AttendanceStatus.Leave && r.leaveType)
             .reduce((acc, r) => {
@@ -549,36 +510,84 @@ export function renderAttendancePage(container, props) {
                 return acc;
             }, {});
         
-        return Object.entries(breakdown)
+        const data = Object.entries(breakdown)
             .map(([label, value]) => ({ label, value, color: '#ef4444' }))
             .sort((a, b) => b.value - a.value);
+
+        const widget = document.createElement('div');
+        widget.className = 'dashboard-widget';
+        widget.innerHTML = '<h3><i class="fas fa-umbrella-beach widget-icon"></i> Leave Types Breakdown</h3>';
+        const content = document.createElement('div');
+        content.className = 'widget-content';
+        content.appendChild(renderBarChart({
+            data,
+            onBarClick: (leaveType) => {
+                selectedLeaveTypeFilter = selectedLeaveTypeFilter === leaveType ? null : leaveType;
+                rerender();
+            },
+            selectedItem: selectedLeaveTypeFilter
+        }));
+        widget.appendChild(content);
+        return widget;
     }
-    
-    function getMemberInsightsData() {
-        let filteredRecords = attendanceRecords;
+
+    function getFilteredRecords() {
+        let filtered = attendanceRecords;
         if (selectedStatusFilter) {
-            filteredRecords = filteredRecords.filter(r => r.status === selectedStatusFilter);
+            filtered = filtered.filter(r => r.status === selectedStatusFilter);
         }
         if (selectedLeaveTypeFilter) {
-            filteredRecords = filteredRecords.filter(r => r.leaveType === selectedLeaveTypeFilter);
+            filtered = filtered.filter(r => r.leaveType === selectedLeaveTypeFilter);
         }
-
+        return filtered;
+    }
+    
+    function renderMostLeavesWidget() {
+        const filteredRecords = getFilteredRecords();
         const getMemberName = id => teamMembers.find(m => m.id === id)?.name || 'Unknown';
         
         const leaves = filteredRecords
             .filter(r => r.status === AttendanceStatus.Leave)
             .reduce((acc, r) => { acc[r.memberId] = (acc[r.memberId] || 0) + 1; return acc; }, {});
-        const mostLeaves = Object.entries(leaves)
+            
+        const data = Object.entries(leaves)
             .map(([id, value]) => ({ label: getMemberName(id), value, color: '#6366f1' }))
             .sort((a,b) => b.value - a.value).slice(0, 5);
+        
+        const widget = document.createElement('div');
+        widget.className = 'dashboard-widget';
+        widget.innerHTML = '<h3><i class="fas fa-user-minus widget-icon"></i> Most Leaves Taken</h3>';
+        const content = document.createElement('div');
+        content.className = 'widget-content';
+        content.appendChild(renderBarChart({ data }));
+        widget.appendChild(content);
+        return widget;
+    }
+
+    function renderHighestPresenceWidget() {
+        const filteredRecords = getFilteredRecords();
+        const getMemberName = id => teamMembers.find(m => m.id === id)?.name || 'Unknown';
         
         const presence = filteredRecords
             .filter(r => r.status === AttendanceStatus.Present)
             .reduce((acc, r) => { acc[r.memberId] = (acc[r.memberId] || 0) + 1; return acc; }, {});
-        const highestPresence = Object.entries(presence)
+        
+        const data = Object.entries(presence)
             .map(([id, value]) => ({ label: getMemberName(id), value, color: '#22c55e' }))
             .sort((a,b) => b.value - a.value).slice(0, 5);
-        
+
+        const widget = document.createElement('div');
+        widget.className = 'dashboard-widget';
+        widget.innerHTML = '<h3><i class="fas fa-user-check widget-icon"></i> Highest Presence</h3>';
+        const content = document.createElement('div');
+        content.className = 'widget-content';
+        content.appendChild(renderBarChart({ data }));
+        widget.appendChild(content);
+        return widget;
+    }
+
+    function renderLeaveByWeekdayWidget() {
+        const filteredRecords = getFilteredRecords();
         const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
         const leaveByDay = filteredRecords
             .filter(r => r.status === AttendanceStatus.Leave)
@@ -590,16 +599,22 @@ export function renderAttendancePage(container, props) {
                 }
                 return acc;
             }, {});
-
-        const leaveByWeekday = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map(day => ({
+        
+        const data = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map(day => ({
             label: day,
             value: leaveByDay[day] || 0,
             color: '#a78bfa'
         }));
 
-        return { mostLeaves, highestPresence, leaveByWeekday };
+        const widget = document.createElement('div');
+        widget.className = 'dashboard-widget';
+        widget.innerHTML = '<h3><i class="fas fa-calendar-day widget-icon"></i> Leave by Weekday</h3>';
+        const content = document.createElement('div');
+        content.className = 'widget-content';
+        content.appendChild(renderBarChart({ data }));
+        widget.appendChild(content);
+        return widget;
     }
-
 
     // --- Modal Functions (unchanged) ---
     function openTeamMemberModal(member = null) {
