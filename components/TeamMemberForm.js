@@ -1,7 +1,7 @@
 
 
 import { Button } from './Button.js';
-import { TeamMemberRole } from '../types.js';
+import { TeamMemberRole, EmployeeStatus } from '../types.js';
 
 const getDefaultTeamMember = () => ({
   name: '',
@@ -15,6 +15,7 @@ const getDefaultTeamMember = () => ({
   company: '',
   role: TeamMemberRole.Member,
   internalTeam: '',
+  status: EmployeeStatus.Active,
 });
 
 export function TeamMemberForm({ member, onSave, onCancel, internalTeams }) {
@@ -77,28 +78,29 @@ export function TeamMemberForm({ member, onSave, onCancel, internalTeams }) {
   mobileIdGrid.appendChild(createField('Employee ID', 'text', 'employeeId', formData.employeeId));
   form.appendChild(mobileIdGrid);
   
-  const idDesignationGrid = document.createElement('div');
-  idDesignationGrid.className = "form-grid-cols-2";
-  idDesignationGrid.appendChild(createField('Designation', 'text', 'designation', formData.designation));
-  idDesignationGrid.appendChild(createField('Role', 'select', 'role', formData.role, true, {
+  const designationDepartmentGrid = document.createElement('div');
+  designationDepartmentGrid.className = "form-grid-cols-2";
+  designationDepartmentGrid.appendChild(createField('Designation', 'text', 'designation', formData.designation));
+  designationDepartmentGrid.appendChild(createField('Department', 'text', 'department', formData.department));
+  form.appendChild(designationDepartmentGrid);
+  
+  const companyStatusGrid = document.createElement('div');
+  companyStatusGrid.className = "form-grid-cols-2";
+  companyStatusGrid.appendChild(createField('Company', 'text', 'company', formData.company));
+  companyStatusGrid.appendChild(createField('Status', 'select', 'status', formData.status, true, {
+      options: Object.values(EmployeeStatus).map(s => ({ value: s, label: s }))
+  }));
+  form.appendChild(companyStatusGrid);
+  
+  const roleTeamGrid = document.createElement('div');
+  roleTeamGrid.className = 'form-grid-cols-2';
+   roleTeamGrid.appendChild(createField('Role', 'select', 'role', formData.role, true, {
       options: Object.values(TeamMemberRole).map(r => ({ value: r, label: r }))
   }));
-  form.appendChild(idDesignationGrid);
-  
-  const roleDepartmentGrid = document.createElement('div');
-  roleDepartmentGrid.className = 'form-grid-cols-2';
-  roleDepartmentGrid.appendChild(createField('Internal Team', 'select', 'internalTeam', formData.internalTeam, false, {
+  roleTeamGrid.appendChild(createField('Internal Team', 'select', 'internalTeam', formData.internalTeam, false, {
     options: (internalTeams || []).map(t => ({ value: t, label: t }))
   }));
-  roleDepartmentGrid.appendChild(createField('Department', 'text', 'department', formData.department));
-  form.appendChild(roleDepartmentGrid);
-  
-  const departmentCompanyGrid = document.createElement('div');
-  departmentCompanyGrid.className = "form-grid-cols-2";
-  departmentCompanyGrid.appendChild(createField('Company', 'text', 'company', formData.company));
-  form.appendChild(document.createElement('div')); // Empty div for grid alignment
-  form.appendChild(departmentCompanyGrid);
-
+  form.appendChild(roleTeamGrid);
 
   const datesGrid = document.createElement('div');
   datesGrid.className = "form-grid-cols-2";
@@ -124,6 +126,7 @@ export function TeamMemberForm({ member, onSave, onCancel, internalTeams }) {
       id: member?.id || crypto.randomUUID(),
       name: formData.name.trim(),
       role: formData.role,
+      status: formData.status,
     };
     
     // Add optional fields only if they have a value
