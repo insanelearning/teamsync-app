@@ -23,6 +23,12 @@ export const TeamMemberRole = {
   Member: 'Member',
 };
 
+export const EmployeeStatus = {
+  Active: 'Active',
+  Inactive: 'Inactive',
+};
+
+
 // Interfaces are conceptual in JS. These comments describe the expected object shapes.
 // interface TeamMember {
 //   id: string;
@@ -35,6 +41,7 @@ export const TeamMemberRole = {
 //   department?: string;
 //   company?: string;
 //   role: TeamMemberRole value;
+//   status: EmployeeStatus value;
 // }
 
 // interface Metric {
