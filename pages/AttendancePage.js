@@ -226,17 +226,26 @@ export function renderAttendancePage(container, props) {
 
   const isManager = currentUser.role === TeamMemberRole.Manager;
 
+  const toYYYYMMDD = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
   // State for daily log
-  let selectedDate = new Date().toISOString().split('T')[0];
+  let selectedDate = toYYYYMMDD(new Date());
 
   // State for analysis section
-  let analysisStartDate = new Date(new Date().setDate(new Date().getDate() - 29)).toISOString().split('T')[0];
-  let analysisEndDate = new Date().toISOString().split('T')[0];
+  let analysisStartDate = toYYYYMMDD(new Date(new Date().setDate(new Date().getDate() - 29)));
+  let analysisEndDate = toYYYYMMDD(new Date());
   let analysisMemberFilter = '';
   let selectedLeaveType = null;
 
   // State for log viewer modal
-  let logMemberFilter = '', logStartDateFilter = new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0], logEndDateFilter = new Date().toISOString().split('T')[0];
+  let logMemberFilter = '';
+  let logStartDateFilter = toYYYYMMDD(new Date(new Date().setDate(new Date().getDate() - 30)));
+  let logEndDateFilter = toYYYYMMDD(new Date());
   let displayLogs = [];
   
   let teamSearchTerm = '';
@@ -339,7 +348,7 @@ export function renderAttendancePage(container, props) {
       if (analysisStartDate <= analysisEndDate) {
           for (let day = new Date(analysisStartDate + 'T00:00:00'); day <= new Date(analysisEndDate + 'T00:00:00'); day.setDate(day.getDate() + 1)) {
               const dayOfWeek = day.getDay();
-              const dateStr = day.toISOString().split('T')[0];
+              const dateStr = toYYYYMMDD(day);
               if (dayOfWeek !== 0 && dayOfWeek !== 6 && !holidayDates.has(dateStr)) {
                   periodWorkDays++;
               }
@@ -449,7 +458,7 @@ export function renderAttendancePage(container, props) {
           const recordsSet = new Set(filteredRecords.map(r => `${r.memberId}|${r.date}`));
           for (let day = new Date(analysisStartDate + 'T00:00:00'); day <= new Date(analysisEndDate + 'T00:00:00'); day.setDate(day.getDate() + 1)) {
               const dayOfWeek = day.getDay();
-              const dateStr = day.toISOString().split('T')[0];
+              const dateStr = toYYYYMMDD(day);
               const isWorkDay = dayOfWeek !== 0 && dayOfWeek !== 6 && !holidayDates.has(dateStr);
               
               if (isWorkDay) {
