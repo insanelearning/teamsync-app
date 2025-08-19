@@ -54,7 +54,7 @@ function createIdFieldWithCopy(label, id) {
     return item;
 }
 
-function createDonutChart(data, totalValue) {
+function createDonutChart(data, totalValue, centerLabel = 'days') {
   const container = document.createElement('div');
   container.className = 'donut-chart-and-legend';
 
@@ -77,7 +77,7 @@ function createDonutChart(data, totalValue) {
   labelText.setAttribute('y', '62');
   labelText.setAttribute('class', 'donut-center-label');
   labelText.setAttribute('text-anchor', 'middle');
-  labelText.textContent = 'days';
+  labelText.textContent = centerLabel;
   
   textGroup.append(totalText, labelText);
 
@@ -319,53 +319,85 @@ export function renderAttendancePage(container, props) {
       filtersDiv.appendChild(filterGrid);
       analysisSection.appendChild(filtersDiv);
 
-      // Data Calculation
+      // --- Data Calculation ---
+      const membersToAnalyze = analysisMemberFilter 
+        ? teamMembers.filter(m => m.id === analysisMemberFilter)
+        : teamMembers;
+      
+      const holidayDates = new Set((holidays || []).map(h => h.date));
+      let totalActualWorkDays = 0;
+
+      if (membersToAnalyze.length > 0 && analysisStartDate <= analysisEndDate) {
+          for (let day = new Date(analysisStartDate + 'T00:00:00'); day <= new Date(analysisEndDate + 'T00:00:00'); day.setDate(day.getDate() + 1)) {
+              const dayOfWeek = day.getDay();
+              const dateStr = day.toISOString().split('T')[0];
+              if (dayOfWeek !== 0 && dayOfWeek !== 6 && !holidayDates.has(dateStr)) {
+                  totalActualWorkDays += membersToAnalyze.length;
+              }
+          }
+      }
+
       const filteredRecords = attendanceRecords.filter(rec => {
           const isMemberMatch = !analysisMemberFilter || rec.memberId === analysisMemberFilter;
           const isDateMatch = rec.date >= analysisStartDate && rec.date <= analysisEndDate;
           return isMemberMatch && isDateMatch;
       });
-
-      const stats = { present: 0, wfh: 0, leave: 0 };
-      const leavesByType = {};
-      const leavesByMember = {};
-      const presenceByMember = {};
+      
+      const statsOnWorkDays = { present: 0, wfh: 0, leave: 0 };
+      const leavesByType = {}; // For bar chart (all days)
+      const leavesByMember = {}; // For insights (all days)
+      const presenceByMember = {}; // For insights (all days)
 
       filteredRecords.forEach(rec => {
-          if (rec.status === AttendanceStatus.Present) stats.present++;
-          if (rec.status === AttendanceStatus.WorkFromHome) stats.wfh++;
+          // For Member Insights (original logic, includes weekends/holidays if worked)
           if (rec.status === AttendanceStatus.Leave) {
-              stats.leave++;
               leavesByType[rec.leaveType] = (leavesByType[rec.leaveType] || 0) + 1;
               leavesByMember[rec.memberId] = (leavesByMember[rec.memberId] || 0) + 1;
           }
           if (rec.status === AttendanceStatus.Present || rec.status === AttendanceStatus.WorkFromHome) {
               presenceByMember[rec.memberId] = (presenceByMember[rec.memberId] || 0) + 1;
           }
+          
+          // For KPI cards & Donut Chart (new logic, only count on work days)
+          const recDate = new Date(rec.date + 'T00:00:00');
+          const dayOfWeek = recDate.getDay();
+          const isWorkDay = dayOfWeek !== 0 && dayOfWeek !== 6 && !holidayDates.has(rec.date);
+
+          if (isWorkDay) {
+              if (rec.status === AttendanceStatus.Present) statsOnWorkDays.present++;
+              if (rec.status === AttendanceStatus.WorkFromHome) statsOnWorkDays.wfh++;
+              if (rec.status === AttendanceStatus.Leave) statsOnWorkDays.leave++;
+          }
       });
       
-      const totalPresence = stats.present + stats.wfh;
-      const totalDays = totalPresence + stats.leave;
-      const presenceRate = totalDays > 0 ? ((totalPresence / totalDays) * 100).toFixed(0) : 0;
+      const totalPresence = statsOnWorkDays.present + statsOnWorkDays.wfh;
+      const totalLeavesOnWorkDays = statsOnWorkDays.leave;
+      const notMarked = Math.max(0, totalActualWorkDays - (totalPresence + totalLeavesOnWorkDays));
+      const presenceRate = totalActualWorkDays > 0 ? ((totalPresence / totalActualWorkDays) * 100).toFixed(0) : 0;
       
       // Summary Cards
       const summaryContainer = document.createElement('div');
-      summaryContainer.className = 'work-log-summary-container';
+      summaryContainer.className = 'work-log-summary-container'; // Reusing this class works well for 4 items
       summaryContainer.innerHTML = `
+          <div class="work-log-summary-card">
+              <div class="label">Actual Work Days</div>
+              <div class="value">${totalActualWorkDays.toLocaleString()}</div>
+              <div class="sub-label">Excludes weekends & holidays</div>
+          </div>
           <div class="work-log-summary-card">
               <div class="label">Total Presence</div>
               <div class="value">${totalPresence.toLocaleString()}</div>
-              <div class="sub-label">Present & WFH days</div>
+              <div class="sub-label">Present & WFH on work days</div>
           </div>
           <div class="work-log-summary-card">
               <div class="label">Total Leaves</div>
-              <div class="value">${stats.leave.toLocaleString()}</div>
-              <div class="sub-label">Days on leave</div>
+              <div class="value">${totalLeavesOnWorkDays.toLocaleString()}</div>
+              <div class="sub-label">On work days</div>
           </div>
           <div class="work-log-summary-card">
               <div class="label">Team Presence Rate</div>
               <div class="value">${presenceRate}%</div>
-              <div class="sub-label">For logged days</div>
+              <div class="sub-label">vs. Actual Work Days</div>
           </div>
       `;
       analysisSection.appendChild(summaryContainer);
@@ -378,19 +410,20 @@ export function renderAttendancePage(container, props) {
       // Left Column: Charts
       const leftCol = document.createElement('div');
       leftCol.className = 'kpi-insights-panel';
-      leftCol.innerHTML = `<h3 class="kpi-panel-title"><i class="fas fa-chart-pie"></i> Distributions</h3>`;
+      leftCol.innerHTML = `<h3 class="kpi-panel-title"><i class="fas fa-chart-pie"></i> Work Day Status Distribution</h3>`;
       
       const donutData = [
-          { label: 'Present', value: stats.present, color: '#22c55e' },
-          { label: 'Work From Home', value: stats.wfh, color: '#3b82f6' },
-          { label: 'Leave', value: stats.leave, color: '#f97316' },
+          { label: 'Present', value: statsOnWorkDays.present, color: '#22c55e' },
+          { label: 'Work From Home', value: statsOnWorkDays.wfh, color: '#3b82f6' },
+          { label: 'Leave', value: statsOnWorkDays.leave, color: '#f97316' },
+          { label: 'Not Marked', value: notMarked, color: '#6b7280' },
       ];
-      leftCol.appendChild(createDonutChart(donutData, totalDays));
+      leftCol.appendChild(createDonutChart(donutData, totalActualWorkDays, 'Work Days'));
 
       const leaveTypesData = Object.entries(leavesByType)
         .map(([type, count]) => ({ label: type || 'Other', value: count, color: '#ef4444' }))
         .sort((a,b) => b.value - a.value);
-      leftCol.appendChild(createBarChart(leaveTypesData, 'Leave Types Breakdown'));
+      leftCol.appendChild(createBarChart(leaveTypesData, 'Leave Types Breakdown (All Days)'));
       
       analysisGrid.appendChild(leftCol);
 
@@ -402,12 +435,12 @@ export function renderAttendancePage(container, props) {
       const topLeaves = Object.entries(leavesByMember)
         .map(([memberId, count]) => ({ label: teamMembers.find(m => m.id === memberId)?.name || 'Unknown', value: count }))
         .sort((a,b) => b.value - a.value);
-      rightCol.appendChild(createInsightList('Most Leaves Taken', topLeaves, 'days'));
+      rightCol.appendChild(createInsightList('Most Leaves Taken (All Days)', topLeaves, 'days'));
       
       const topPresence = Object.entries(presenceByMember)
         .map(([memberId, count]) => ({ label: teamMembers.find(m => m.id === memberId)?.name || 'Unknown', value: count, color: '#16a34a' }))
         .sort((a,b) => b.value - a.value);
-      rightCol.appendChild(createInsightList('Highest Presence', topPresence, 'days'));
+      rightCol.appendChild(createInsightList('Highest Presence (All Days)', topPresence, 'days'));
       
       analysisGrid.appendChild(rightCol);
       analysisSection.appendChild(analysisGrid);
