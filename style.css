@@ -4334,16 +4334,16 @@ footer.app-footer {
 .bar-chart {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 1rem;
 }
 .bar-chart-item {
     display: grid;
-    grid-template-columns: 100px 1fr 80px;
-    gap: 0.75rem;
+    grid-template-columns: 110px 1fr auto;
+    gap: 1rem;
     align-items: center;
 }
 .bar-chart-label {
-    font-size: 0.8rem;
+    font-size: 1rem;
     font-weight: 500;
     color: #4b5563;
     white-space: nowrap;
@@ -4354,28 +4354,31 @@ footer.app-footer {
     color: #d1d5db;
 }
 .bar-chart-bar-wrapper {
-    height: 1rem;
-    background-color: #e5e7eb;
-    border-radius: 0.25rem;
+    height: 1.25rem;
 }
 .dark .bar-chart-bar-wrapper {
-    background-color: #374151;
+    /* No background */
 }
 .bar-chart-bar {
     height: 100%;
-    border-radius: 0.25rem;
+    border-radius: 9999px;
     transition: width 0.3s ease-in-out;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
 }
 .bar-chart-value {
-    font-size: 0.8rem;
+    font-size: 1rem;
     font-weight: 500;
     text-align: right;
+    color: #1f2937;
+}
+.dark .bar-chart-value {
+    color: #f3f4f6;
 }
 .bar-chart-item.clickable {
     cursor: pointer;
     border-radius: 0.25rem;
     padding: 0.25rem;
-    margin: -0.25rem; /* Offset padding to maintain alignment */
+    margin: -0.25rem;
     transition: background-color 0.2s ease;
 }
 .bar-chart-item.clickable:hover {
