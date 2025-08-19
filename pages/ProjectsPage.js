@@ -4,7 +4,7 @@ import { ProjectForm } from '../components/ProjectForm.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { Button } from '../components/Button.js';
 import { FileUploadButton } from '../components/FileUploadButton.js';
-import { TeamMemberRole } from '../types.js';
+import { TeamMemberRole, EmployeeStatus } from '../types.js';
 import { KanbanBoard } from '../components/KanbanBoard.js';
 
 let currentModalInstance = null; 
@@ -313,6 +313,7 @@ export function renderProjectsPage(container, props) {
   } = props;
   
   const isManager = currentUser.role === TeamMemberRole.Manager;
+  const activeMembers = teamMembers.filter(m => m.status === EmployeeStatus.Active);
 
   // ** FIX: Filter projects based on user role at the beginning **
   const projectsToDisplay = isManager 
@@ -446,8 +447,8 @@ export function renderProjectsPage(container, props) {
     filterGrid.append(
       createFilterInput('text', 'Search projects...', val => searchTerm = val, searchTerm),
       createFilterSelect(projectStatuses.map(s => ({value: s, label: s})), 'All Statuses', val => statusFilter = val, statusFilter),
-      createFilterSelect(teamMembers.map(m => ({value: m.id, label: m.name})), 'Any Assignee', val => assigneeFilter = val, assigneeFilter),
-      createFilterSelect(teamMembers.map(m => ({value: m.id, label: m.name})), 'Any Team Lead', val => teamLeadFilter = val, teamLeadFilter),
+      createFilterSelect(activeMembers.map(m => ({value: m.id, label: m.name})), 'Any Assignee', val => assigneeFilter = val, assigneeFilter),
+      createFilterSelect(activeMembers.map(m => ({value: m.id, label: m.name})), 'Any Team Lead', val => teamLeadFilter = val, teamLeadFilter),
       createFilterSelect(uniqueProjectTypes.map(t => ({value: t, label: t})), 'All Types', val => projectTypeFilter = val, projectTypeFilter),
       createFilterSelect(uniqueProjectCategories.map(c => ({value: c, label: c})), 'All Categories', val => projectCategoryFilter = val, projectCategoryFilter),
       createFilterSelect(sortOptions, '', val => sortOrder = val, sortOrder)
@@ -539,7 +540,7 @@ export function renderProjectsPage(container, props) {
   function openModalForNew() {
     const formElement = ProjectForm({ 
         project: null, 
-        teamMembers, 
+        teamMembers: activeMembers, 
         projectStatuses, 
         appSettings,
         onSave: (projectData) => {
@@ -767,7 +768,7 @@ export function renderProjectsPage(container, props) {
 
         if (isEditing) {
             const formElement = ProjectForm({
-                project, teamMembers, projectStatuses, appSettings,
+                project, teamMembers: activeMembers, projectStatuses, appSettings,
                 onSave: (projectData) => {
                     onUpdateProject(projectData);
                     closeModal();
