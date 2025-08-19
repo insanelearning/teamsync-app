@@ -5,7 +5,7 @@ import { TeamMemberForm } from '../components/TeamMemberForm.js';
 import { FileUploadButton } from '../components/FileUploadButton.js';
 import { AttendanceLogTable } from '../components/AttendanceLogTable.js';
 import { exportToCSV as exportDataToCSV } from '../services/csvService.js';
-import { AttendanceCard } from '../components/AttendanceCard.js';
+import { AttendanceRow } from '../components/AttendanceRow.js';
 import { TeamMemberRole, AttendanceStatus, EmployeeStatus } from '../types.js';
 
 let currentTeamModalInstance = null;
@@ -98,18 +98,25 @@ export function renderAttendancePage(container, props) {
     let teamMemberFilters = { searchTerm: '', team: '' };
     let selectedLeaveTypeFilter = null;
     let selectedStatusFilter = null;
-
+    let analysisDateRange = {
+        start: new Date(new Date().setDate(new Date().getDate() - 29)).toISOString().split('T')[0],
+        end: new Date().toISOString().split('T')[0]
+    };
 
     container.innerHTML = '';
     const pageWrapper = document.createElement('div');
     pageWrapper.className = 'page-container';
 
     function rerender() {
-        // This function will re-render specific parts of the page that change,
-        // rather than the whole page.
-        renderDailyLog();
         renderAnalysisSection();
     }
+    function rerenderDailyLogSection() {
+        renderDailyLog();
+    }
+    function rerenderAnalysisSection() {
+        renderAnalysisSection();
+    }
+
 
     // --- Header ---
     const headerDiv = document.createElement('div');
@@ -161,25 +168,22 @@ export function renderAttendancePage(container, props) {
         header.appendChild(datePicker);
         dailyLogSection.appendChild(header);
 
-        const gridContainer = document.createElement('div');
-        gridContainer.className = 'daily-log-grid-container';
-        const grid = document.createElement('div');
-        grid.className = 'daily-log-grid';
+        const listContainer = document.createElement('div');
+        listContainer.className = 'daily-log-list-container';
         
         const activeMembers = teamMembers.filter(m => m.status === EmployeeStatus.Active);
 
         if (activeMembers.length > 0) {
             activeMembers.forEach(member => {
                 const record = attendanceRecords.find(r => r.date === selectedDate && r.memberId === member.id);
-                const card = AttendanceCard({ member, date: selectedDate, record, leaveTypes, holidays, onUpsertRecord: onUpsertAttendanceRecord });
-                grid.appendChild(card);
+                const row = AttendanceRow({ member, date: selectedDate, record, leaveTypes, holidays, onUpsertRecord: onUpsertAttendanceRecord });
+                listContainer.appendChild(row);
             });
         } else {
-            grid.innerHTML = `<div class="no-data-placeholder"><i class="fas fa-users-slash icon"></i><p class="primary-text">No active team members found.</p></div>`;
+            listContainer.innerHTML = `<div class="no-data-placeholder" style="padding: 1rem 0;"><i class="fas fa-users-slash icon"></i><p class="primary-text">No active team members found.</p></div>`;
         }
         
-        gridContainer.appendChild(grid);
-        dailyLogSection.appendChild(gridContainer);
+        dailyLogSection.appendChild(listContainer);
     }
     
     function renderTeamManagement() {
@@ -278,6 +282,10 @@ export function renderAttendancePage(container, props) {
         table.appendChild(tbody);
         teamListContainer.appendChild(table);
     }
+
+    function getFilteredAnalysisRecords() {
+        return attendanceRecords.filter(r => r.date >= analysisDateRange.start && r.date <= analysisDateRange.end);
+    }
     
     function renderAnalysisSection() {
         analysisSection.innerHTML = '';
@@ -286,32 +294,47 @@ export function renderAttendancePage(container, props) {
         title.innerHTML = `<i class="fas fa-chart-line"></i> Analysis Dashboard`;
         analysisSection.appendChild(title);
 
+        // Date Filter Section
+        const filterContainer = document.createElement('div');
+        filterContainer.className = 'analysis-dashboard-filters';
+        
+        const startDateInput = document.createElement('input');
+        startDateInput.type = 'date';
+        startDateInput.className = 'form-input';
+        startDateInput.value = analysisDateRange.start;
+        startDateInput.onchange = (e) => {
+            analysisDateRange.start = e.target.value;
+            rerender();
+        };
+
+        const endDateInput = document.createElement('input');
+        endDateInput.type = 'date';
+        endDateInput.className = 'form-input';
+        endDateInput.value = analysisDateRange.end;
+        endDateInput.onchange = (e) => {
+            analysisDateRange.end = e.target.value;
+            rerender();
+        };
+        
+        filterContainer.innerHTML = `<label class="form-label">Start Date</label>`;
+        filterContainer.appendChild(startDateInput);
+        filterContainer.innerHTML += `<label class="form-label">End Date</label>`;
+        filterContainer.appendChild(endDateInput);
+        analysisSection.appendChild(filterContainer);
+
+
         const analysisGrid = document.createElement('div');
         analysisGrid.className = 'attendance-analysis-grid';
 
-        // Helper to create a widget card
-        const createWidget = (titleHtml, contentElement) => {
-            const widget = document.createElement('div');
-            widget.className = 'dashboard-widget';
-
-            const header = document.createElement('h3');
-            header.innerHTML = titleHtml;
-            widget.appendChild(header);
-
-            const contentWrapper = document.createElement('div');
-            contentWrapper.className = 'widget-content';
-            contentWrapper.appendChild(contentElement);
-            widget.appendChild(contentWrapper);
-            return widget;
-        };
+        const filteredRecords = getFilteredAnalysisRecords();
 
         // --- Widgets ---
-        analysisGrid.appendChild(renderWorkDayStatusWidget());
+        analysisGrid.appendChild(renderWorkDayStatusWidget(filteredRecords));
         analysisGrid.appendChild(renderDaysNotMarkedWidget());
-        analysisGrid.appendChild(renderLeaveBreakdownWidget());
-        analysisGrid.appendChild(renderMostLeavesWidget());
-        analysisGrid.appendChild(renderHighestPresenceWidget());
-        analysisGrid.appendChild(renderLeaveByWeekdayWidget());
+        analysisGrid.appendChild(renderLeaveBreakdownWidget(filteredRecords));
+        analysisGrid.appendChild(renderMostLeavesWidget(filteredRecords));
+        analysisGrid.appendChild(renderHighestPresenceWidget(filteredRecords));
+        analysisGrid.appendChild(renderLeaveByWeekdayWidget(filteredRecords));
         
         analysisSection.appendChild(analysisGrid);
     }
@@ -429,15 +452,15 @@ export function renderAttendancePage(container, props) {
                 chart.appendChild(itemEl);
             });
         } else {
-            chart.innerHTML = `<p class="insight-list-empty">No data available.</p>`;
+            chart.innerHTML = `<p class="insight-list-empty">No data available for this period.</p>`;
         }
         
         return chart;
     }
     
     // --- Widget Rendering Functions ---
-    function renderWorkDayStatusWidget() {
-        const data = attendanceRecords.reduce((acc, r) => {
+    function renderWorkDayStatusWidget(records) {
+        const data = records.reduce((acc, r) => {
             if (acc.hasOwnProperty(r.status)) acc[r.status]++;
             return acc;
         }, { 'Present': 0, 'Work From Home': 0, 'Leave': 0 });
@@ -463,14 +486,13 @@ export function renderAttendancePage(container, props) {
     
     function renderDaysNotMarkedWidget() {
         const activeMembers = teamMembers.filter(m => m.status === 'Active');
-        const ninetyDaysAgo = new Date();
-        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-        const endDate = new Date();
+        const startDate = new Date(analysisDateRange.start + 'T00:00:00');
+        const endDate = new Date(analysisDateRange.end + 'T00:00:00');
         
         const daysNotMarked = [];
         const attendanceSet = new Set(attendanceRecords.map(r => `${r.date}|${r.memberId}`));
 
-        for (let d = ninetyDaysAgo; d <= endDate; d.setDate(d.getDate() + 1)) {
+        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
             const dateStr = d.toISOString().split('T')[0];
             if (isWorkDay(dateStr, holidays)) {
                 activeMembers.forEach(member => {
@@ -490,7 +512,7 @@ export function renderAttendancePage(container, props) {
         const list = document.createElement('ul');
         list.className = 'days-not-marked-list';
         if (daysNotMarked.length === 0) {
-            list.innerHTML = `<li>All work days are marked in the last 90 days. Great job!</li>`;
+            list.innerHTML = `<li class="insight-list-empty">All work days are marked.</li>`;
         } else {
             daysNotMarked.slice(0, 100).forEach(item => {
                 list.innerHTML += `<li>${item.date} - ${item.name}</li>`;
@@ -501,8 +523,8 @@ export function renderAttendancePage(container, props) {
         return widget;
     }
 
-    function renderLeaveBreakdownWidget() {
-        const breakdown = attendanceRecords
+    function renderLeaveBreakdownWidget(records) {
+        const breakdown = records
             .filter(r => r.status === AttendanceStatus.Leave && r.leaveType)
             .reduce((acc, r) => {
                 const type = r.leaveType || 'undefined';
@@ -531,8 +553,8 @@ export function renderAttendancePage(container, props) {
         return widget;
     }
 
-    function getFilteredRecords() {
-        let filtered = attendanceRecords;
+    function getFilteredRecordsForInsights(baseRecords) {
+        let filtered = baseRecords;
         if (selectedStatusFilter) {
             filtered = filtered.filter(r => r.status === selectedStatusFilter);
         }
@@ -542,8 +564,8 @@ export function renderAttendancePage(container, props) {
         return filtered;
     }
     
-    function renderMostLeavesWidget() {
-        const filteredRecords = getFilteredRecords();
+    function renderMostLeavesWidget(baseRecords) {
+        const filteredRecords = getFilteredRecordsForInsights(baseRecords);
         const getMemberName = id => teamMembers.find(m => m.id === id)?.name || 'Unknown';
         
         const leaves = filteredRecords
@@ -564,8 +586,8 @@ export function renderAttendancePage(container, props) {
         return widget;
     }
 
-    function renderHighestPresenceWidget() {
-        const filteredRecords = getFilteredRecords();
+    function renderHighestPresenceWidget(baseRecords) {
+        const filteredRecords = getFilteredRecordsForInsights(baseRecords);
         const getMemberName = id => teamMembers.find(m => m.id === id)?.name || 'Unknown';
         
         const presence = filteredRecords
@@ -586,8 +608,8 @@ export function renderAttendancePage(container, props) {
         return widget;
     }
 
-    function renderLeaveByWeekdayWidget() {
-        const filteredRecords = getFilteredRecords();
+    function renderLeaveByWeekdayWidget(baseRecords) {
+        const filteredRecords = getFilteredRecordsForInsights(baseRecords);
         const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
         const leaveByDay = filteredRecords
             .filter(r => r.status === AttendanceStatus.Leave)
@@ -616,7 +638,7 @@ export function renderAttendancePage(container, props) {
         return widget;
     }
 
-    // --- Modal Functions (unchanged) ---
+    // --- Modal Functions ---
     function openTeamMemberModal(member = null) {
         let isEditing = false;
         let modalEl, modalBody, modalFooter;
