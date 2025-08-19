@@ -417,15 +417,25 @@ export function renderAttendancePage(container, props) {
       const statusPanel = document.createElement('div');
       statusPanel.className = 'kpi-insights-panel';
       statusPanel.innerHTML = `<h3 class="kpi-panel-title"><i class="fas fa-chart-pie"></i> Work Day Status Distribution</h3>`;
+      
+      // Create a grid for the layout
+      const distributionGrid = document.createElement('div');
+      distributionGrid.className = 'status-distribution-grid';
 
+      // --- Column 1: Donut Chart ---
+      const donutContainer = document.createElement('div');
       const donutData = [
           { label: 'Present', value: statsOnWorkDays.present, color: '#22c55e' },
           { label: 'Work From Home', value: statsOnWorkDays.wfh, color: '#3b82f6' },
           { label: 'Leave', value: statsOnWorkDays.leave, color: '#f97316' },
           { label: 'Not Marked', value: notMarked, color: '#6b7280' },
       ];
-      statusPanel.appendChild(createDonutChart(donutData, totalExpectedManDays, 'Total Man-Days'));
+      donutContainer.appendChild(createDonutChart(donutData, totalExpectedManDays, 'Total Man-Days'));
+      distributionGrid.appendChild(donutContainer);
 
+      // --- Column 2: Days Not Marked List ---
+      const unmarkedListDisplayContainer = document.createElement('div');
+      
       const unmarkedDaysList = [];
       if (notMarked > 0) {
           const recordsSet = new Set(filteredRecords.map(r => `${r.memberId}|${r.date}`));
@@ -443,29 +453,27 @@ export function renderAttendancePage(container, props) {
               }
           }
       }
+
+      const unmarkedListTitle = document.createElement('h4');
+      unmarkedListTitle.className = 'kpi-panel-section-title';
+      unmarkedListTitle.textContent = `Days Not Marked (${unmarkedDaysList.length})`;
+      unmarkedListDisplayContainer.appendChild(unmarkedListTitle);
       
       if (unmarkedDaysList.length > 0) {
-        const separator = document.createElement('hr');
-        separator.className = 'kpi-panel-separator';
-        statusPanel.appendChild(separator);
-
-        const unmarkedListContainer = document.createElement('div');
-        const unmarkedListTitle = document.createElement('h4');
-        unmarkedListTitle.className = 'kpi-panel-section-title';
-        unmarkedListTitle.textContent = `Days Not Marked (${unmarkedDaysList.length})`;
-        unmarkedListContainer.appendChild(unmarkedListTitle);
-        
         const ul = document.createElement('ul');
         ul.className = 'days-not-marked-list';
-        unmarkedDaysList.forEach(item => {
+        unmarkedDaysList.sort((a,b) => a.date.localeCompare(b.date)).forEach(item => {
             const li = document.createElement('li');
             li.textContent = `${item.date} - ${item.memberName}`;
             ul.appendChild(li);
         });
-        unmarkedListContainer.appendChild(ul);
-        statusPanel.appendChild(unmarkedListContainer);
+        unmarkedListDisplayContainer.appendChild(ul);
+      } else {
+        unmarkedListDisplayContainer.innerHTML += `<p class="insight-list-empty" style="padding-top:1rem;">All work days are marked. Great job!</p>`;
       }
-
+      distributionGrid.appendChild(unmarkedListDisplayContainer);
+      
+      statusPanel.appendChild(distributionGrid);
       leftCol.appendChild(statusPanel);
       
       // Panel 2: Leave Breakdown Chart
