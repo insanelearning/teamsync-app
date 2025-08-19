@@ -325,17 +325,19 @@ export function renderAttendancePage(container, props) {
         : teamMembers;
       
       const holidayDates = new Set((holidays || []).map(h => h.date));
-      let totalActualWorkDays = 0;
+      let periodWorkDays = 0;
 
-      if (membersToAnalyze.length > 0 && analysisStartDate <= analysisEndDate) {
+      if (analysisStartDate <= analysisEndDate) {
           for (let day = new Date(analysisStartDate + 'T00:00:00'); day <= new Date(analysisEndDate + 'T00:00:00'); day.setDate(day.getDate() + 1)) {
               const dayOfWeek = day.getDay();
               const dateStr = day.toISOString().split('T')[0];
               if (dayOfWeek !== 0 && dayOfWeek !== 6 && !holidayDates.has(dateStr)) {
-                  totalActualWorkDays += membersToAnalyze.length;
+                  periodWorkDays++;
               }
           }
       }
+      
+      const totalExpectedManDays = periodWorkDays * membersToAnalyze.length;
 
       const filteredRecords = attendanceRecords.filter(rec => {
           const isMemberMatch = !analysisMemberFilter || rec.memberId === analysisMemberFilter;
@@ -372,16 +374,16 @@ export function renderAttendancePage(container, props) {
       
       const totalPresence = statsOnWorkDays.present + statsOnWorkDays.wfh;
       const totalLeavesOnWorkDays = statsOnWorkDays.leave;
-      const notMarked = Math.max(0, totalActualWorkDays - (totalPresence + totalLeavesOnWorkDays));
-      const presenceRate = totalActualWorkDays > 0 ? ((totalPresence / totalActualWorkDays) * 100).toFixed(0) : 0;
+      const notMarked = Math.max(0, totalExpectedManDays - (totalPresence + totalLeavesOnWorkDays));
+      const presenceRate = totalExpectedManDays > 0 ? ((totalPresence / totalExpectedManDays) * 100).toFixed(0) : 0;
       
       // Summary Cards
       const summaryContainer = document.createElement('div');
       summaryContainer.className = 'work-log-summary-container'; // Reusing this class works well for 4 items
       summaryContainer.innerHTML = `
           <div class="work-log-summary-card">
-              <div class="label">Actual Work Days</div>
-              <div class="value">${totalActualWorkDays.toLocaleString()}</div>
+              <div class="label">Working Days in Period</div>
+              <div class="value">${periodWorkDays.toLocaleString()}</div>
               <div class="sub-label">Excludes weekends & holidays</div>
           </div>
           <div class="work-log-summary-card">
@@ -397,7 +399,7 @@ export function renderAttendancePage(container, props) {
           <div class="work-log-summary-card">
               <div class="label">Team Presence Rate</div>
               <div class="value">${presenceRate}%</div>
-              <div class="sub-label">vs. Actual Work Days</div>
+              <div class="sub-label">vs. Expected (${totalExpectedManDays.toLocaleString()} days)</div>
           </div>
       `;
       analysisSection.appendChild(summaryContainer);
@@ -418,7 +420,7 @@ export function renderAttendancePage(container, props) {
           { label: 'Leave', value: statsOnWorkDays.leave, color: '#f97316' },
           { label: 'Not Marked', value: notMarked, color: '#6b7280' },
       ];
-      leftCol.appendChild(createDonutChart(donutData, totalActualWorkDays, 'Work Days'));
+      leftCol.appendChild(createDonutChart(donutData, totalExpectedManDays, 'Expected Days'));
 
       const leaveTypesData = Object.entries(leavesByType)
         .map(([type, count]) => ({ label: type || 'Other', value: count, color: '#ef4444' }))
