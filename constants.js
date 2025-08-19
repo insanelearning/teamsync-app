@@ -22,6 +22,11 @@ export const INITIAL_TEAM_MEMBERS = [
     { id: 'user1', name: 'Alex Manager', email: 'alex@example.com', role: TeamMemberRole.Manager, designation: 'Team Lead', internalTeam: 'Engineering', joinDate: '2022-01-15', birthDate: '1990-05-20', mobileNumber: '+15551234567', status: EmployeeStatus.Active },
     { id: 'user2', name: 'Bob Member', email: 'bob@example.com', role: TeamMemberRole.Member, designation: 'Sr. Developer', internalTeam: 'Engineering', joinDate: '2022-08-01', birthDate: '1992-11-10', mobileNumber: '+15551234568', status: EmployeeStatus.Active },
     { id: 'user3', name: 'Charlie Member', email: 'charlie@example.com', role: TeamMemberRole.Member, designation: 'QA Engineer', internalTeam: 'QA', joinDate: '2023-03-20', birthDate: '1995-02-25', mobileNumber: '+15551234569', status: EmployeeStatus.Active },
+    { id: 'user4', name: 'Diana Designer', email: 'diana@example.com', role: TeamMemberRole.Member, designation: 'UI/UX Designer', internalTeam: 'Design', joinDate: '2021-11-15', birthDate: '1993-08-12', mobileNumber: '+15551234570', status: EmployeeStatus.Active },
+    { id: 'user5', name: 'Ethan Engineer', email: 'ethan@example.com', role: TeamMemberRole.Member, designation: 'Jr. Developer', internalTeam: 'Engineering', joinDate: '2023-09-01', birthDate: '1998-01-30', mobileNumber: '+15551234571', status: EmployeeStatus.Active },
+    { id: 'user6', name: 'Fiona Product', email: 'fiona@example.com', role: TeamMemberRole.Member, designation: 'Product Manager', internalTeam: 'Product Management', joinDate: '2020-06-22', birthDate: '1988-07-07', mobileNumber: '+15551234572', status: EmployeeStatus.Active },
+    { id: 'user7', name: 'George QA', email: 'george@example.com', role: TeamMemberRole.Member, designation: 'QA Lead', internalTeam: 'QA', joinDate: '2021-02-18', birthDate: '1991-04-15', mobileNumber: '+15551234573', status: EmployeeStatus.Active },
+    { id: 'user8', name: 'Hannah Marketing', email: 'hannah@example.com', role: TeamMemberRole.Member, designation: 'Marketing Specialist', internalTeam: 'Marketing', joinDate: '2023-05-10', birthDate: '1996-12-05', mobileNumber: '+15551234574', status: EmployeeStatus.Active },
 ];
 
 export const WORK_LOG_TASKS = [
