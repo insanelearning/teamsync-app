@@ -387,19 +387,19 @@ export function renderAttendancePage(container, props) {
               <div class="sub-label">Excludes weekends & holidays</div>
           </div>
           <div class="work-log-summary-card">
-              <div class="label">Total Presence</div>
+              <div class="label">Total Expected Man-Days</div>
+              <div class="value">${totalExpectedManDays.toLocaleString()}</div>
+              <div class="sub-label">${periodWorkDays} days × ${membersToAnalyze.length} members</div>
+          </div>
+          <div class="work-log-summary-card">
+              <div class="label">Total Presence (Man-Days)</div>
               <div class="value">${totalPresence.toLocaleString()}</div>
               <div class="sub-label">Present & WFH on work days</div>
           </div>
           <div class="work-log-summary-card">
-              <div class="label">Total Leaves</div>
-              <div class="value">${totalLeavesOnWorkDays.toLocaleString()}</div>
-              <div class="sub-label">On work days</div>
-          </div>
-          <div class="work-log-summary-card">
               <div class="label">Team Presence Rate</div>
               <div class="value">${presenceRate}%</div>
-              <div class="sub-label">vs. Expected (${totalExpectedManDays.toLocaleString()} days)</div>
+              <div class="sub-label">(${totalPresence.toLocaleString()} of ${totalExpectedManDays.toLocaleString()} expected)</div>
           </div>
       `;
       analysisSection.appendChild(summaryContainer);
@@ -420,7 +420,7 @@ export function renderAttendancePage(container, props) {
           { label: 'Leave', value: statsOnWorkDays.leave, color: '#f97316' },
           { label: 'Not Marked', value: notMarked, color: '#6b7280' },
       ];
-      leftCol.appendChild(createDonutChart(donutData, totalExpectedManDays, 'Expected Days'));
+      leftCol.appendChild(createDonutChart(donutData, totalExpectedManDays, 'Total Man-Days'));
 
       const leaveTypesData = Object.entries(leavesByType)
         .map(([type, count]) => ({ label: type || 'Other', value: count, color: '#ef4444' }))
