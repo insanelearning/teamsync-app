@@ -4175,7 +4175,7 @@ footer.app-footer {
     font-family: 'Inter', sans-serif;
 }
 .donut-center-value {
-    font-size: 16px;
+    font-size: 32px;
     font-weight: 700;
     fill: #111827;
 }
@@ -4183,7 +4183,7 @@ footer.app-footer {
     fill: #f3f4f6;
 }
 .donut-center-label {
-    font-size: 8px;
+    font-size: 12px;
     fill: #6b7280;
 }
 .dark .donut-center-label {
@@ -4277,6 +4277,19 @@ footer.app-footer {
     gap: 1.5rem;
 }
 
+.status-distribution-grid {
+    display: grid;
+    grid-template-columns: 1fr; /* Default to single column */
+    gap: 1.5rem;
+    align-items: start;
+}
+
+@media (min-width: 768px) { /* md screen */
+    .status-distribution-grid {
+        grid-template-columns: auto 1fr; /* Donut chart takes its content size, list takes the rest */
+    }
+}
+
 .donut-chart-vertical-container {
     display: flex;
     flex-direction: column;
@@ -4288,7 +4301,7 @@ footer.app-footer {
     list-style: none;
     padding: 0;
     margin: 0;
-    max-height: 250px;
+    max-height: 280px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
