@@ -4172,6 +4172,25 @@ footer.app-footer {
     height: 100px;
     flex-shrink: 0;
 }
+.donut-chart-svg text {
+    font-family: 'Inter', sans-serif;
+}
+.donut-center-value {
+    font-size: 24px;
+    font-weight: 700;
+    fill: #111827;
+}
+.dark .donut-center-value {
+    fill: #f3f4f6;
+}
+.donut-center-label {
+    font-size: 10px;
+    fill: #6b7280;
+}
+.dark .donut-center-label {
+    fill: #9ca3af;
+}
+
 .donut-chart-legend {
     display: flex;
     flex-direction: column;
@@ -4244,6 +4263,51 @@ footer.app-footer {
 }
 .dark .insight-list-empty {
     color: #9ca3af;
+}
+
+/* --- NEW: Bar Chart Styles (for Attendance) --- */
+.bar-chart-container {
+    margin-top: 1.5rem;
+}
+.bar-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+.bar-chart-item {
+    display: grid;
+    grid-template-columns: 100px 1fr 80px;
+    gap: 0.75rem;
+    align-items: center;
+}
+.bar-chart-label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #4b5563;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.dark .bar-chart-label {
+    color: #d1d5db;
+}
+.bar-chart-bar-wrapper {
+    height: 1rem;
+    background-color: #e5e7eb;
+    border-radius: 0.25rem;
+}
+.dark .bar-chart-bar-wrapper {
+    background-color: #374151;
+}
+.bar-chart-bar {
+    height: 100%;
+    border-radius: 0.25rem;
+    transition: width 0.3s ease-in-out;
+}
+.bar-chart-value {
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-align: right;
 }
 
 /* --- NEW: Work Distribution Chart --- */
