@@ -3134,14 +3134,16 @@ footer.app-footer {
   white-space: normal;
 }
 
-
 .daily-log-section {
-  background-color: #ffffff; /* bg-white */
-  box-shadow: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px -1px rgba(0,0,0,0.1); /* shadow */
-  border-radius: 0.5rem; /* rounded-lg */
-  overflow: hidden; /* For rounded corners with table */
+    background-color: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: .5rem;
 }
-.dark .daily-log-section { background-color: #1f2937; /* dark:bg-gray-800 */ }
+.dark .daily-log-section {
+    background-color: #1f2937;
+    border-color: #374151;
+}
+
 .daily-log-header {
   padding: 1rem; /* p-4 */
   display: flex;
@@ -3165,60 +3167,43 @@ footer.app-footer {
 }
 .dark .daily-log-title { color: #e5e7eb; }
 
-.daily-log-list-container {
-    padding: 0 1rem 1rem 1rem;
-    max-height: 50vh;
-    overflow-y: auto;
-}
-.attendance-row {
-    display: flex;
-    align-items: center;
+.daily-log-grid-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: 1rem;
-    padding: 0.75rem 0;
-    border-bottom: 1px solid #f3f4f6;
+    padding: 1rem;
 }
-.dark .attendance-row {
+
+.attendance-card {
+    background-color: #ffffff;
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    border: 1px solid #e5e7eb;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+.dark .attendance-card {
+    background-color: #273042;
     border-color: #374151;
 }
-.attendance-row:last-child {
-    border-bottom: none;
-}
-.attendance-row-member {
-    flex: 1 1 200px;
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    min-width: 180px;
-}
-.attendance-card-avatar {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    color: #ffffff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1rem;
-    font-weight: 600;
-    flex-shrink: 0;
-}
-.attendance-card-member-name {
-    font-weight: 500;
-    font-size: 0.9rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.attendance-row-controls {
-    flex: 2 1 400px;
+
+.attendance-card-header {
     display: flex;
     align-items: center;
     gap: 0.75rem;
 }
+
+.attendance-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
 .segmented-control {
     display: flex;
-    width: 200px;
-    flex-shrink: 0;
+    width: 100%;
     background-color: #e5e7eb;
     border-radius: 0.375rem;
     padding: 0.25rem;
@@ -3252,21 +3237,18 @@ footer.app-footer {
 }
 .attendance-card-contextual-fields {
     display: flex;
-    align-items: center;
+    flex-direction: column;
     gap: 0.75rem;
-    flex-grow: 1;
+    min-height: 40px; /* Reserve space to prevent layout shift */
 }
-.attendance-card-contextual-fields .form-select {
-    min-width: 150px;
-    max-width: 200px;
-}
+.attendance-card-contextual-fields .form-select,
 .attendance-card-contextual-fields .form-input {
-    flex-grow: 1;
+    width: 100%;
 }
 
 .attendance-card-non-working-status {
     text-align: center;
-    padding: 0.75rem;
+    padding: 1.5rem 0.75rem;
     font-weight: 600;
     border-radius: 0.375rem;
     background-color: #f3f4f6;
@@ -3279,19 +3261,6 @@ footer.app-footer {
 }
 .attendance-card-non-working-status .fas {
     margin-right: 0.5rem;
-}
-@media (max-width: 768px) {
-    .attendance-row {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    .attendance-row-controls {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    .segmented-control {
-        width: 100%;
-    }
 }
 
 
@@ -4248,9 +4217,10 @@ footer.app-footer {
 
 /* --- NEW: Attendance Analysis Layout --- */
 .analysis-dashboard-filters {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    align-items: flex-end;
     padding: 1rem;
     background-color: #f9fafb;
     border: 1px solid #e5e7eb;
@@ -4258,13 +4228,8 @@ footer.app-footer {
     margin-bottom: 1.5rem;
 }
 .dark .analysis-dashboard-filters {
-    background-color: #1f2937;
+    background-color: #273042;
     border-color: #374151;
-}
-@media (max-width: 640px) {
-    .analysis-dashboard-filters {
-        grid-template-columns: 1fr;
-    }
 }
 
 
