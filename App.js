@@ -11,7 +11,7 @@ import { Navbar } from './components/Navbar.js';
 import { INITIAL_TEAM_MEMBERS, WORK_LOG_TASKS, PRIORITIES, INITIAL_INTERNAL_TEAMS, INITIAL_HOLIDAYS, INITIAL_LEAVE_TYPES, MEMBER_COLORS } from './constants.js';
 import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery, addDocument } from './services/firebaseService.js';
 import { exportToCSV as exportDataToCSV, importFromCSV } from './services/csvService.js';
-import { ProjectStatus, AttendanceStatus, NoteStatus, TeamMemberRole } from './types.js'; // Enums
+import { ProjectStatus, AttendanceStatus, NoteStatus, TeamMemberRole, EmployeeStatus } from './types.js'; // Enums
 
 let rootElement;
 let mainContentElement;
@@ -274,9 +274,13 @@ const addTeamMember = async (member) => {
     return;
   }
   try {
-    const { id, ...data } = member;
+    const memberWithDefaults = {
+      ...member,
+      status: member.status || EmployeeStatus.Active,
+    };
+    const { id, ...data } = memberWithDefaults;
     await setDocument('teamMembers', id, data);
-    teamMembers.push(member);
+    teamMembers.push(memberWithDefaults);
     renderApp();
   } catch (error) {
     console.error("Failed to add team member:", error);
