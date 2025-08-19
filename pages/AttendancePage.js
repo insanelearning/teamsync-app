@@ -4,8 +4,7 @@ import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { TeamMemberForm } from '../components/TeamMemberForm.js';
 import { FileUploadButton } from '../components/FileUploadButton.js';
 import { AttendanceLogTable } from '../components/AttendanceLogTable.js';
-import { exportToCSV as exportDataToCSV } from '../services/csvService.js';
-import { AttendanceRow } from '../components/AttendanceRow.js';
+import { AttendanceCard } from '../components/AttendanceCard.js';
 import { TeamMemberRole, AttendanceStatus, EmployeeStatus } from '../types.js';
 
 let currentTeamModalInstance = null;
@@ -60,16 +59,20 @@ function createIdFieldWithCopy(label, id) {
  * @returns {boolean} - True if it's a workday.
  */
 function isWorkDay(dateString, holidays) {
-    const date = new Date(dateString + 'T00:00:00');
+    // This function creates a date in the local timezone, avoiding UTC conversion issues.
+    const dateParts = dateString.split('-').map(part => parseInt(part, 10));
+    const date = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
+
     const dayOfWeek = date.getDay();
     if (dayOfWeek === 0 || dayOfWeek === 6) { // Sunday or Saturday
         return false;
     }
-    if (holidays.some(h => h.date === dateString)) {
+    if ((holidays || []).some(h => h.date === dateString)) {
         return false;
     }
     return true;
 }
+
 
 // --- Main Render Function ---
 
@@ -98,6 +101,7 @@ export function renderAttendancePage(container, props) {
     let teamMemberFilters = { searchTerm: '', team: '' };
     let selectedLeaveTypeFilter = null;
     let selectedStatusFilter = null;
+    // Default to the last 30 days (29 days ago to today)
     let analysisDateRange = {
         start: new Date(new Date().setDate(new Date().getDate() - 29)).toISOString().split('T')[0],
         end: new Date().toISOString().split('T')[0]
@@ -107,46 +111,62 @@ export function renderAttendancePage(container, props) {
     const pageWrapper = document.createElement('div');
     pageWrapper.className = 'page-container';
 
+    // We can't just re-render individual sections anymore because state changes
+    // in one section (like date filter) affect all others.
     function rerender() {
-        renderAnalysisSection();
+        // Find focused element to restore focus after re-render
+        const activeElementId = document.activeElement.id;
+        const activeElementSelectionStart = document.activeElement.selectionStart;
+        const activeElementSelectionEnd = document.activeElement.selectionEnd;
+
+        container.innerHTML = ''; // Clear everything
+        buildPage(); // Rebuild the entire page with current state
+
+        // Restore focus
+        if (activeElementId) {
+            const focusedElement = document.getElementById(activeElementId);
+            if (focusedElement) {
+                focusedElement.focus();
+                // Restore cursor position for text inputs
+                if (typeof activeElementSelectionStart === 'number') {
+                    focusedElement.selectionStart = activeElementSelectionStart;
+                    focusedElement.selectionEnd = activeElementSelectionEnd;
+                }
+            }
+        }
     }
-    function rerenderDailyLogSection() {
-        renderDailyLog();
+
+
+    function buildPage() {
+        pageWrapper.innerHTML = ''; // Clear page wrapper
+
+        // --- Header ---
+        const headerDiv = document.createElement('div');
+        headerDiv.className = "page-header";
+        headerDiv.innerHTML = `<h1 class="page-header-title">Attendance & Team</h1>`;
+        const headerActions = document.createElement('div');
+        headerActions.className = 'page-header-actions';
+        if (isManager) {
+            headerActions.append(
+                Button({ children: 'View Full Log', size: 'sm', variant: 'secondary', leftIcon: '<i class="fas fa-history"></i>', onClick: openAttendanceLogModal }),
+                Button({ children: 'Add Member', size: 'sm', leftIcon: '<i class="fas fa-user-plus"></i>', onClick: () => openTeamMemberModal() })
+            );
+        }
+        headerDiv.appendChild(headerActions);
+        pageWrapper.appendChild(headerDiv);
+
+        // --- Sections ---
+        pageWrapper.appendChild(renderDailyLog());
+        pageWrapper.appendChild(renderAnalysisSection());
+        pageWrapper.appendChild(renderTeamManagement());
+
+        container.appendChild(pageWrapper);
     }
-    function rerenderAnalysisSection() {
-        renderAnalysisSection();
-    }
-
-
-    // --- Header ---
-    const headerDiv = document.createElement('div');
-    headerDiv.className = "page-header";
-    headerDiv.innerHTML = `<h1 class="page-header-title">Attendance & Team</h1>`;
-    const headerActions = document.createElement('div');
-    headerActions.className = 'page-header-actions';
-    if (isManager) {
-        headerActions.append(
-            Button({ children: 'View Full Log', size: 'sm', variant: 'secondary', leftIcon: '<i class="fas fa-history"></i>', onClick: openAttendanceLogModal }),
-            Button({ children: 'Add Member', size: 'sm', leftIcon: '<i class="fas fa-user-plus"></i>', onClick: () => openTeamMemberModal() })
-        );
-    }
-    headerDiv.appendChild(headerActions);
-
-
-    // --- Section Containers ---
-    const dailyLogSection = document.createElement('div');
-    dailyLogSection.className = 'daily-log-section';
-    
-    const analysisSection = document.createElement('div');
-    analysisSection.className = 'attendance-page-section';
-
-    const teamManagementSection = document.createElement('div');
-    teamManagementSection.className = 'attendance-page-section';
-    const teamListContainer = document.createElement('div');
     
     // --- Section Rendering Functions ---
     function renderDailyLog() {
-        dailyLogSection.innerHTML = ''; // Clear previous content
+        const dailyLogSection = document.createElement('div');
+        dailyLogSection.className = 'daily-log-section';
         
         const header = document.createElement('div');
         header.className = 'daily-log-header';
@@ -163,31 +183,33 @@ export function renderAttendancePage(container, props) {
         datePicker.value = selectedDate;
         datePicker.onchange = (e) => {
             selectedDate = e.target.value;
-            renderDailyLog(); // Only re-render the log section
+            rerender(); // Re-render the whole page
         };
         header.appendChild(datePicker);
         dailyLogSection.appendChild(header);
 
-        const listContainer = document.createElement('div');
-        listContainer.className = 'daily-log-list-container';
+        const gridContainer = document.createElement('div');
+        gridContainer.className = 'daily-log-grid-container';
         
         const activeMembers = teamMembers.filter(m => m.status === EmployeeStatus.Active);
 
         if (activeMembers.length > 0) {
             activeMembers.forEach(member => {
                 const record = attendanceRecords.find(r => r.date === selectedDate && r.memberId === member.id);
-                const row = AttendanceRow({ member, date: selectedDate, record, leaveTypes, holidays, onUpsertRecord: onUpsertAttendanceRecord });
-                listContainer.appendChild(row);
+                const card = AttendanceCard({ member, date: selectedDate, record, leaveTypes, holidays, onUpsertRecord: onUpsertAttendanceRecord });
+                gridContainer.appendChild(card);
             });
         } else {
-            listContainer.innerHTML = `<div class="no-data-placeholder" style="padding: 1rem 0;"><i class="fas fa-users-slash icon"></i><p class="primary-text">No active team members found.</p></div>`;
+            gridContainer.innerHTML = `<div class="no-data-placeholder" style="padding: 1rem 0;"><i class="fas fa-users-slash icon"></i><p class="primary-text">No active team members found.</p></div>`;
         }
         
-        dailyLogSection.appendChild(listContainer);
+        dailyLogSection.appendChild(gridContainer);
+        return dailyLogSection;
     }
     
     function renderTeamManagement() {
-        teamManagementSection.innerHTML = ''; // Clear
+        const teamManagementSection = document.createElement('div');
+        teamManagementSection.className = 'attendance-page-section';
         teamManagementSection.innerHTML = `<h2 class="attendance-section-title"><i class="fas fa-users"></i> Team Management</h2>`;
         
         const toolbar = document.createElement('div');
@@ -200,10 +222,11 @@ export function renderAttendancePage(container, props) {
         searchInput.type = 'text';
         searchInput.placeholder = 'Search by name...';
         searchInput.className = 'form-input';
+        searchInput.id = 'team-search-input'; // ID for focus management
         searchInput.value = teamMemberFilters.searchTerm;
         searchInput.oninput = (e) => {
             teamMemberFilters.searchTerm = e.target.value;
-            renderTeamList();
+            rerender();
         };
         filters.appendChild(searchInput);
 
@@ -213,7 +236,7 @@ export function renderAttendancePage(container, props) {
         teamSelect.value = teamMemberFilters.team;
         teamSelect.onchange = (e) => {
             teamMemberFilters.team = e.target.value;
-            renderTeamList();
+            rerender();
         };
         filters.appendChild(teamSelect);
         
@@ -229,14 +252,14 @@ export function renderAttendancePage(container, props) {
         toolbar.append(filters, actions);
         teamManagementSection.appendChild(toolbar);
         
-        teamListContainer.innerHTML = '';
-        teamListContainer.className = 'data-table-container';
-        teamManagementSection.appendChild(teamListContainer);
-        renderTeamList();
+        teamManagementSection.appendChild(renderTeamList());
+        return teamManagementSection;
     }
     
     function renderTeamList() {
-        teamListContainer.innerHTML = '';
+        const teamListContainer = document.createElement('div');
+        teamListContainer.className = 'data-table-container';
+
         const filteredMembers = teamMembers.filter(m => {
             const matchesSearch = !teamMemberFilters.searchTerm || m.name.toLowerCase().includes(teamMemberFilters.searchTerm.toLowerCase());
             const matchesTeam = !teamMemberFilters.team || m.internalTeam === teamMemberFilters.team;
@@ -245,7 +268,7 @@ export function renderAttendancePage(container, props) {
 
         if (filteredMembers.length === 0) {
             teamListContainer.innerHTML = `<div class="no-data-placeholder"><p class="primary-text">No members match your search.</p></div>`;
-            return;
+            return teamListContainer;
         }
 
         const table = document.createElement('table');
@@ -281,14 +304,13 @@ export function renderAttendancePage(container, props) {
         });
         table.appendChild(tbody);
         teamListContainer.appendChild(table);
-    }
-
-    function getFilteredAnalysisRecords() {
-        return attendanceRecords.filter(r => r.date >= analysisDateRange.start && r.date <= analysisDateRange.end);
+        return teamListContainer;
     }
     
     function renderAnalysisSection() {
-        analysisSection.innerHTML = '';
+        const analysisSection = document.createElement('div');
+        analysisSection.className = 'attendance-page-section';
+
         const title = document.createElement('h2');
         title.className = 'attendance-section-title';
         title.innerHTML = `<i class="fas fa-chart-line"></i> Analysis Dashboard`;
@@ -298,30 +320,30 @@ export function renderAttendancePage(container, props) {
         const filterContainer = document.createElement('div');
         filterContainer.className = 'analysis-dashboard-filters';
         
-        const startDateInput = document.createElement('input');
-        startDateInput.type = 'date';
-        startDateInput.className = 'form-input';
-        startDateInput.value = analysisDateRange.start;
-        startDateInput.onchange = (e) => {
-            analysisDateRange.start = e.target.value;
-            rerender();
-        };
-
-        const endDateInput = document.createElement('input');
-        endDateInput.type = 'date';
-        endDateInput.className = 'form-input';
-        endDateInput.value = analysisDateRange.end;
-        endDateInput.onchange = (e) => {
-            analysisDateRange.end = e.target.value;
-            rerender();
+        const createDateInput = (label, id, value, onChange) => {
+            const container = document.createElement('div');
+            container.innerHTML = `<label for="${id}" class="form-label">${label}</label>`;
+            const input = document.createElement('input');
+            input.type = 'date';
+            input.id = id;
+            input.className = 'form-input';
+            input.value = value;
+            input.onchange = (e) => onChange(e.target.value);
+            container.appendChild(input);
+            return container;
         };
         
-        filterContainer.innerHTML = `<label class="form-label">Start Date</label>`;
-        filterContainer.appendChild(startDateInput);
-        filterContainer.innerHTML += `<label class="form-label">End Date</label>`;
-        filterContainer.appendChild(endDateInput);
-        analysisSection.appendChild(filterContainer);
+        filterContainer.appendChild(createDateInput('Start Date', 'analysis-start-date', analysisDateRange.start, (val) => {
+            analysisDateRange.start = val;
+            rerender();
+        }));
+        
+        filterContainer.appendChild(createDateInput('End Date', 'analysis-end-date', analysisDateRange.end, (val) => {
+            analysisDateRange.end = val;
+            rerender();
+        }));
 
+        analysisSection.appendChild(filterContainer);
 
         const analysisGrid = document.createElement('div');
         analysisGrid.className = 'attendance-analysis-grid';
@@ -337,6 +359,12 @@ export function renderAttendancePage(container, props) {
         analysisGrid.appendChild(renderLeaveByWeekdayWidget(filteredRecords));
         
         analysisSection.appendChild(analysisGrid);
+        return analysisSection;
+    }
+
+    function getFilteredAnalysisRecords() {
+        if (!analysisDateRange.start || !analysisDateRange.end) return [];
+        return attendanceRecords.filter(r => r.date >= analysisDateRange.start && r.date <= analysisDateRange.end);
     }
     
     // --- Chart Rendering and Data Functions ---
@@ -789,13 +817,5 @@ export function renderAttendancePage(container, props) {
     }
 
     // --- Initial Render ---
-    pageWrapper.appendChild(headerDiv);
-    pageWrapper.appendChild(dailyLogSection);
-    pageWrapper.appendChild(analysisSection);
-    pageWrapper.appendChild(teamManagementSection);
-    container.appendChild(pageWrapper);
-
-    renderDailyLog();
-    renderTeamManagement();
-    renderAnalysisSection();
+    buildPage();
 }
