@@ -56,7 +56,7 @@ function createIdFieldWithCopy(label, id) {
 
 function createDonutChart(data, totalValue, centerLabel = 'days') {
   const container = document.createElement('div');
-  container.className = 'donut-chart-and-legend';
+  container.className = 'donut-chart-vertical-container';
 
   const chartWrapper = document.createElement('div');
   chartWrapper.className = 'donut-chart-svg-container';
@@ -109,7 +109,7 @@ function createDonutChart(data, totalValue, centerLabel = 'days') {
   container.appendChild(chartWrapper);
 
   const legend = document.createElement('div');
-  legend.className = 'donut-chart-legend';
+  legend.className = 'donut-chart-legend horizontal';
   data.forEach(item => {
     const legendItem = document.createElement('div');
     legendItem.className = 'donut-legend-item';
@@ -413,13 +413,10 @@ export function renderAttendancePage(container, props) {
       const leftCol = document.createElement('div');
       leftCol.className = 'analysis-dashboard-left-col';
 
-      // Panel 1: Status Distribution with Unmarked Days List
+      // Panel 1: Status Distribution
       const statusPanel = document.createElement('div');
       statusPanel.className = 'kpi-insights-panel';
       statusPanel.innerHTML = `<h3 class="kpi-panel-title"><i class="fas fa-chart-pie"></i> Work Day Status Distribution</h3>`;
-
-      const statusGrid = document.createElement('div');
-      statusGrid.className = 'status-distribution-grid';
 
       const donutData = [
           { label: 'Present', value: statsOnWorkDays.present, color: '#22c55e' },
@@ -427,7 +424,7 @@ export function renderAttendancePage(container, props) {
           { label: 'Leave', value: statsOnWorkDays.leave, color: '#f97316' },
           { label: 'Not Marked', value: notMarked, color: '#6b7280' },
       ];
-      statusGrid.appendChild(createDonutChart(donutData, totalExpectedManDays, 'Total Man-Days'));
+      statusPanel.appendChild(createDonutChart(donutData, totalExpectedManDays, 'Total Man-Days'));
 
       const unmarkedDaysList = [];
       if (notMarked > 0) {
@@ -446,36 +443,29 @@ export function renderAttendancePage(container, props) {
               }
           }
       }
-
-      const unmarkedListContainer = document.createElement('div');
-      unmarkedListContainer.className = 'days-not-marked-list-container';
-      const unmarkedListTitle = document.createElement('h4');
-      unmarkedListTitle.className = 'days-not-marked-title';
-      unmarkedListTitle.textContent = `Days Not Marked (${unmarkedDaysList.length})`;
-      unmarkedListContainer.appendChild(unmarkedListTitle);
       
       if (unmarkedDaysList.length > 0) {
-          const ul = document.createElement('ul');
-          ul.className = 'days-not-marked-list';
-          unmarkedDaysList.forEach(item => {
-              const li = document.createElement('li');
-              li.textContent = `${item.date} - ${item.memberName}`;
-              ul.appendChild(li);
-          });
-          unmarkedListContainer.appendChild(ul);
-      } else if (notMarked > 0) {
-           const p = document.createElement('p');
-           p.className = 'days-not-marked-empty';
-           p.textContent = 'Calculating unmarked days...';
-           unmarkedListContainer.appendChild(p);
-      } else {
-          const p = document.createElement('p');
-          p.className = 'days-not-marked-empty';
-          p.textContent = 'All work days have been marked. Great job!';
-          unmarkedListContainer.appendChild(p);
+        const separator = document.createElement('hr');
+        separator.className = 'kpi-panel-separator';
+        statusPanel.appendChild(separator);
+
+        const unmarkedListContainer = document.createElement('div');
+        const unmarkedListTitle = document.createElement('h4');
+        unmarkedListTitle.className = 'kpi-panel-section-title';
+        unmarkedListTitle.textContent = `Days Not Marked (${unmarkedDaysList.length})`;
+        unmarkedListContainer.appendChild(unmarkedListTitle);
+        
+        const ul = document.createElement('ul');
+        ul.className = 'days-not-marked-list';
+        unmarkedDaysList.forEach(item => {
+            const li = document.createElement('li');
+            li.textContent = `${item.date} - ${item.memberName}`;
+            ul.appendChild(li);
+        });
+        unmarkedListContainer.appendChild(ul);
+        statusPanel.appendChild(unmarkedListContainer);
       }
-      statusGrid.appendChild(unmarkedListContainer);
-      statusPanel.appendChild(statusGrid);
+
       leftCol.appendChild(statusPanel);
       
       // Panel 2: Leave Breakdown Chart
@@ -722,7 +712,6 @@ export function renderAttendancePage(container, props) {
       grid.className = "daily-log-grid";
       const recordsForDate = attendanceRecords.filter(r => r.date === selectedDate);
       membersToDisplay.forEach(member => {
-        const record = recordsForDate.find(r => r.memberId === member.id);
         grid.appendChild(AttendanceCard({ 
             member, 
             date: selectedDate, 
