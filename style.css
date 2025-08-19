@@ -4217,8 +4217,8 @@ footer.app-footer {
 
 /* --- NEW: Attendance Analysis Layout --- */
 .analysis-dashboard-filters {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 1.5rem;
     align-items: flex-end;
     padding: 1rem;
