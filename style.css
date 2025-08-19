@@ -4286,7 +4286,7 @@ footer.app-footer {
 
 @media (min-width: 768px) { /* md screen */
     .status-distribution-grid {
-        grid-template-columns: auto 1fr; /* Donut chart takes its content size, list takes the rest */
+        grid-template-columns: 1fr 1fr;
     }
 }
 
@@ -4371,6 +4371,33 @@ footer.app-footer {
     font-weight: 500;
     text-align: right;
 }
+.bar-chart-item.clickable {
+    cursor: pointer;
+    border-radius: 0.25rem;
+    padding: 0.25rem;
+    margin: -0.25rem; /* Offset padding to maintain alignment */
+    transition: background-color 0.2s ease;
+}
+.bar-chart-item.clickable:hover {
+    background-color: #f9fafb;
+}
+.dark .bar-chart-item.clickable:hover {
+    background-color: #374151;
+}
+.bar-chart-item.selected {
+    background-color: var(--color-primary-light-bg);
+}
+.dark .bar-chart-item.selected {
+    background-color: #3730A3;
+}
+.bar-chart-item.selected .bar-chart-label {
+    color: var(--color-primary-dark-text);
+    font-weight: 700;
+}
+.dark .bar-chart-item.selected .bar-chart-label {
+    color: var(--color-primary);
+}
+
 
 /* --- NEW: Work Distribution Chart --- */
 .work-distribution-analysis {
