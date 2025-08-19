@@ -101,6 +101,7 @@ export function renderAttendancePage(container, props) {
     let teamMemberFilters = { searchTerm: '', team: '' };
     let selectedLeaveTypeFilter = null;
     let selectedStatusFilter = null;
+    let analysisMemberFilter = ''; // New state for analysis filter
     // Default to the last 30 days (29 days ago to today)
     let analysisDateRange = {
         start: new Date(new Date().setDate(new Date().getDate() - 29)).toISOString().split('T')[0],
@@ -332,6 +333,29 @@ export function renderAttendancePage(container, props) {
             container.appendChild(input);
             return container;
         };
+
+        const createMemberSelect = () => {
+            const container = document.createElement('div');
+            container.innerHTML = `<label for="analysis-member-filter" class="form-label">Team Member</label>`;
+            const select = document.createElement('select');
+            select.id = 'analysis-member-filter';
+            select.className = 'form-select';
+            
+            let options = '<option value="">All Members</option>';
+            teamMembers
+                .filter(m => m.status === EmployeeStatus.Active)
+                .forEach(member => {
+                    options += `<option value="${member.id}" ${analysisMemberFilter === member.id ? 'selected' : ''}>${member.name}</option>`;
+                });
+            
+            select.innerHTML = options;
+            select.onchange = (e) => {
+                analysisMemberFilter = e.target.value;
+                rerender();
+            };
+            container.appendChild(select);
+            return container;
+        };
         
         filterContainer.appendChild(createDateInput('Start Date', 'analysis-start-date', analysisDateRange.start, (val) => {
             analysisDateRange.start = val;
@@ -342,6 +366,10 @@ export function renderAttendancePage(container, props) {
             analysisDateRange.end = val;
             rerender();
         }));
+
+        if (isManager) {
+            filterContainer.appendChild(createMemberSelect());
+        }
 
         analysisSection.appendChild(filterContainer);
 
@@ -364,7 +392,16 @@ export function renderAttendancePage(container, props) {
 
     function getFilteredAnalysisRecords() {
         if (!analysisDateRange.start || !analysisDateRange.end) return [];
-        return attendanceRecords.filter(r => r.date >= analysisDateRange.start && r.date <= analysisDateRange.end);
+        let records = attendanceRecords.filter(r => r.date >= analysisDateRange.start && r.date <= analysisDateRange.end);
+        
+        if (analysisMemberFilter) {
+            records = records.filter(r => r.memberId === analysisMemberFilter);
+        } else if (!isManager) {
+            // If not a manager and no specific member is selected (which they can't), filter to current user
+            records = records.filter(r => r.memberId === currentUser.id);
+        }
+
+        return records;
     }
     
     // --- Chart Rendering and Data Functions ---
@@ -513,7 +550,13 @@ export function renderAttendancePage(container, props) {
     }
     
     function renderDaysNotMarkedWidget() {
-        const activeMembers = teamMembers.filter(m => m.status === 'Active');
+        let membersToConsider = teamMembers.filter(m => m.status === 'Active');
+        if (analysisMemberFilter) {
+            membersToConsider = membersToConsider.filter(m => m.id === analysisMemberFilter);
+        } else if (!isManager) {
+            membersToConsider = membersToConsider.filter(m => m.id === currentUser.id);
+        }
+
         const startDate = new Date(analysisDateRange.start + 'T00:00:00');
         const endDate = new Date(analysisDateRange.end + 'T00:00:00');
         
@@ -523,7 +566,7 @@ export function renderAttendancePage(container, props) {
         for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
             const dateStr = d.toISOString().split('T')[0];
             if (isWorkDay(dateStr, holidays)) {
-                activeMembers.forEach(member => {
+                membersToConsider.forEach(member => {
                     if (!attendanceSet.has(`${dateStr}|${member.id}`)) {
                         daysNotMarked.push({ date: dateStr, name: member.name });
                     }
