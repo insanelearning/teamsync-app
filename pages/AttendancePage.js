@@ -123,7 +123,7 @@ function createDonutChart(data, totalValue, centerLabel = 'days') {
   return container;
 }
 
-function createBarChart(data, title) {
+function createBarChart(data, title, onItemClick, selectedItem) {
     const container = document.createElement('div');
     container.className = 'bar-chart-container';
     
@@ -145,6 +145,14 @@ function createBarChart(data, title) {
         data.forEach(item => {
             const barWrapper = document.createElement('div');
             barWrapper.className = 'bar-chart-item';
+
+            if (onItemClick) {
+                barWrapper.classList.add('clickable');
+                barWrapper.onclick = () => onItemClick(item.label);
+            }
+            if (selectedItem && item.label === selectedItem) {
+                barWrapper.classList.add('selected');
+            }
             
             const barLabel = document.createElement('span');
             barLabel.className = 'bar-chart-label';
@@ -225,6 +233,7 @@ export function renderAttendancePage(container, props) {
   let analysisStartDate = new Date(new Date().setDate(new Date().getDate() - 29)).toISOString().split('T')[0];
   let analysisEndDate = new Date().toISOString().split('T')[0];
   let analysisMemberFilter = '';
+  let selectedLeaveType = null;
 
   // State for log viewer modal
   let logMemberFilter = '', logStartDateFilter = new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0], logEndDateFilter = new Date().toISOString().split('T')[0];
@@ -347,14 +356,13 @@ export function renderAttendancePage(container, props) {
       
       const statsOnWorkDays = { present: 0, wfh: 0, leave: 0 };
       const leavesByType = {}; // For bar chart (all days)
-      const leavesByMember = {}; // For insights (all days)
       const presenceByMember = {}; // For insights (all days)
 
       filteredRecords.forEach(rec => {
           // For Member Insights (original logic, includes weekends/holidays if worked)
           if (rec.status === AttendanceStatus.Leave) {
-              leavesByType[rec.leaveType] = (leavesByType[rec.leaveType] || 0) + 1;
-              leavesByMember[rec.memberId] = (leavesByMember[rec.memberId] || 0) + 1;
+              const leaveType = rec.leaveType || 'Other';
+              leavesByType[leaveType] = (leavesByType[leaveType] || 0) + 1;
           }
           if (rec.status === AttendanceStatus.Present || rec.status === AttendanceStatus.WorkFromHome) {
               presenceByMember[rec.memberId] = (presenceByMember[rec.memberId] || 0) + 1;
@@ -480,9 +488,15 @@ export function renderAttendancePage(container, props) {
       const leaveBreakdownPanel = document.createElement('div');
       leaveBreakdownPanel.className = 'kpi-insights-panel';
       const leaveTypesData = Object.entries(leavesByType)
-        .map(([type, count]) => ({ label: type || 'Other', value: count, color: '#ef4444' }))
+        .map(([type, count]) => ({ label: type, value: count, color: '#ef4444' }))
         .sort((a,b) => b.value - a.value);
-      leaveBreakdownPanel.appendChild(createBarChart(leaveTypesData, 'Leave Types Breakdown (All Days)'));
+      
+      const handleLeaveTypeClick = (leaveType) => {
+        selectedLeaveType = selectedLeaveType === leaveType ? null : leaveType;
+        renderAnalysisSection();
+      };
+      
+      leaveBreakdownPanel.appendChild(createBarChart(leaveTypesData, 'Leave Types Breakdown (All Days)', handleLeaveTypeClick, selectedLeaveType));
       leftCol.appendChild(leaveBreakdownPanel);
 
       analysisGrid.appendChild(leftCol);
@@ -492,16 +506,44 @@ export function renderAttendancePage(container, props) {
       rightCol.className = 'kpi-insights-panel';
       rightCol.innerHTML = `<h3 class="kpi-panel-title"><i class="fas fa-chart-line"></i> Member Insights</h3>`;
 
+      const leavesForInsights = filteredRecords.filter(rec => {
+          if (rec.status !== AttendanceStatus.Leave) return false;
+          if (selectedLeaveType) return (rec.leaveType || 'Other') === selectedLeaveType;
+          return true;
+      });
+      const leavesByMember = {};
+      leavesForInsights.forEach(rec => {
+        leavesByMember[rec.memberId] = (leavesByMember[rec.memberId] || 0) + 1;
+      });
+
       const topLeaves = Object.entries(leavesByMember)
         .map(([memberId, count]) => ({ label: teamMembers.find(m => m.id === memberId)?.name || 'Unknown', value: count }))
         .sort((a,b) => b.value - a.value);
-      rightCol.appendChild(createInsightList('Most Leaves Taken (All Days)', topLeaves, 'days'));
+      const topLeavesTitle = selectedLeaveType ? `Most Leaves Taken (${selectedLeaveType})` : 'Most Leaves Taken (All Days)';
+      rightCol.appendChild(createInsightList(topLeavesTitle, topLeaves, 'days'));
       
       const topPresence = Object.entries(presenceByMember)
         .map(([memberId, count]) => ({ label: teamMembers.find(m => m.id === memberId)?.name || 'Unknown', value: count, color: '#16a34a' }))
         .sort((a,b) => b.value - a.value);
       rightCol.appendChild(createInsightList('Highest Presence (All Days)', topPresence, 'days'));
       
+      // Weekday analysis
+      const weekdayCounts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }; // Mon-Fri
+      const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      leavesForInsights.forEach(rec => {
+          const day = new Date(rec.date + 'T00:00:00').getDay();
+          if (day >= 1 && day <= 5) { // Only count weekdays
+              weekdayCounts[day]++;
+          }
+      });
+      const weekdayData = Object.entries(weekdayCounts).map(([day, count]) => ({
+          label: weekdays[Number(day)],
+          value: count,
+          color: '#8b5cf6'
+      }));
+      const weekdayChartTitle = selectedLeaveType ? `Weekday Breakdown for ${selectedLeaveType}` : 'Leave by Weekday (All Types)';
+      rightCol.appendChild(createBarChart(weekdayData, weekdayChartTitle));
+
       analysisGrid.appendChild(rightCol);
       analysisSection.appendChild(analysisGrid);
   }
