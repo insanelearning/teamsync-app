@@ -6,7 +6,7 @@ import { FileUploadButton } from '../components/FileUploadButton.js';
 import { AttendanceLogTable } from '../components/AttendanceLogTable.js';
 import { exportToCSV as exportDataToCSV } from '../services/csvService.js';
 import { AttendanceCard } from '../components/AttendanceCard.js';
-import { TeamMemberRole, AttendanceStatus } from '../types.js';
+import { TeamMemberRole, AttendanceStatus, EmployeeStatus } from '../types.js';
 
 let currentTeamModalInstance = null;
 let currentLogModalInstance = null;
@@ -14,7 +14,6 @@ let currentLogModalInstance = null;
 // --- Helper Functions ---
 
 function createIdFieldWithCopy(label, id) {
-    // ... (implementation is the same, just included for context)
     const item = document.createElement('div');
     item.className = 'detail-item detail-item-id';
 
@@ -54,961 +53,711 @@ function createIdFieldWithCopy(label, id) {
     return item;
 }
 
-function createDonutChart(data, totalValue, centerLabel = 'days') {
-  const container = document.createElement('div');
-  container.className = 'donut-chart-vertical-container';
-
-  const chartWrapper = document.createElement('div');
-  chartWrapper.className = 'donut-chart-svg-container';
-  
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('viewBox', '0 0 100 100');
-  
-  const textGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-  const totalText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-  totalText.setAttribute('x', '50');
-  totalText.setAttribute('y', '48');
-  totalText.setAttribute('class', 'donut-center-value');
-  totalText.setAttribute('text-anchor', 'middle');
-  totalText.textContent = totalValue.toLocaleString();
-  
-  const labelText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-  labelText.setAttribute('x', '50');
-  labelText.setAttribute('y', '62');
-  labelText.setAttribute('class', 'donut-center-label');
-  labelText.setAttribute('text-anchor', 'middle');
-  labelText.textContent = centerLabel;
-  
-  textGroup.append(totalText, labelText);
-
-  if (totalValue === 0) {
-    svg.innerHTML = `<circle cx="50" cy="50" r="40" stroke="#e5e7eb" stroke-width="15" fill="none"/>`;
-  } else {
-    const radius = 40;
-    const strokeWidth = 15;
-    const circumference = 2 * Math.PI * radius;
-    let offset = 0;
-
-    data.forEach(item => {
-        if (item.value === 0) return;
-        const percent = (item.value / totalValue) * 100;
-        const segmentLength = (percent / 100) * circumference;
-        const segment = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        segment.setAttribute('cx', '50'); segment.setAttribute('cy', '50');
-        segment.setAttribute('r', String(radius)); segment.setAttribute('fill', 'none');
-        segment.setAttribute('stroke', item.color); segment.setAttribute('stroke-width', String(strokeWidth));
-        segment.setAttribute('stroke-dasharray', `${segmentLength} ${circumference}`);
-        segment.setAttribute('stroke-dashoffset', String(-offset));
-        segment.setAttribute('transform', `rotate(-90 50 50)`);
-        svg.appendChild(segment);
-        offset += segmentLength;
-    });
-  }
-  svg.appendChild(textGroup);
-  chartWrapper.appendChild(svg);
-  container.appendChild(chartWrapper);
-
-  const legend = document.createElement('div');
-  legend.className = 'donut-chart-legend horizontal';
-  data.forEach(item => {
-    const legendItem = document.createElement('div');
-    legendItem.className = 'donut-legend-item';
-    legendItem.innerHTML = `<span class="legend-color-box" style="background-color: ${item.color};"></span>
-                            <span class="legend-label">${item.label}</span>
-                            <span class="legend-value">${item.value.toLocaleString()} days</span>`;
-    legend.appendChild(legendItem);
-  });
-  
-  container.appendChild(legend);
-  return container;
+/**
+ * Timezone-safe way to check if a date is a weekday and not a holiday.
+ * @param {string} dateString - The date in 'YYYY-MM-DD' format.
+ * @param {Array<Object>} holidays - An array of holiday objects.
+ * @returns {boolean} - True if it's a workday.
+ */
+function isWorkDay(dateString, holidays) {
+    const date = new Date(dateString + 'T00:00:00');
+    const dayOfWeek = date.getDay();
+    if (dayOfWeek === 0 || dayOfWeek === 6) { // Sunday or Saturday
+        return false;
+    }
+    if (holidays.some(h => h.date === dateString)) {
+        return false;
+    }
+    return true;
 }
 
-function createBarChart(data, title, onItemClick, selectedItem) {
-    const container = document.createElement('div');
-    container.className = 'bar-chart-container';
+// --- Main Render Function ---
+
+export function renderAttendancePage(container, props) {
+    const {
+        teamMembers,
+        attendanceRecords,
+        currentUser,
+        leaveTypes,
+        holidays,
+        internalTeams,
+        onUpsertAttendanceRecord,
+        onDeleteAttendanceRecord,
+        onAddTeamMember,
+        onUpdateTeamMember,
+        onDeleteTeamMember,
+        onExport,
+        onImport,
+        onExportTeam,
+        onImportTeam
+    } = props;
+    const isManager = currentUser.role === TeamMemberRole.Manager;
     
-    if (title) {
-        const chartTitle = document.createElement('h4');
-        chartTitle.className = 'kpi-panel-section-title';
-        chartTitle.textContent = title;
-        container.appendChild(chartTitle);
+    // Page state
+    let selectedDate = new Date().toISOString().split('T')[0];
+    let teamMemberFilters = { searchTerm: '', team: '' };
+    let selectedLeaveTypeFilter = null;
+    let selectedStatusFilter = null;
+
+
+    container.innerHTML = '';
+    const pageWrapper = document.createElement('div');
+    pageWrapper.className = 'page-container';
+
+    const mainGrid = document.createElement('div');
+    mainGrid.className = 'analysis-dashboard-grid'; // Reuse dashboard grid layout
+
+    const leftCol = document.createElement('div');
+    leftCol.className = 'analysis-dashboard-left-col';
+
+    const rightCol = document.createElement('div');
+    rightCol.className = 'analysis-dashboard-right attendance-page-section'; // Make it a styled section
+    rightCol.style.position = 'sticky';
+    rightCol.style.top = '5rem';
+
+
+    function rerender() {
+        // This function will re-render specific parts of the page that change,
+        // rather than the whole page.
+        renderDailyLog();
+        renderAnalysisSection();
     }
 
-    const chart = document.createElement('div');
-    chart.className = 'bar-chart';
-    
-    const maxValue = Math.max(...data.map(d => d.value), 0);
-    
-    if (maxValue === 0) {
-        chart.innerHTML = `<p class="insight-list-empty">No leave data available.</p>`;
-    } else {
-        data.forEach(item => {
-            const barWrapper = document.createElement('div');
-            barWrapper.className = 'bar-chart-item';
+    // --- Header ---
+    const headerDiv = document.createElement('div');
+    headerDiv.className = "page-header";
+    headerDiv.innerHTML = `<h1 class="page-header-title">Attendance & Team</h1>`;
+    const headerActions = document.createElement('div');
+    headerActions.className = 'page-header-actions';
+    if (isManager) {
+        headerActions.append(
+            Button({ children: 'View Full Log', size: 'sm', variant: 'secondary', leftIcon: '<i class="fas fa-history"></i>', onClick: openAttendanceLogModal }),
+            Button({ children: 'Add Member', size: 'sm', leftIcon: '<i class="fas fa-user-plus"></i>', onClick: () => openTeamMemberModal() })
+        );
+    }
+    headerDiv.appendChild(headerActions);
 
-            if (onItemClick) {
-                barWrapper.classList.add('clickable');
-                barWrapper.onclick = () => onItemClick(item.label);
-            }
-            if (selectedItem && item.label === selectedItem) {
-                barWrapper.classList.add('selected');
-            }
-            
-            const barLabel = document.createElement('span');
-            barLabel.className = 'bar-chart-label';
-            barLabel.textContent = item.label;
-            
-            const barElement = document.createElement('div');
-            barElement.className = 'bar-chart-bar-wrapper';
-            
-            const barFill = document.createElement('div');
-            barFill.className = 'bar-chart-bar';
-            barFill.style.width = `${(item.value / maxValue) * 100}%`;
-            barFill.style.backgroundColor = item.color;
-            
-            const barValue = document.createElement('span');
-            barValue.className = 'bar-chart-value';
-            barValue.textContent = `${item.value} day(s)`;
-            
-            barElement.appendChild(barFill);
-            barWrapper.append(barLabel, barElement, barValue);
-            chart.appendChild(barWrapper);
+
+    // --- Left Column Content ---
+    
+    // 1. Daily Log
+    const dailyLogSection = document.createElement('div');
+    dailyLogSection.className = 'daily-log-section';
+    
+    function renderDailyLog() {
+        dailyLogSection.innerHTML = ''; // Clear previous content
+        
+        const header = document.createElement('div');
+        header.className = 'daily-log-header';
+        header.innerHTML = `<h2 class="daily-log-title">Daily Log</h2>`;
+        
+        const datePicker = document.createElement('input');
+        datePicker.type = 'date';
+        datePicker.className = 'form-input';
+        datePicker.style.maxWidth = '180px';
+        datePicker.value = selectedDate;
+        datePicker.onchange = (e) => {
+            selectedDate = e.target.value;
+            renderDailyLog(); // Only re-render the log section
+        };
+        header.appendChild(datePicker);
+        dailyLogSection.appendChild(header);
+
+        const gridContainer = document.createElement('div');
+        gridContainer.className = 'daily-log-grid-container';
+        const grid = document.createElement('div');
+        grid.className = 'daily-log-grid';
+        
+        const activeMembers = teamMembers.filter(m => m.status === EmployeeStatus.Active);
+
+        if (activeMembers.length > 0) {
+            activeMembers.forEach(member => {
+                const record = attendanceRecords.find(r => r.date === selectedDate && r.memberId === member.id);
+                const card = AttendanceCard({ member, date: selectedDate, record, leaveTypes, holidays, onUpsertRecord: onUpsertAttendanceRecord });
+                grid.appendChild(card);
+            });
+        } else {
+            grid.innerHTML = `<div class="no-data-placeholder"><i class="fas fa-users-slash icon"></i><p class="primary-text">No active team members found.</p></div>`;
+        }
+        
+        gridContainer.appendChild(grid);
+        dailyLogSection.appendChild(gridContainer);
+    }
+    
+    // 2. Team Management
+    const teamManagementSection = document.createElement('div');
+    teamManagementSection.className = 'attendance-page-section';
+    const teamListContainer = document.createElement('div');
+    
+    function renderTeamManagement() {
+        teamManagementSection.innerHTML = ''; // Clear
+        teamManagementSection.innerHTML = `<h2 class="attendance-section-title">Team Management</h2>`;
+        
+        const toolbar = document.createElement('div');
+        toolbar.className = 'team-management-toolbar';
+        
+        const filters = document.createElement('div');
+        filters.className = 'team-management-filters';
+        
+        const searchInput = document.createElement('input');
+        searchInput.type = 'text';
+        searchInput.placeholder = 'Search by name...';
+        searchInput.className = 'form-input';
+        searchInput.value = teamMemberFilters.searchTerm;
+        searchInput.oninput = (e) => {
+            teamMemberFilters.searchTerm = e.target.value;
+            renderTeamList();
+        };
+        filters.appendChild(searchInput);
+
+        const teamSelect = document.createElement('select');
+        teamSelect.className = 'form-select';
+        teamSelect.innerHTML = `<option value="">All Teams</option>` + internalTeams.map(t => `<option value="${t}">${t}</option>`).join('');
+        teamSelect.value = teamMemberFilters.team;
+        teamSelect.onchange = (e) => {
+            teamMemberFilters.team = e.target.value;
+            renderTeamList();
+        };
+        filters.appendChild(teamSelect);
+        
+        const actions = document.createElement('div');
+        actions.className = 'team-management-actions';
+        if (isManager) {
+            actions.append(
+                Button({ children: 'Export', variant: 'secondary', size: 'sm', onClick: onExportTeam }),
+                FileUploadButton({ children: 'Import', variant: 'secondary', size: 'sm', accept: '.csv', onFileSelect: onImportTeam })
+            );
+        }
+        
+        toolbar.append(filters, actions);
+        teamManagementSection.appendChild(toolbar);
+        
+        teamListContainer.innerHTML = '';
+        teamListContainer.className = 'data-table-container';
+        teamManagementSection.appendChild(teamListContainer);
+        renderTeamList();
+    }
+    
+    function renderTeamList() {
+        teamListContainer.innerHTML = '';
+        const filteredMembers = teamMembers.filter(m => {
+            const matchesSearch = !teamMemberFilters.searchTerm || m.name.toLowerCase().includes(teamMemberFilters.searchTerm.toLowerCase());
+            const matchesTeam = !teamMemberFilters.team || m.internalTeam === teamMemberFilters.team;
+            return matchesSearch && matchesTeam;
         });
+
+        if (filteredMembers.length === 0) {
+            teamListContainer.innerHTML = `<div class="no-data-placeholder"><p class="primary-text">No members match your search.</p></div>`;
+            return;
+        }
+
+        const table = document.createElement('table');
+        table.className = 'data-table team-members-table';
+        table.innerHTML = `<thead>
+            <tr>
+                <th>Name</th>
+                <th>Designation</th>
+                <th>Internal Team</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th class="action-cell">Actions</th>
+            </tr>
+        </thead>`;
+        const tbody = document.createElement('tbody');
+        filteredMembers.forEach(member => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${member.name}</td>
+                <td>${member.designation || 'N/A'}</td>
+                <td>${member.internalTeam || 'N/A'}</td>
+                <td>${member.role}</td>
+                <td><span class="team-status-badge status-${member.status.toLowerCase()}">${member.status}</span></td>
+            `;
+            const actionCell = document.createElement('td');
+            actionCell.className = 'action-cell';
+            const viewBtn = Button({ children: 'View', size: 'sm', variant: 'ghost', onClick: (e) => { e.stopPropagation(); openTeamMemberModal(member); } });
+            actionCell.appendChild(viewBtn);
+            tr.appendChild(actionCell);
+            
+            tr.onclick = () => openTeamMemberModal(member);
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        teamListContainer.appendChild(table);
     }
-    container.appendChild(chart);
-    return container;
-}
+    
 
+    // --- Right Column Content (Analysis) ---
+    function renderAnalysisSection() {
+        rightCol.innerHTML = `<h2 class="attendance-section-title">Attendance Analysis</h2>`;
 
-function createInsightList(title, items, unit = 'days') {
-    const container = document.createElement('div');
-    container.className = 'insight-list-wrapper';
+        // 1. Work Day Status Distribution
+        const workDayData = getWorkDayStatusData();
+        const workDaySection = document.createElement('div');
+        workDaySection.className = 'status-distribution-grid';
+        workDaySection.appendChild(renderDonutChart(workDayData));
+        workDaySection.appendChild(renderDaysNotMarkedList());
+        rightCol.appendChild(workDaySection);
 
-    const listTitle = document.createElement('h4');
-    listTitle.className = 'kpi-panel-section-title';
-    listTitle.textContent = title;
-    container.appendChild(listTitle);
+        rightCol.appendChild(document.createElement('hr'));
+        
+        // 2. Leave Types Breakdown
+        const leaveBreakdownData = getLeaveTypeBreakdown();
+        rightCol.appendChild(renderBarChart({
+            title: 'Leave Types Breakdown (All Time)',
+            data: leaveBreakdownData,
+            onBarClick: (leaveType) => {
+                selectedLeaveTypeFilter = selectedLeaveTypeFilter === leaveType ? null : leaveType;
+                rerender();
+            },
+            selectedItem: selectedLeaveTypeFilter
+        }));
 
-    if (items.length === 0) {
-        container.innerHTML += `<p class="insight-list-empty">No data available.</p>`;
+        rightCol.appendChild(document.createElement('hr'));
+
+        // 3. Member Insights
+        rightCol.appendChild(renderMemberInsights());
+    }
+    
+    function renderDonutChart(data) {
+        const container = document.createElement('div');
+        container.className = 'donut-chart-vertical-container';
+
+        const chartWrapper = document.createElement('div');
+        chartWrapper.className = 'donut-chart-svg-container clickable';
+        
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('viewBox', '0 0 120 120');
+        const radius = 50;
+        const circumference = 2 * Math.PI * radius;
+
+        let offset = 0;
+        data.segments.forEach(seg => {
+            if (seg.value === 0) return;
+            const segmentPath = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            segmentPath.setAttribute('class', `segment ${selectedStatusFilter === seg.label ? 'selected' : ''}`);
+            segmentPath.setAttribute('cx', '60');
+            segmentPath.setAttribute('cy', '60');
+            segmentPath.setAttribute('r', String(radius));
+            segmentPath.setAttribute('fill', 'none');
+            segmentPath.setAttribute('stroke', seg.color);
+            segmentPath.setAttribute('stroke-width', '20');
+            segmentPath.setAttribute('stroke-dasharray', `${(seg.value / data.total) * circumference} ${circumference}`);
+            segmentPath.setAttribute('stroke-dashoffset', String(-offset));
+            segmentPath.setAttribute('transform', 'rotate(-90 60 60)');
+            segmentPath.onclick = () => {
+                selectedStatusFilter = selectedStatusFilter === seg.label ? null : seg.label;
+                rerender();
+            };
+            svg.appendChild(segmentPath);
+            offset += (seg.value / data.total) * circumference;
+        });
+
+        // Center text
+        const centerCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        centerCircle.setAttribute('cx', '60');
+        centerCircle.setAttribute('cy', '60');
+        centerCircle.setAttribute('r', '40');
+        centerCircle.setAttribute('fill', 'var(--donut-center-color)');
+        svg.appendChild(centerCircle);
+
+        const totalText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        totalText.setAttribute('x', '60');
+        totalText.setAttribute('y', '62');
+        totalText.setAttribute('text-anchor', 'middle');
+        totalText.setAttribute('class', 'donut-center-value');
+        totalText.textContent = data.total;
+        svg.appendChild(totalText);
+
+        const labelText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        labelText.setAttribute('x', '60');
+        labelText.setAttribute('y', '78');
+        labelText.setAttribute('text-anchor', 'middle');
+        labelText.setAttribute('class', 'donut-center-label');
+        labelText.textContent = 'Total Man-Days';
+        svg.appendChild(labelText);
+        
+        chartWrapper.appendChild(svg);
+        container.appendChild(chartWrapper);
+
+        const legend = document.createElement('div');
+        legend.className = 'donut-chart-legend horizontal';
+        data.segments.forEach(seg => {
+            const item = document.createElement('div');
+            item.className = `donut-legend-item clickable ${selectedStatusFilter === seg.label ? 'selected' : ''}`;
+            item.innerHTML = `
+                <span class="legend-color-box" style="background-color:${seg.color}"></span>
+                <span class="legend-label">${seg.label}</span>
+                <span class="legend-value">${seg.value} days</span>
+            `;
+            item.onclick = () => {
+                selectedStatusFilter = selectedStatusFilter === seg.label ? null : seg.label;
+                rerender();
+            };
+            legend.appendChild(item);
+        });
+        container.appendChild(legend);
+
         return container;
     }
 
-    const list = document.createElement('ul');
-    list.className = 'insight-list';
-    const maxValue = items.length > 0 ? items[0].value : 0;
-
-    items.slice(0, 5).forEach(item => {
-        const percentage = maxValue > 0 ? (item.value / maxValue) * 100 : 0;
-        const li = document.createElement('li');
-        li.className = 'insight-list-item';
-        li.innerHTML = `
-            <div class="insight-item-label" title="${item.label}">${item.label}</div>
-            <div class="insight-item-bar-container">
-                <div class="insight-item-bar" style="width: ${percentage}%; background-color: ${item.color || 'var(--color-primary)'};"></div>
-            </div>
-            <div class="insight-item-value">${item.value.toLocaleString()} ${unit}</div>
-        `;
-        list.appendChild(li);
-    });
-
-    container.appendChild(list);
-    return container;
-}
-
-export function renderAttendancePage(container, props) {
-  const {
-    attendanceRecords, teamMembers, projects, currentUser,
-    attendanceStatuses, leaveTypes, onUpsertAttendanceRecord, onDeleteAttendanceRecord,
-    onExport, onImport, maxTeamMembers, onAddTeamMember, onUpdateTeamMember,
-    onDeleteTeamMember, onExportTeam, onImportTeam, internalTeams, holidays
-  } = props;
-
-  const isManager = currentUser.role === TeamMemberRole.Manager;
-
-  const toYYYYMMDD = (date) => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  };
-
-  // State for daily log
-  let selectedDate = toYYYYMMDD(new Date());
-
-  // State for analysis section
-  let analysisStartDate = toYYYYMMDD(new Date(new Date().setDate(new Date().getDate() - 29)));
-  let analysisEndDate = toYYYYMMDD(new Date());
-  let analysisMemberFilter = '';
-  let selectedLeaveType = null;
-
-  // State for log viewer modal
-  let logMemberFilter = '';
-  let logStartDateFilter = toYYYYMMDD(new Date(new Date().setDate(new Date().getDate() - 30)));
-  let logEndDateFilter = toYYYYMMDD(new Date());
-  let displayLogs = [];
-  
-  let teamSearchTerm = '';
-  let departmentFilter = '';
-  let teamSortOrder = 'nameAsc';
-
-  container.innerHTML = '';
-  const pageWrapper = document.createElement('div');
-  pageWrapper.className = 'page-container';
-
-  const headerDiv = document.createElement('div');
-  headerDiv.className = "page-header";
-  const headerTitle = document.createElement('h1');
-  headerTitle.className = "page-header-title";
-  headerTitle.textContent = 'Attendance Tracker';
-  headerDiv.appendChild(headerTitle);
-
-  const datePickerDiv = document.createElement('div');
-  datePickerDiv.className = "flex items-center space-x-2";
-  const dateLabel = document.createElement('span');
-  dateLabel.className = 'form-label';
-  dateLabel.style.marginBottom = '0';
-  dateLabel.textContent = 'Select Date for Daily Log:';
-  datePickerDiv.appendChild(dateLabel);
-  const dateInput = document.createElement('input');
-  dateInput.type = "date"; dateInput.value = selectedDate;
-  dateInput.className = "form-input";
-  dateInput.setAttribute('aria-label', 'Select date for daily log');
-  dateInput.onchange = (e) => { 
-      selectedDate = e.target.value; 
-      renderDailyLogGrid(); 
-      updateDailyLogTitle(); 
-      renderTeamList(); 
-  };
-  datePickerDiv.appendChild(dateInput);
-  headerDiv.appendChild(datePickerDiv);
-  pageWrapper.appendChild(headerDiv);
-
-  // --- NEW: Attendance Analysis Section ---
-  const analysisSection = document.createElement('div');
-  analysisSection.className = 'attendance-page-section';
-  pageWrapper.appendChild(analysisSection);
-
-  function renderAnalysisSection() {
-      analysisSection.innerHTML = '';
-
-      // Filters
-      const filtersDiv = document.createElement('div');
-      filtersDiv.className = "worklog-filters-container";
-      const filterGrid = document.createElement('div');
-      filterGrid.className = "worklog-filters-grid";
-
-      if (isManager) {
-        const memberFilterContainer = document.createElement('div');
-        memberFilterContainer.innerHTML = `<label for="analysisMemberFilter" class="form-label">Member</label>`;
-        const memberFilter = document.createElement('select');
-        memberFilter.id = 'analysisMemberFilter';
-        memberFilter.className = "form-select";
-        memberFilter.innerHTML = `<option value="">All Members</option>` + teamMembers.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
-        memberFilter.value = analysisMemberFilter;
-        memberFilter.onchange = (e) => { analysisMemberFilter = e.target.value; renderAnalysisSection(); };
-        memberFilterContainer.appendChild(memberFilter);
-        filterGrid.appendChild(memberFilterContainer);
-      }
-
-      const dateRangeOuterContainer = document.createElement('div');
-      dateRangeOuterContainer.className = "filter-date-range-container";
-      dateRangeOuterContainer.innerHTML = `<label class="form-label">Analysis Date Range</label>`;
-      const dateRangeInnerContainer = document.createElement('div');
-      dateRangeInnerContainer.className = "filter-date-range-inner";
-      
-      const startDateInput = document.createElement('input');
-      startDateInput.type = 'date'; startDateInput.className = 'form-input';
-      startDateInput.value = analysisStartDate;
-      startDateInput.onchange = e => { analysisStartDate = e.target.value; renderAnalysisSection(); };
-      
-      const toLabel = document.createElement('span');
-      toLabel.className = 'date-range-separator';
-      toLabel.textContent = 'to';
-
-      const endDateInput = document.createElement('input');
-      endDateInput.type = 'date'; endDateInput.className = 'form-input';
-      endDateInput.value = analysisEndDate;
-      endDateInput.onchange = e => { analysisEndDate = e.target.value; renderAnalysisSection(); };
-      dateRangeInnerContainer.append(startDateInput, toLabel, endDateInput);
-      dateRangeOuterContainer.appendChild(dateRangeInnerContainer);
-      filterGrid.appendChild(dateRangeOuterContainer);
-      
-      filtersDiv.appendChild(filterGrid);
-      analysisSection.appendChild(filtersDiv);
-
-      // --- Data Calculation ---
-      const membersToAnalyze = analysisMemberFilter 
-        ? teamMembers.filter(m => m.id === analysisMemberFilter)
-        : teamMembers;
-      
-      const holidayDates = new Set((holidays || []).map(h => h.date));
-      let periodWorkDays = 0;
-
-      if (analysisStartDate <= analysisEndDate) {
-          for (let day = new Date(analysisStartDate + 'T00:00:00'); day <= new Date(analysisEndDate + 'T00:00:00'); day.setDate(day.getDate() + 1)) {
-              const dayOfWeek = day.getDay();
-              const dateStr = toYYYYMMDD(day);
-              if (dayOfWeek !== 0 && dayOfWeek !== 6 && !holidayDates.has(dateStr)) {
-                  periodWorkDays++;
-              }
-          }
-      }
-      
-      const totalExpectedManDays = periodWorkDays * membersToAnalyze.length;
-
-      const filteredRecords = attendanceRecords.filter(rec => {
-          const isMemberMatch = !analysisMemberFilter || rec.memberId === analysisMemberFilter;
-          const isDateMatch = rec.date >= analysisStartDate && rec.date <= analysisEndDate;
-          return isMemberMatch && isDateMatch;
-      });
-      
-      const statsOnWorkDays = { present: 0, wfh: 0, leave: 0 };
-      const leavesByType = {}; // For bar chart (all days)
-      const presenceByMember = {}; // For insights (all days)
-
-      filteredRecords.forEach(rec => {
-          // For Member Insights (original logic, includes weekends/holidays if worked)
-          if (rec.status === AttendanceStatus.Leave) {
-              const leaveType = rec.leaveType || 'Other';
-              leavesByType[leaveType] = (leavesByType[leaveType] || 0) + 1;
-          }
-          if (rec.status === AttendanceStatus.Present || rec.status === AttendanceStatus.WorkFromHome) {
-              presenceByMember[rec.memberId] = (presenceByMember[rec.memberId] || 0) + 1;
-          }
-          
-          // For KPI cards & Donut Chart (new logic, only count on work days)
-          const recDate = new Date(rec.date + 'T00:00:00');
-          const dayOfWeek = recDate.getDay();
-          const isWorkDay = dayOfWeek !== 0 && dayOfWeek !== 6 && !holidayDates.has(rec.date);
-
-          if (isWorkDay) {
-              if (rec.status === AttendanceStatus.Present) statsOnWorkDays.present++;
-              if (rec.status === AttendanceStatus.WorkFromHome) statsOnWorkDays.wfh++;
-              if (rec.status === AttendanceStatus.Leave) statsOnWorkDays.leave++;
-          }
-      });
-      
-      const totalPresence = statsOnWorkDays.present + statsOnWorkDays.wfh;
-      const totalLeavesOnWorkDays = statsOnWorkDays.leave;
-      const notMarked = Math.max(0, totalExpectedManDays - (totalPresence + totalLeavesOnWorkDays));
-      const presenceRate = totalExpectedManDays > 0 ? ((totalPresence / totalExpectedManDays) * 100).toFixed(0) : 0;
-      
-      // Summary Cards
-      const summaryContainer = document.createElement('div');
-      summaryContainer.className = 'work-log-summary-container'; // Reusing this class works well for 4 items
-      summaryContainer.innerHTML = `
-          <div class="work-log-summary-card">
-              <div class="label">Working Days in Period</div>
-              <div class="value">${periodWorkDays.toLocaleString()}</div>
-              <div class="sub-label">Excludes weekends & holidays</div>
-          </div>
-          <div class="work-log-summary-card">
-              <div class="label">Total Expected Man-Days</div>
-              <div class="value">${totalExpectedManDays.toLocaleString()}</div>
-              <div class="sub-label">${periodWorkDays} days × ${membersToAnalyze.length} members</div>
-          </div>
-          <div class="work-log-summary-card">
-              <div class="label">Total Presence (Man-Days)</div>
-              <div class="value">${totalPresence.toLocaleString()}</div>
-              <div class="sub-label">Present & WFH on work days</div>
-          </div>
-          <div class="work-log-summary-card">
-              <div class="label">Team Presence Rate</div>
-              <div class="value">${presenceRate}%</div>
-              <div class="sub-label">(${totalPresence.toLocaleString()} of ${totalExpectedManDays.toLocaleString()} expected)</div>
-          </div>
-      `;
-      analysisSection.appendChild(summaryContainer);
-      
-      // --- Analysis Grid ---
-      const analysisGrid = document.createElement('div');
-      analysisGrid.className = 'analysis-dashboard-grid';
-      analysisGrid.style.marginTop = '1.5rem';
-
-      // --- Left Column ---
-      const leftCol = document.createElement('div');
-      leftCol.className = 'analysis-dashboard-left-col';
-
-      // Panel 1: Status Distribution
-      const statusPanel = document.createElement('div');
-      statusPanel.className = 'kpi-insights-panel';
-      statusPanel.innerHTML = `<h3 class="kpi-panel-title"><i class="fas fa-chart-pie"></i> Work Day Status Distribution</h3>`;
-      
-      // Create a grid for the layout
-      const distributionGrid = document.createElement('div');
-      distributionGrid.className = 'status-distribution-grid';
-
-      // --- Column 1: Donut Chart ---
-      const donutContainer = document.createElement('div');
-      const donutData = [
-          { label: 'Present', value: statsOnWorkDays.present, color: '#22c55e' },
-          { label: 'Work From Home', value: statsOnWorkDays.wfh, color: '#3b82f6' },
-          { label: 'Leave', value: statsOnWorkDays.leave, color: '#f97316' },
-          { label: 'Not Marked', value: notMarked, color: '#6b7280' },
-      ];
-      donutContainer.appendChild(createDonutChart(donutData, totalExpectedManDays, 'Total Man-Days'));
-      distributionGrid.appendChild(donutContainer);
-
-      // --- Column 2: Days Not Marked List ---
-      const unmarkedListDisplayContainer = document.createElement('div');
-      
-      const unmarkedDaysList = [];
-      if (notMarked > 0) {
-          const recordsSet = new Set(filteredRecords.map(r => `${r.memberId}|${r.date}`));
-          for (let day = new Date(analysisStartDate + 'T00:00:00'); day <= new Date(analysisEndDate + 'T00:00:00'); day.setDate(day.getDate() + 1)) {
-              const dayOfWeek = day.getDay();
-              const dateStr = toYYYYMMDD(day);
-              const isWorkDay = dayOfWeek !== 0 && dayOfWeek !== 6 && !holidayDates.has(dateStr);
-              
-              if (isWorkDay) {
-                  for (const member of membersToAnalyze) {
-                      if (!recordsSet.has(`${member.id}|${dateStr}`)) {
-                          unmarkedDaysList.push({ date: dateStr, memberName: member.name });
-                      }
-                  }
-              }
-          }
-      }
-
-      const unmarkedListTitle = document.createElement('h4');
-      unmarkedListTitle.className = 'kpi-panel-section-title';
-      unmarkedListTitle.textContent = `Days Not Marked (${unmarkedDaysList.length})`;
-      unmarkedListDisplayContainer.appendChild(unmarkedListTitle);
-      
-      if (unmarkedDaysList.length > 0) {
-        const ul = document.createElement('ul');
-        ul.className = 'days-not-marked-list';
-        unmarkedDaysList.sort((a,b) => a.date.localeCompare(b.date)).forEach(item => {
-            const li = document.createElement('li');
-            li.textContent = `${item.date} - ${item.memberName}`;
-            ul.appendChild(li);
-        });
-        unmarkedListDisplayContainer.appendChild(ul);
-      } else {
-        unmarkedListDisplayContainer.innerHTML += `<p class="insight-list-empty" style="padding-top:1rem;">All work days are marked. Great job!</p>`;
-      }
-      distributionGrid.appendChild(unmarkedListDisplayContainer);
-      
-      statusPanel.appendChild(distributionGrid);
-      leftCol.appendChild(statusPanel);
-      
-      // Panel 2: Leave Breakdown Chart
-      const leaveBreakdownPanel = document.createElement('div');
-      leaveBreakdownPanel.className = 'kpi-insights-panel';
-      const leaveTypesData = Object.entries(leavesByType)
-        .map(([type, count]) => ({ label: type, value: count, color: '#ef4444' }))
-        .sort((a,b) => b.value - a.value);
-      
-      const handleLeaveTypeClick = (leaveType) => {
-        selectedLeaveType = selectedLeaveType === leaveType ? null : leaveType;
-        renderAnalysisSection();
-      };
-      
-      leaveBreakdownPanel.appendChild(createBarChart(leaveTypesData, 'Leave Types Breakdown (All Days)', handleLeaveTypeClick, selectedLeaveType));
-      leftCol.appendChild(leaveBreakdownPanel);
-
-      analysisGrid.appendChild(leftCol);
-
-      // --- Right Column: Insights ---
-      const rightCol = document.createElement('div');
-      rightCol.className = 'kpi-insights-panel';
-      rightCol.innerHTML = `<h3 class="kpi-panel-title"><i class="fas fa-chart-line"></i> Member Insights</h3>`;
-
-      const leavesForInsights = filteredRecords.filter(rec => {
-          if (rec.status !== AttendanceStatus.Leave) return false;
-          if (selectedLeaveType) return (rec.leaveType || 'Other') === selectedLeaveType;
-          return true;
-      });
-      const leavesByMember = {};
-      leavesForInsights.forEach(rec => {
-        leavesByMember[rec.memberId] = (leavesByMember[rec.memberId] || 0) + 1;
-      });
-
-      const topLeaves = Object.entries(leavesByMember)
-        .map(([memberId, count]) => ({ label: teamMembers.find(m => m.id === memberId)?.name || 'Unknown', value: count }))
-        .sort((a,b) => b.value - a.value);
-      const topLeavesTitle = selectedLeaveType ? `Most Leaves Taken (${selectedLeaveType})` : 'Most Leaves Taken (All Days)';
-      rightCol.appendChild(createInsightList(topLeavesTitle, topLeaves, 'days'));
-      
-      const topPresence = Object.entries(presenceByMember)
-        .map(([memberId, count]) => ({ label: teamMembers.find(m => m.id === memberId)?.name || 'Unknown', value: count, color: '#16a34a' }))
-        .sort((a,b) => b.value - a.value);
-      rightCol.appendChild(createInsightList('Highest Presence (All Days)', topPresence, 'days'));
-      
-      // Weekday analysis
-      const weekdayCounts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }; // Mon-Fri
-      const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      leavesForInsights.forEach(rec => {
-          const day = new Date(rec.date + 'T00:00:00').getDay();
-          if (day >= 1 && day <= 5) { // Only count weekdays
-              weekdayCounts[day]++;
-          }
-      });
-      const weekdayData = Object.entries(weekdayCounts).map(([day, count]) => ({
-          label: weekdays[Number(day)],
-          value: count,
-          color: '#8b5cf6'
-      }));
-      const weekdayChartTitle = selectedLeaveType ? `Weekday Breakdown for ${selectedLeaveType}` : 'Leave by Weekday (All Types)';
-      rightCol.appendChild(createBarChart(weekdayData, weekdayChartTitle));
-
-      analysisGrid.appendChild(rightCol);
-      analysisSection.appendChild(analysisGrid);
-  }
-
-  // Team Management Section - Visible to all, actions are conditional
-  const teamManagementDiv = document.createElement('div');
-  teamManagementDiv.className = "attendance-page-section";
-  const tmTitle = document.createElement('h2');
-  tmTitle.className = "attendance-section-title";
-  tmTitle.textContent = "Team Management";
-  teamManagementDiv.appendChild(tmTitle);
-  
-  const tmToolbar = document.createElement('div');
-  tmToolbar.className = 'team-management-toolbar';
-
-  const tmFiltersContainer = document.createElement('div');
-  tmFiltersContainer.className = 'team-management-filters';
-
-  // Filters are only visible to managers
-  if (!isManager) {
-    tmFiltersContainer.style.display = 'none';
-  }
-
-  const searchInput = document.createElement('input');
-  searchInput.type = 'text';
-  searchInput.placeholder = 'Filter by name...';
-  searchInput.className = 'form-input';
-  searchInput.oninput = (e) => { teamSearchTerm = e.target.value; renderTeamList(); };
-  tmFiltersContainer.appendChild(searchInput);
-
-  const uniqueDepartments = Array.from(new Set(teamMembers.map(m => m.department).filter(Boolean)));
-  if (uniqueDepartments.length > 0) {
-    const departmentSelect = document.createElement('select');
-    departmentSelect.className = 'form-select';
-    departmentSelect.innerHTML = `<option value="">All Departments</option>` + uniqueDepartments.map(d => `<option value="${d}">${d}</option>`).join('');
-    departmentSelect.value = departmentFilter;
-    departmentSelect.onchange = (e) => { departmentFilter = e.target.value; renderTeamList(); };
-    tmFiltersContainer.appendChild(departmentSelect);
-  }
-
-  const sortOptions = [
-    { value: 'nameAsc', label: 'Sort: Name (A-Z)' },
-    { value: 'nameDesc', label: 'Sort: Name (Z-A)' },
-    { value: 'designationAsc', label: 'Sort: Designation (A-Z)' },
-    { value: 'designationDesc', label: 'Sort: Designation (Z-A)' },
-  ];
-  const sortSelect = document.createElement('select');
-  sortSelect.className = 'form-select';
-  sortSelect.innerHTML = sortOptions.map(opt => `<option value="${opt.value}" ${opt.value === teamSortOrder ? 'selected' : ''}>${opt.label}</option>`).join('');
-  sortSelect.onchange = (e) => { teamSortOrder = e.target.value; renderTeamList(); };
-  tmFiltersContainer.appendChild(sortSelect);
-
-  const tmActionsDiv = document.createElement('div');
-  tmActionsDiv.className = "team-management-actions";
-  
-  if (isManager) {
-      tmActionsDiv.append(
-        Button({
-            children: `Add Member (${teamMembers.length}/${maxTeamMembers})`, size: 'sm', leftIcon: '<i class="fas fa-user-plus"></i>',
-            onClick: () => openTeamMemberDetailModal(null), disabled: teamMembers.length >= maxTeamMembers
-        }),
-        Button({ 
-            children: 'Export Team CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-users-cog"></i>', onClick: onExportTeam 
-        }),
-        FileUploadButton({ 
-            children: 'Import Team CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-import"></i>', accept: '.csv', onFileSelect: (f) => handleFileImport(f, 'team') 
-        })
-      );
-  }
-  
-  tmToolbar.append(tmFiltersContainer, tmActionsDiv);
-  teamManagementDiv.appendChild(tmToolbar);
-
-  const teamListContainer = document.createElement('div');
-  teamListContainer.className = "team-list-container";
-  teamManagementDiv.appendChild(teamListContainer);
-  pageWrapper.appendChild(teamManagementDiv);
-
-
-  const dailyLogSection = document.createElement('div');
-  dailyLogSection.className = "daily-log-section";
-  const dailyLogHeader = document.createElement('div');
-  dailyLogHeader.className = "daily-log-header";
-  const dailyLogTitle = document.createElement('h2');
-  dailyLogTitle.className = "daily-log-title";
-  function updateDailyLogTitle() { dailyLogTitle.textContent = `Daily Log for ${new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`; }
-  updateDailyLogTitle();
-  dailyLogHeader.appendChild(dailyLogTitle);
-
-  if (isManager) {
-    const logActionsDiv = document.createElement('div');
-    logActionsDiv.className = "daily-log-actions";
-    logActionsDiv.append(
-      Button({ children: 'Export All Logs', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>', onClick: () => onExport('attendance') }),
-      FileUploadButton({ children: 'Import Logs', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-import"></i>', accept: '.csv', onFileSelect: (f) => handleFileImport(f, 'attendance') }),
-      Button({ children: 'View Attendance Logs', variant: 'primary', size: 'sm', leftIcon: '<i class="fas fa-history"></i>', onClick: openLogViewerModal })
-    );
-    dailyLogHeader.appendChild(logActionsDiv);
-  }
-
-  dailyLogSection.appendChild(dailyLogHeader);
-  const dailyLogGridContainer = document.createElement('div');
-  dailyLogGridContainer.className = 'daily-log-grid-container';
-  dailyLogSection.appendChild(dailyLogGridContainer);
-  pageWrapper.appendChild(dailyLogSection);
-
-  function renderTeamList() {
-    const teamListContainer = pageWrapper.querySelector('.team-list-container');
-    if (!teamListContainer) return;
-    teamListContainer.innerHTML = '';
-
-    const getAttendanceStatusBadge = (status) => {
-        if (!status) {
-            return `<span class="attendance-status-badge status-not-marked">Not Marked</span>`;
-        }
-        const statusClassMap = {
-            'Present': 'status-present',
-            'Work From Home': 'status-wfh',
-            'Leave': 'status-leave'
-        };
-        const className = statusClassMap[status] || 'status-default';
-        const text = status === 'Work From Home' ? 'WFH' : status;
-        return `<span class="attendance-status-badge ${className}">${text}</span>`;
-    };
-
-    const recordsForDate = attendanceRecords.filter(r => r.date === selectedDate);
-    
-    // Non-managers only see themselves. Managers see the full list.
-    const membersToDisplay = isManager ? teamMembers : [currentUser];
-
-    let filteredMembers = membersToDisplay.filter(member => 
-        member.name.toLowerCase().includes(teamSearchTerm.toLowerCase()) &&
-        (!departmentFilter || member.department === departmentFilter)
-    );
-
-    filteredMembers.sort((a, b) => {
-        switch (teamSortOrder) {
-            case 'nameDesc': return b.name.localeCompare(a.name);
-            case 'designationAsc': return (a.designation || '').localeCompare(b.designation || '');
-            case 'designationDesc': return (b.designation || '').localeCompare(a.designation || '');
-            case 'nameAsc':
-            default:
-                return a.name.localeCompare(b.name);
-        }
-    });
-
-    if (filteredMembers.length > 0) {
-      const groupedByCompany = filteredMembers.reduce((acc, member) => {
-        const companyName = member.company || 'Unaffiliated';
-        if (!acc[companyName]) {
-            acc[companyName] = [];
-        }
-        acc[companyName].push(member);
-        return acc;
-      }, {});
-
-      Object.entries(groupedByCompany).forEach(([company, members]) => {
-          const companyGroupWrapper = document.createElement('div');
-          companyGroupWrapper.className = 'company-group-wrapper';
-
-          const companyHeader = document.createElement('h3');
-          companyHeader.className = 'company-group-header';
-          companyHeader.textContent = company;
-          companyGroupWrapper.appendChild(companyHeader);
-          
-          const tableContainer = document.createElement('div');
-          tableContainer.className = 'data-table-container';
-
-          const table = document.createElement('table');
-          table.className = 'data-table team-members-table';
-          table.innerHTML = `<thead><tr><th>Name</th><th>Internal Team</th><th>Designation</th><th>Active Projects</th><th>Attendance Status</th></tr></thead>`;
-          const tbody = document.createElement('tbody');
-          members.forEach(member => {
-            const tr = document.createElement('tr');
-            tr.dataset.memberId = member.id;
-            
-            const activeProjectsCount = projects.filter(p => p.status !== 'Done' && (p.assignees || []).includes(member.id)).length;
-            const record = recordsForDate.find(r => r.memberId === member.id);
-
-            tr.innerHTML = `
-                <td>${member.name}</td>
-                <td>${member.internalTeam || 'N/A'}</td>
-                <td>${member.designation || 'N/A'}</td>
-                <td>${activeProjectsCount}</td>
-                <td>${getAttendanceStatusBadge(record?.status)}</td>
-            `;
-            
-            tbody.appendChild(tr);
-          });
-
-          // All users can click to view details, but only managers can edit from the modal.
-          tbody.addEventListener('click', (e) => {
-            const row = e.target.closest('tr');
-            if (row && row.dataset.memberId) {
-                const member = teamMembers.find(m => m.id === row.dataset.memberId);
-                if (member) openTeamMemberDetailModal(member, true);
-            }
-          });
-
-          table.appendChild(tbody);
-          tableContainer.appendChild(table);
-          companyGroupWrapper.appendChild(tableContainer);
-          teamListContainer.appendChild(companyGroupWrapper);
-      });
-    } else {
-      teamListContainer.innerHTML = `<p class="no-data-placeholder" style="padding: 1rem; box-shadow: none;">No team members found for the current filters.</p>`;
-    }
-  }
-
-  function renderDailyLogGrid() {
-    dailyLogGridContainer.innerHTML = '';
-    const membersToDisplay = isManager ? teamMembers : [currentUser];
-
-    if (membersToDisplay.length > 0) {
-      const grid = document.createElement('div');
-      grid.className = "daily-log-grid";
-      const recordsForDate = attendanceRecords.filter(r => r.date === selectedDate);
-      membersToDisplay.forEach(member => {
-        const record = recordsForDate.find(r => r.memberId === member.id);
-        grid.appendChild(AttendanceCard({ 
-            member, 
-            date: selectedDate, 
-            record, 
-            leaveTypes, 
-            holidays,
-            onUpsertRecord: onUpsertAttendanceRecord 
-        }));
-      });
-      dailyLogGridContainer.appendChild(grid);
-    } else {
-      dailyLogGridContainer.innerHTML = `<div class="no-team-placeholder"><i class="fas fa-users-slash icon"></i><p class="primary-text">No team members yet.</p><p class="secondary-text">Add members in the Team Management section above.</p></div>`;
-    }
-  }
-
-  function closeTeamModal() { closeGlobalModal(); currentTeamModalInstance = null; }
-  
-  function handleDeleteMember(memberId) {
-    if (window.confirm('Delete this member and all their associated data (attendance, work logs)? This cannot be undone.')) {
-      onDeleteTeamMember(memberId);
-      closeTeamModal();
-    }
-  }
-
-  function handleFileImport(file, type) {
-      if (type === 'attendance') {
-          onImport(file, 'attendance');
-      } else if (type === 'team') {
-          onImportTeam(file);
-      }
-  }
-  
-  function renderTeamMemberDetailView(member, projects) {
-    const detailView = document.createElement('div');
-    detailView.className = 'member-detail-view'; // Re-use project detail view styles
-
-    const formatDate = (dateString) => dateString ? new Date(dateString + 'T00:00:00').toLocaleDateString() : 'N/A';
-    const calculateAge = (birthDate) => {
-        if (!birthDate) return 'N/A';
-        const today = new Date();
-        const birth = new Date(birthDate);
-        let age = today.getFullYear() - birth.getFullYear();
-        const m = today.getMonth() - birth.getMonth();
-        if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
-            age--;
-        }
-        return `${age} years`;
-    };
-
-    const mainDetailsGrid = document.createElement('div');
-    mainDetailsGrid.className = 'detail-grid';
-    mainDetailsGrid.innerHTML = `
-        <div class="detail-item"><h4 class="detail-label">Email</h4><p class="detail-value">${member.email || 'N/A'}</p></div>
-        <div class="detail-item"><h4 class="detail-label">Mobile</h4><p class="detail-value">${member.mobileNumber || 'N/A'}</p></div>
-        <div class="detail-item"><h4 class="detail-label">Designation</h4><p class="detail-value">${member.designation || 'N/A'}</p></div>
-        <div class="detail-item"><h4 class="detail-label">Role</h4><p class="detail-value">${member.role}</p></div>
-        <div class="detail-item"><h4 class="detail-label">Internal Team</h4><p class="detail-value">${member.internalTeam || 'N/A'}</p></div>
-        <div class="detail-item"><h4 class="detail-label">Department</h4><p class="detail-value">${member.department || 'N/A'}</p></div>
-        <div class="detail-item"><h4 class="detail-label">Join Date</h4><p class="detail-value">${formatDate(member.joinDate)}</p></div>
-        <div class="detail-item"><h4 class="detail-label">Age</h4><p class="detail-value">${calculateAge(member.birthDate)}</p></div>
-    `;
-    mainDetailsGrid.appendChild(createIdFieldWithCopy('Member ID', member.id));
-    detailView.appendChild(mainDetailsGrid);
-
-    const activeProjects = projects.filter(p => p.status !== 'Done' && (p.assignees || []).includes(member.id));
-    if (activeProjects.length > 0) {
-        const projectsSection = document.createElement('div');
-        projectsSection.className = 'detail-section';
-        projectsSection.innerHTML = `<h4 class="detail-label">Active Projects (${activeProjects.length})</h4>`;
-        const projectList = document.createElement('ul');
-        projectList.className = 'detail-list';
-        projectList.innerHTML = activeProjects.map(p => `<li>${p.name}</li>`).join('');
-        projectsSection.appendChild(projectList);
-        detailView.appendChild(projectsSection);
-    }
-    
-    return detailView;
-  }
-
-  function openTeamMemberDetailModal(member, isReadOnly = false) {
-    let isEditing = !isReadOnly && isManager; // Only managers can start in edit mode.
-    if (!member && isManager) {
-        isEditing = true; // Always editing for a new member
-    } else if (!isManager) {
-        isEditing = false; // Non-managers can only view
-        isReadOnly = true;
-    }
-
-    let modalEl, modalBody, modalFooter;
-    const { onAddTeamMember, onUpdateTeamMember, internalTeams, projects, attendanceRecords, holidays } = props;
-
-    const renderContent = () => {
-        modalBody.innerHTML = '';
-        modalFooter.innerHTML = '';
-
-        if (isEditing) {
-            const formElement = TeamMemberForm({ 
-                member, 
-                internalTeams,
-                onSave: (memberData) => {
-                    if (member) onUpdateTeamMember(memberData);
-                    else onAddTeamMember(memberData);
-                    closeTeamModal();
-                }, 
-                onCancel: () => {
-                    if (isReadOnly && member) {
-                        isEditing = false;
-                        renderContent();
-                    } else {
-                        closeTeamModal();
+    function renderDaysNotMarkedList() {
+        const container = document.createElement('div');
+        
+        const activeMembers = teamMembers.filter(m => m.status === 'Active');
+        const startDate = new Date(Math.min(...attendanceRecords.map(r => new Date(r.date))));
+        const endDate = new Date();
+        
+        const daysNotMarked = [];
+        for (let d = startDate; d <= endDate; d.setDate(d.getDate() + 1)) {
+            const dateStr = d.toISOString().split('T')[0];
+            if (isWorkDay(dateStr, holidays)) {
+                activeMembers.forEach(member => {
+                    const hasRecord = attendanceRecords.some(r => r.date === dateStr && r.memberId === member.id);
+                    if (!hasRecord) {
+                        daysNotMarked.push({ date: dateStr, name: member.name });
                     }
-                } 
+                });
+            }
+        }
+        daysNotMarked.sort((a,b) => b.date.localeCompare(a.date));
+
+        const title = document.createElement('h3');
+        title.className = 'kpi-panel-section-title';
+        title.textContent = `Days Not Marked (${daysNotMarked.length})`;
+        container.appendChild(title);
+        
+        const list = document.createElement('ul');
+        list.className = 'days-not-marked-list';
+        if (daysNotMarked.length === 0) {
+            list.innerHTML = `<li>All work days are marked. Great job!</li>`;
+        } else {
+            daysNotMarked.slice(0, 100).forEach(item => { // Limit to 100 to avoid performance issues
+                const li = document.createElement('li');
+                li.textContent = `${item.date} - ${item.name}`;
+                list.appendChild(li);
             });
-            modalBody.appendChild(formElement);
+        }
+        container.appendChild(list);
+        return container;
+    }
+
+    function renderBarChart({ title, data, onBarClick, selectedItem }) {
+        const container = document.createElement('div');
+        container.className = 'bar-chart-container';
+        container.innerHTML = `<h3 class="kpi-panel-section-title">${title}</h3>`;
+        
+        const chart = document.createElement('div');
+        chart.className = 'bar-chart';
+        const maxValue = Math.max(...data.map(d => d.value), 0);
+
+        if (maxValue > 0) {
+            data.forEach(item => {
+                const itemEl = document.createElement('div');
+                itemEl.className = `bar-chart-item ${onBarClick ? 'clickable' : ''} ${selectedItem === item.label ? 'selected' : ''}`;
+                itemEl.onclick = () => onBarClick && onBarClick(item.label);
+
+                const label = document.createElement('div');
+                label.className = 'bar-chart-label';
+                label.textContent = item.label;
+
+                const barWrapper = document.createElement('div');
+                barWrapper.className = 'bar-chart-bar-wrapper';
+                const barFill = document.createElement('div');
+                barFill.className = 'bar-chart-bar';
+                barFill.style.width = `${(item.value / maxValue) * 100}%`;
+                barFill.style.backgroundColor = item.color;
+                barWrapper.appendChild(barFill);
+
+                const value = document.createElement('div');
+                value.className = 'bar-chart-value';
+                value.textContent = `${item.value} day(s)`;
+
+                itemEl.append(label, barWrapper, value);
+                chart.appendChild(itemEl);
+            });
         } else {
-            modalBody.appendChild(renderTeamMemberDetailView(member, projects, attendanceRecords, holidays));
-            
-            const footerButtons = [];
-            if (isManager) {
-                footerButtons.push(Button({ children: 'Delete', variant: 'danger', onClick: () => handleDeleteMember(member.id) }));
-                footerButtons.push(Button({ children: 'Edit', variant: 'primary', onClick: () => { isEditing = true; renderContent(); } }));
+            chart.innerHTML = `<p class="insight-list-empty">No data available.</p>`;
+        }
+        
+        container.appendChild(chart);
+        return container;
+    }
+
+    function renderMemberInsights() {
+        const container = document.createElement('div');
+        const insights = getMemberInsightsData();
+        
+        let titleSuffix = ' (All Days)';
+        if (selectedStatusFilter) titleSuffix = ` (${selectedStatusFilter} Days)`;
+        if (selectedLeaveTypeFilter) titleSuffix = ` (${selectedLeaveTypeFilter})`;
+        
+        container.innerHTML = `<h2 class="attendance-section-title">Member Insights${titleSuffix}</h2>`;
+
+        const insightsToShow = [];
+        if (!selectedStatusFilter || selectedStatusFilter === 'Leave') {
+            insightsToShow.push(renderBarChart({ title: 'Most Leaves Taken', data: insights.mostLeaves }));
+        }
+        if (!selectedStatusFilter || selectedStatusFilter === 'Present') {
+            insightsToShow.push(renderBarChart({ title: 'Highest Presence', data: insights.highestPresence }));
+        }
+        insightsToShow.push(renderBarChart({ title: 'Leave by Weekday', data: insights.leaveByWeekday }));
+        
+        insightsToShow.forEach((chart, index) => {
+            container.appendChild(chart);
+            if (index < insightsToShow.length - 1) container.appendChild(document.createElement('hr'));
+        });
+
+        return container;
+    }
+    
+
+    // --- Data Calculation Functions ---
+    function getWorkDayStatusData() {
+        const data = { 'Present': 0, 'Work From Home': 0, 'Leave': 0, 'Not Marked': 0 };
+        attendanceRecords.forEach(r => {
+            if (data.hasOwnProperty(r.status)) {
+                data[r.status]++;
             }
-            footerButtons.push(Button({ children: 'Close', variant: 'secondary', onClick: closeTeamModal }));
-            
-            modalFooter.append(...footerButtons);
+        });
+
+        // Add "Not Marked" calculation logic if needed, although it's in a separate list now.
+        // For simplicity, we are just using the records we have.
+        
+        return {
+            total: data['Present'] + data['Work From Home'] + data['Leave'] + data['Not Marked'],
+            segments: [
+                { label: 'Present', value: data['Present'], color: '#22c55e' },
+                { label: 'Work From Home', value: data['Work From Home'], color: '#3b82f6' },
+                { label: 'Leave', value: data['Leave'], color: '#f97316' },
+                { label: 'Not Marked', value: data['Not Marked'], color: '#6b7280' },
+            ]
+        };
+    }
+    
+    function getLeaveTypeBreakdown() {
+        const breakdown = attendanceRecords
+            .filter(r => r.status === AttendanceStatus.Leave && r.leaveType)
+            .reduce((acc, r) => {
+                const type = r.leaveType || 'undefined';
+                acc[type] = (acc[type] || 0) + 1;
+                return acc;
+            }, {});
+        
+        return Object.entries(breakdown)
+            .map(([label, value]) => ({ label, value, color: '#ef4444' }))
+            .sort((a, b) => b.value - a.value);
+    }
+    
+    function getMemberInsightsData() {
+        let filteredRecords = attendanceRecords;
+        if (selectedStatusFilter) {
+            filteredRecords = filteredRecords.filter(r => r.status === selectedStatusFilter);
         }
-    };
-    
-    modalEl = Modal({
-        isOpen: true,
-        onClose: closeTeamModal,
-        title: member ? member.name : 'Add New Team Member',
-        children: document.createElement('div'), // Placeholder
-        footer: document.createElement('div'),   // Placeholder
-        size: 'lg'
-    });
-    
-    modalBody = modalEl.querySelector('.modal-body');
-    modalFooter = modalEl.querySelector('.modal-footer');
-    currentTeamModalInstance = modalEl;
-    renderContent();
-  }
+        if (selectedLeaveTypeFilter) {
+            filteredRecords = filteredRecords.filter(r => r.leaveType === selectedLeaveTypeFilter);
+        }
 
-  function closeLogModal() {
-      closeGlobalModal();
-      currentLogModalInstance = null;
-  }
+        const getMemberName = id => teamMembers.find(m => m.id === id)?.name || 'Unknown';
+        
+        const leaves = filteredRecords
+            .filter(r => r.status === AttendanceStatus.Leave)
+            .reduce((acc, r) => { acc[r.memberId] = (acc[r.memberId] || 0) + 1; return acc; }, {});
+        const mostLeaves = Object.entries(leaves)
+            .map(([id, value]) => ({ label: getMemberName(id), value, color: '#6366f1' }))
+            .sort((a,b) => b.value - a.value).slice(0, 5);
+        
+        const presence = filteredRecords
+            .filter(r => r.status === AttendanceStatus.Present)
+            .reduce((acc, r) => { acc[r.memberId] = (acc[r.memberId] || 0) + 1; return acc; }, {});
+        const highestPresence = Object.entries(presence)
+            .map(([id, value]) => ({ label: getMemberName(id), value, color: '#22c55e' }))
+            .sort((a,b) => b.value - a.value).slice(0, 5);
+        
+        const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const leaveByDay = filteredRecords
+            .filter(r => r.status === AttendanceStatus.Leave)
+            .reduce((acc, r) => {
+                const day = new Date(r.date + 'T00:00:00').getDay();
+                if (day > 0 && day < 6) { // Mon-Fri
+                    const dayName = weekdays[day];
+                    acc[dayName] = (acc[dayName] || 0) + 1;
+                }
+                return acc;
+            }, {});
 
-  function rerenderLogViewer() {
-    if (!currentLogModalInstance) return;
-    const contentContainer = currentLogModalInstance.querySelector('#log-viewer-content-container');
-    if (!contentContainer) return;
-    contentContainer.innerHTML = '';
-    
-    displayLogs = attendanceRecords
-      .filter(log => 
-          (!logMemberFilter || log.memberId === logMemberFilter) &&
-          (!logStartDateFilter || log.date >= logStartDateFilter) &&
-          (!logEndDateFilter || log.date <= logEndDateFilter)
-      )
-      .sort((a,b) => new Date(b.date) - new Date(a.date));
+        const leaveByWeekday = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map(day => ({
+            label: day,
+            value: leaveByDay[day] || 0,
+            color: '#a78bfa'
+        }));
 
-    contentContainer.appendChild(AttendanceLogTable({
-        logs: displayLogs,
-        teamMembers,
-        onDelete: (id) => {
-            if (confirm('Are you sure you want to delete this log entry?')) {
-                onDeleteAttendanceRecord(id);
-                // No need to call rerenderLogViewer from here, as the main state change will trigger it.
-                // We will manually remove the row for immediate feedback.
-                const row = contentContainer.querySelector(`tr[data-log-id="${id}"]`); // Requires adding data-log-id to table rows
-                if (row) row.remove();
+        return { mostLeaves, highestPresence, leaveByWeekday };
+    }
+
+
+    // --- Modal Functions ---
+    function openTeamMemberModal(member = null) {
+        let isEditing = false;
+        let modalEl, modalBody, modalFooter;
+
+        const renderContent = () => {
+            modalBody.innerHTML = '';
+            modalFooter.innerHTML = '';
+
+            if (isEditing) {
+                const form = TeamMemberForm({
+                    member,
+                    internalTeams,
+                    onSave: (memberData) => {
+                        member ? onUpdateTeamMember(memberData) : onAddTeamMember(memberData);
+                        closeModal();
+                    },
+                    onCancel: () => {
+                        if (member) { // If editing existing, go back to view
+                            isEditing = false;
+                            renderContent();
+                        } else { // If adding new, just close
+                            closeModal();
+                        }
+                    }
+                });
+                modalBody.appendChild(form);
+                // Footer is handled by form
+            } else { // View mode
+                modalBody.appendChild(renderTeamMemberDetailView(member));
+                const footerButtons = [];
+                if (isManager) {
+                    footerButtons.push(Button({ children: 'Delete', variant: 'danger', onClick: () => {
+                        if (confirm(`Delete ${member.name}? This will remove all their associated data.`)) {
+                            onDeleteTeamMember(member.id);
+                            closeModal();
+                        }
+                    }}));
+                    footerButtons.push(Button({ children: 'Edit', variant: 'primary', onClick: () => { isEditing = true; renderContent(); }}));
+                }
+                footerButtons.push(Button({ children: 'Close', variant: 'secondary', onClick: closeModal }));
+                modalFooter.append(...footerButtons);
             }
-        }
-    }));
-  }
+        };
 
-  function openLogViewerModal() {
-    const modalContent = document.createElement('div');
-    modalContent.className = "flex flex-col gap-4";
+        isEditing = !member || false; // Start in edit mode if adding new member
+        
+        modalEl = Modal({
+            isOpen: true,
+            onClose: closeModal,
+            title: member ? member.name : 'Add New Team Member',
+            children: document.createElement('div'), // Placeholder
+            footer: document.createElement('div'),   // Placeholder
+            size: 'lg'
+        });
+
+        modalBody = modalEl.querySelector('.modal-body');
+        modalFooter = modalEl.querySelector('.modal-footer');
+        currentTeamModalInstance = modalEl;
+        renderContent();
+    }
+
+    function renderTeamMemberDetailView(member) {
+        const detailView = document.createElement('div');
+        detailView.className = 'member-detail-view';
+        
+        const detailGrid = document.createElement('div');
+        detailGrid.className = 'detail-grid';
+        
+        const createDetailItem = (label, value) => `<div class="detail-item"><h4 class="detail-label">${label}</h4><p class="detail-value">${value || 'N/A'}</p></div>`;
+
+        detailGrid.innerHTML = `
+            ${createDetailItem('Email', member.email)}
+            ${createDetailItem('Mobile Number', member.mobileNumber)}
+            ${createDetailItem('Employee ID', member.employeeId)}
+            ${createDetailItem('Designation', member.designation)}
+            ${createDetailItem('Department', member.department)}
+            ${createDetailItem('Company', member.company)}
+            ${createDetailItem('Role', member.role)}
+            ${createDetailItem('Internal Team', member.internalTeam)}
+            ${createDetailItem('Join Date', member.joinDate ? new Date(member.joinDate + 'T00:00:00').toLocaleDateString() : 'N/A')}
+            ${createDetailItem('Birth Date', member.birthDate ? new Date(member.birthDate + 'T00:00:00').toLocaleDateString() : 'N/A')}
+        `;
+        detailGrid.appendChild(createIdFieldWithCopy('Member ID', member.id));
+        detailView.appendChild(detailGrid);
+        return detailView;
+    }
     
-    const filterRow = document.createElement('div');
-    filterRow.className = 'log-viewer-filter-row';
+    function closeModal() {
+        closeGlobalModal();
+        currentTeamModalInstance = null;
+        currentLogModalInstance = null;
+    }
 
-    // Member filter
-    const memberSelect = document.createElement('select');
-    memberSelect.className = 'form-select';
-    memberSelect.innerHTML = `<option value="">All Members</option>` + teamMembers.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
-    memberSelect.value = logMemberFilter;
-    memberSelect.onchange = (e) => { logMemberFilter = e.target.value; rerenderLogViewer(); };
+    function openAttendanceLogModal() {
+        let logFilters = { memberId: '', startDate: '', endDate: '' };
+
+        const modalBody = document.createElement('div');
+        
+        const filterRow = document.createElement('div');
+        filterRow.className = 'log-viewer-filter-row';
+        
+        const memberSelect = document.createElement('select');
+        memberSelect.className = 'form-select';
+        memberSelect.innerHTML = `<option value="">All Members</option>` + teamMembers.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+        memberSelect.onchange = (e) => { logFilters.memberId = e.target.value; rerenderLogTable(); };
+        filterRow.appendChild(memberSelect);
+        
+        const startDateInput = document.createElement('input');
+        startDateInput.type = 'date';
+        startDateInput.className = 'form-input';
+        startDateInput.onchange = (e) => { logFilters.startDate = e.target.value; rerenderLogTable(); };
+        filterRow.appendChild(startDateInput);
+        
+        const endDateInput = document.createElement('input');
+        endDateInput.type = 'date';
+        endDateInput.className = 'form-input';
+        endDateInput.onchange = (e) => { logFilters.endDate = e.target.value; rerenderLogTable(); };
+        filterRow.appendChild(endDateInput);
+        
+        modalBody.appendChild(filterRow);
+        
+        const tableContainer = document.createElement('div');
+        modalBody.appendChild(tableContainer);
+        
+        const rerenderLogTable = () => {
+            let logs = [...attendanceRecords].sort((a,b) => b.date.localeCompare(a.date));
+            if (logFilters.memberId) logs = logs.filter(l => l.memberId === logFilters.memberId);
+            if (logFilters.startDate) logs = logs.filter(l => l.date >= logFilters.startDate);
+            if (logFilters.endDate) logs = logs.filter(l => l.date <= logFilters.endDate);
+            
+            tableContainer.innerHTML = '';
+            tableContainer.appendChild(AttendanceLogTable({ logs, teamMembers, onDelete: onDeleteAttendanceRecord }));
+        };
+        
+        currentLogModalInstance = Modal({
+            isOpen: true,
+            onClose: closeModal,
+            title: 'Full Attendance Log',
+            children: modalBody,
+            footer: [
+                Button({ children: 'Export Log', variant: 'secondary', onClick: () => onExport('attendance') }),
+                Button({ children: 'Close', variant: 'primary', onClick: closeModal })
+            ],
+            size: 'xl'
+        });
+        
+        rerenderLogTable(); // Initial render
+    }
+
+    // --- Initial Render ---
+    pageWrapper.appendChild(headerDiv);
     
-    // Start date filter
-    const startDateInput = document.createElement('input');
-    startDateInput.type = 'date';
-    startDateInput.className = 'form-input';
-    startDateInput.value = logStartDateFilter;
-    startDateInput.onchange = (e) => { logStartDateFilter = e.target.value; rerenderLogViewer(); };
+    leftCol.appendChild(dailyLogSection);
+    leftCol.appendChild(teamManagementSection);
     
-    // End date filter
-    const endDateInput = document.createElement('input');
-    endDateInput.type = 'date';
-    endDateInput.className = 'form-input';
-    endDateInput.value = logEndDateFilter;
-    endDateInput.onchange = (e) => { logEndDateFilter = e.target.value; rerenderLogViewer(); };
+    mainGrid.append(leftCol, rightCol);
+    pageWrapper.appendChild(mainGrid);
 
-    filterRow.append(memberSelect, startDateInput, endDateInput);
+    container.appendChild(pageWrapper);
 
-    const contentContainer = document.createElement('div');
-    contentContainer.id = 'log-viewer-content-container';
-
-    modalContent.append(filterRow, contentContainer);
-    
-    const exportButton = Button({
-      children: 'Export Filtered Logs', variant: 'secondary', onClick: () => {
-        if (displayLogs.length > 0) {
-          exportDataToCSV(displayLogs, 'filtered_attendance_logs.csv');
-        } else {
-          alert('No logs to export with the current filters.');
-        }
-      }
-    });
-
-    currentLogModalInstance = Modal({
-      isOpen: true,
-      onClose: closeLogModal,
-      title: 'View All Attendance Logs',
-      children: modalContent,
-      footer: [exportButton, Button({ children: 'Close', variant: 'primary', onClick: closeLogModal })],
-      size: 'xl'
-    });
-    
-    rerenderLogViewer();
-  }
-
-  // Initial renders on page load
-  renderAnalysisSection();
-  renderDailyLogGrid();
-  renderTeamList();
-  container.appendChild(pageWrapper);
+    renderDailyLog();
+    renderTeamManagement();
+    renderAnalysisSection();
 }
