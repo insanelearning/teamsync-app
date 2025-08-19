@@ -6,13 +6,15 @@ import { FileUploadButton } from '../components/FileUploadButton.js';
 import { AttendanceLogTable } from '../components/AttendanceLogTable.js';
 import { exportToCSV as exportDataToCSV } from '../services/csvService.js';
 import { AttendanceCard } from '../components/AttendanceCard.js';
-import { TeamMemberRole } from '../types.js';
+import { TeamMemberRole, AttendanceStatus } from '../types.js';
 
 let currentTeamModalInstance = null;
 let currentLogModalInstance = null;
 
-// Helper function to create an ID field with a copy button
+// --- Helper Functions ---
+
 function createIdFieldWithCopy(label, id) {
+    // ... (implementation is the same, just included for context)
     const item = document.createElement('div');
     item.className = 'detail-item detail-item-id';
 
@@ -52,6 +54,160 @@ function createIdFieldWithCopy(label, id) {
     return item;
 }
 
+function createDonutChart(data, totalValue) {
+  const container = document.createElement('div');
+  container.className = 'donut-chart-and-legend';
+
+  const chartWrapper = document.createElement('div');
+  chartWrapper.className = 'donut-chart-svg-container';
+  
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 100 100');
+  
+  const textGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  const totalText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  totalText.setAttribute('x', '50');
+  totalText.setAttribute('y', '48');
+  totalText.setAttribute('class', 'donut-center-value');
+  totalText.setAttribute('text-anchor', 'middle');
+  totalText.textContent = totalValue.toLocaleString();
+  
+  const labelText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  labelText.setAttribute('x', '50');
+  labelText.setAttribute('y', '62');
+  labelText.setAttribute('class', 'donut-center-label');
+  labelText.setAttribute('text-anchor', 'middle');
+  labelText.textContent = 'days';
+  
+  textGroup.append(totalText, labelText);
+
+  if (totalValue === 0) {
+    svg.innerHTML = `<circle cx="50" cy="50" r="40" stroke="#e5e7eb" stroke-width="15" fill="none"/>`;
+  } else {
+    const radius = 40;
+    const strokeWidth = 15;
+    const circumference = 2 * Math.PI * radius;
+    let offset = 0;
+
+    data.forEach(item => {
+        if (item.value === 0) return;
+        const percent = (item.value / totalValue) * 100;
+        const segmentLength = (percent / 100) * circumference;
+        const segment = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        segment.setAttribute('cx', '50'); segment.setAttribute('cy', '50');
+        segment.setAttribute('r', String(radius)); segment.setAttribute('fill', 'none');
+        segment.setAttribute('stroke', item.color); segment.setAttribute('stroke-width', String(strokeWidth));
+        segment.setAttribute('stroke-dasharray', `${segmentLength} ${circumference}`);
+        segment.setAttribute('stroke-dashoffset', String(-offset));
+        segment.setAttribute('transform', `rotate(-90 50 50)`);
+        svg.appendChild(segment);
+        offset += segmentLength;
+    });
+  }
+  svg.appendChild(textGroup);
+  chartWrapper.appendChild(svg);
+  container.appendChild(chartWrapper);
+
+  const legend = document.createElement('div');
+  legend.className = 'donut-chart-legend';
+  data.forEach(item => {
+    const legendItem = document.createElement('div');
+    legendItem.className = 'donut-legend-item';
+    legendItem.innerHTML = `<span class="legend-color-box" style="background-color: ${item.color};"></span>
+                            <span class="legend-label">${item.label}</span>
+                            <span class="legend-value">${item.value.toLocaleString()} days</span>`;
+    legend.appendChild(legendItem);
+  });
+  
+  container.appendChild(legend);
+  return container;
+}
+
+function createBarChart(data, title) {
+    const container = document.createElement('div');
+    container.className = 'bar-chart-container';
+    
+    if (title) {
+        const chartTitle = document.createElement('h4');
+        chartTitle.className = 'kpi-panel-section-title';
+        chartTitle.textContent = title;
+        container.appendChild(chartTitle);
+    }
+
+    const chart = document.createElement('div');
+    chart.className = 'bar-chart';
+    
+    const maxValue = Math.max(...data.map(d => d.value), 0);
+    
+    if (maxValue === 0) {
+        chart.innerHTML = `<p class="insight-list-empty">No leave data available.</p>`;
+    } else {
+        data.forEach(item => {
+            const barWrapper = document.createElement('div');
+            barWrapper.className = 'bar-chart-item';
+            
+            const barLabel = document.createElement('span');
+            barLabel.className = 'bar-chart-label';
+            barLabel.textContent = item.label;
+            
+            const barElement = document.createElement('div');
+            barElement.className = 'bar-chart-bar-wrapper';
+            
+            const barFill = document.createElement('div');
+            barFill.className = 'bar-chart-bar';
+            barFill.style.width = `${(item.value / maxValue) * 100}%`;
+            barFill.style.backgroundColor = item.color;
+            
+            const barValue = document.createElement('span');
+            barValue.className = 'bar-chart-value';
+            barValue.textContent = `${item.value} day(s)`;
+            
+            barElement.appendChild(barFill);
+            barWrapper.append(barLabel, barElement, barValue);
+            chart.appendChild(barWrapper);
+        });
+    }
+    container.appendChild(chart);
+    return container;
+}
+
+
+function createInsightList(title, items, unit = 'days') {
+    const container = document.createElement('div');
+    container.className = 'insight-list-wrapper';
+
+    const listTitle = document.createElement('h4');
+    listTitle.className = 'kpi-panel-section-title';
+    listTitle.textContent = title;
+    container.appendChild(listTitle);
+
+    if (items.length === 0) {
+        container.innerHTML += `<p class="insight-list-empty">No data available.</p>`;
+        return container;
+    }
+
+    const list = document.createElement('ul');
+    list.className = 'insight-list';
+    const maxValue = items.length > 0 ? items[0].value : 0;
+
+    items.slice(0, 5).forEach(item => {
+        const percentage = maxValue > 0 ? (item.value / maxValue) * 100 : 0;
+        const li = document.createElement('li');
+        li.className = 'insight-list-item';
+        li.innerHTML = `
+            <div class="insight-item-label" title="${item.label}">${item.label}</div>
+            <div class="insight-item-bar-container">
+                <div class="insight-item-bar" style="width: ${percentage}%; background-color: ${item.color || 'var(--color-primary)'};"></div>
+            </div>
+            <div class="insight-item-value">${item.value.toLocaleString()} ${unit}</div>
+        `;
+        list.appendChild(li);
+    });
+
+    container.appendChild(list);
+    return container;
+}
+
 export function renderAttendancePage(container, props) {
   const {
     attendanceRecords, teamMembers, projects, currentUser,
@@ -62,7 +218,15 @@ export function renderAttendancePage(container, props) {
 
   const isManager = currentUser.role === TeamMemberRole.Manager;
 
+  // State for daily log
   let selectedDate = new Date().toISOString().split('T')[0];
+
+  // State for analysis section
+  let analysisStartDate = new Date(new Date().setDate(new Date().getDate() - 29)).toISOString().split('T')[0];
+  let analysisEndDate = new Date().toISOString().split('T')[0];
+  let analysisMemberFilter = '';
+
+  // State for log viewer modal
   let logMemberFilter = '', logStartDateFilter = new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0], logEndDateFilter = new Date().toISOString().split('T')[0];
   let displayLogs = [];
   
@@ -86,7 +250,7 @@ export function renderAttendancePage(container, props) {
   const dateLabel = document.createElement('span');
   dateLabel.className = 'form-label';
   dateLabel.style.marginBottom = '0';
-  dateLabel.textContent = 'Select Date:';
+  dateLabel.textContent = 'Select Date for Daily Log:';
   datePickerDiv.appendChild(dateLabel);
   const dateInput = document.createElement('input');
   dateInput.type = "date"; dateInput.value = selectedDate;
@@ -101,6 +265,153 @@ export function renderAttendancePage(container, props) {
   datePickerDiv.appendChild(dateInput);
   headerDiv.appendChild(datePickerDiv);
   pageWrapper.appendChild(headerDiv);
+
+  // --- NEW: Attendance Analysis Section ---
+  const analysisSection = document.createElement('div');
+  analysisSection.className = 'attendance-page-section';
+  pageWrapper.appendChild(analysisSection);
+
+  function renderAnalysisSection() {
+      analysisSection.innerHTML = '';
+
+      // Filters
+      const filtersDiv = document.createElement('div');
+      filtersDiv.className = "worklog-filters-container";
+      const filterGrid = document.createElement('div');
+      filterGrid.className = "worklog-filters-grid";
+
+      if (isManager) {
+        const memberFilterContainer = document.createElement('div');
+        memberFilterContainer.innerHTML = `<label for="analysisMemberFilter" class="form-label">Member</label>`;
+        const memberFilter = document.createElement('select');
+        memberFilter.id = 'analysisMemberFilter';
+        memberFilter.className = "form-select";
+        memberFilter.innerHTML = `<option value="">All Members</option>` + teamMembers.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+        memberFilter.value = analysisMemberFilter;
+        memberFilter.onchange = (e) => { analysisMemberFilter = e.target.value; renderAnalysisSection(); };
+        memberFilterContainer.appendChild(memberFilter);
+        filterGrid.appendChild(memberFilterContainer);
+      }
+
+      const dateRangeOuterContainer = document.createElement('div');
+      dateRangeOuterContainer.className = "filter-date-range-container";
+      dateRangeOuterContainer.innerHTML = `<label class="form-label">Analysis Date Range</label>`;
+      const dateRangeInnerContainer = document.createElement('div');
+      dateRangeInnerContainer.className = "filter-date-range-inner";
+      
+      const startDateInput = document.createElement('input');
+      startDateInput.type = 'date'; startDateInput.className = 'form-input';
+      startDateInput.value = analysisStartDate;
+      startDateInput.onchange = e => { analysisStartDate = e.target.value; renderAnalysisSection(); };
+      
+      const toLabel = document.createElement('span');
+      toLabel.className = 'date-range-separator';
+      toLabel.textContent = 'to';
+
+      const endDateInput = document.createElement('input');
+      endDateInput.type = 'date'; endDateInput.className = 'form-input';
+      endDateInput.value = analysisEndDate;
+      endDateInput.onchange = e => { analysisEndDate = e.target.value; renderAnalysisSection(); };
+      dateRangeInnerContainer.append(startDateInput, toLabel, endDateInput);
+      dateRangeOuterContainer.appendChild(dateRangeInnerContainer);
+      filterGrid.appendChild(dateRangeOuterContainer);
+      
+      filtersDiv.appendChild(filterGrid);
+      analysisSection.appendChild(filtersDiv);
+
+      // Data Calculation
+      const filteredRecords = attendanceRecords.filter(rec => {
+          const isMemberMatch = !analysisMemberFilter || rec.memberId === analysisMemberFilter;
+          const isDateMatch = rec.date >= analysisStartDate && rec.date <= analysisEndDate;
+          return isMemberMatch && isDateMatch;
+      });
+
+      const stats = { present: 0, wfh: 0, leave: 0 };
+      const leavesByType = {};
+      const leavesByMember = {};
+      const presenceByMember = {};
+
+      filteredRecords.forEach(rec => {
+          if (rec.status === AttendanceStatus.Present) stats.present++;
+          if (rec.status === AttendanceStatus.WorkFromHome) stats.wfh++;
+          if (rec.status === AttendanceStatus.Leave) {
+              stats.leave++;
+              leavesByType[rec.leaveType] = (leavesByType[rec.leaveType] || 0) + 1;
+              leavesByMember[rec.memberId] = (leavesByMember[rec.memberId] || 0) + 1;
+          }
+          if (rec.status === AttendanceStatus.Present || rec.status === AttendanceStatus.WorkFromHome) {
+              presenceByMember[rec.memberId] = (presenceByMember[rec.memberId] || 0) + 1;
+          }
+      });
+      
+      const totalPresence = stats.present + stats.wfh;
+      const totalDays = totalPresence + stats.leave;
+      const presenceRate = totalDays > 0 ? ((totalPresence / totalDays) * 100).toFixed(0) : 0;
+      
+      // Summary Cards
+      const summaryContainer = document.createElement('div');
+      summaryContainer.className = 'work-log-summary-container';
+      summaryContainer.innerHTML = `
+          <div class="work-log-summary-card">
+              <div class="label">Total Presence</div>
+              <div class="value">${totalPresence.toLocaleString()}</div>
+              <div class="sub-label">Present & WFH days</div>
+          </div>
+          <div class="work-log-summary-card">
+              <div class="label">Total Leaves</div>
+              <div class="value">${stats.leave.toLocaleString()}</div>
+              <div class="sub-label">Days on leave</div>
+          </div>
+          <div class="work-log-summary-card">
+              <div class="label">Team Presence Rate</div>
+              <div class="value">${presenceRate}%</div>
+              <div class="sub-label">For logged days</div>
+          </div>
+      `;
+      analysisSection.appendChild(summaryContainer);
+      
+      // Analysis Grid
+      const analysisGrid = document.createElement('div');
+      analysisGrid.className = 'analysis-dashboard-grid';
+      analysisGrid.style.marginTop = '1.5rem';
+
+      // Left Column: Charts
+      const leftCol = document.createElement('div');
+      leftCol.className = 'kpi-insights-panel';
+      leftCol.innerHTML = `<h3 class="kpi-panel-title"><i class="fas fa-chart-pie"></i> Distributions</h3>`;
+      
+      const donutData = [
+          { label: 'Present', value: stats.present, color: '#22c55e' },
+          { label: 'Work From Home', value: stats.wfh, color: '#3b82f6' },
+          { label: 'Leave', value: stats.leave, color: '#f97316' },
+      ];
+      leftCol.appendChild(createDonutChart(donutData, totalDays));
+
+      const leaveTypesData = Object.entries(leavesByType)
+        .map(([type, count]) => ({ label: type || 'Other', value: count, color: '#ef4444' }))
+        .sort((a,b) => b.value - a.value);
+      leftCol.appendChild(createBarChart(leaveTypesData, 'Leave Types Breakdown'));
+      
+      analysisGrid.appendChild(leftCol);
+
+      // Right Column: Insights
+      const rightCol = document.createElement('div');
+      rightCol.className = 'kpi-insights-panel';
+      rightCol.innerHTML = `<h3 class="kpi-panel-title"><i class="fas fa-chart-line"></i> Member Insights</h3>`;
+
+      const topLeaves = Object.entries(leavesByMember)
+        .map(([memberId, count]) => ({ label: teamMembers.find(m => m.id === memberId)?.name || 'Unknown', value: count }))
+        .sort((a,b) => b.value - a.value);
+      rightCol.appendChild(createInsightList('Most Leaves Taken', topLeaves, 'days'));
+      
+      const topPresence = Object.entries(presenceByMember)
+        .map(([memberId, count]) => ({ label: teamMembers.find(m => m.id === memberId)?.name || 'Unknown', value: count, color: '#16a34a' }))
+        .sort((a,b) => b.value - a.value);
+      rightCol.appendChild(createInsightList('Highest Presence', topPresence, 'days'));
+      
+      analysisGrid.appendChild(rightCol);
+      analysisSection.appendChild(analysisGrid);
+  }
 
   // Team Management Section - Visible to all, actions are conditional
   const teamManagementDiv = document.createElement('div');
@@ -552,6 +863,7 @@ export function renderAttendancePage(container, props) {
   }
 
   // Initial renders on page load
+  renderAnalysisSection();
   renderDailyLogGrid();
   renderTeamList();
   container.appendChild(pageWrapper);
