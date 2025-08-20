@@ -136,12 +136,14 @@ function renderDailyStandup(props) {
             return;
         }
 
+        const activeMembers = teamMembers.filter(m => m.status === 'Active');
+
         const todaysRecords = attendanceRecords.filter(r => r.date === selectedDate);
 
         if (activeTab === 'attendance') {
             const stats = { present: 0, wfh: 0, leave: 0, notMarked: 0 };
             
-            teamMembers.forEach(member => {
+            activeMembers.forEach(member => {
                 const record = todaysRecords.find(r => r.memberId === member.id);
                 if (!record) stats.notMarked++;
                 else if (record.status === 'Present') stats.present++;
@@ -166,7 +168,7 @@ function renderDailyStandup(props) {
                 return acc;
             }, {});
             
-            const listItemsHtml = teamMembers.map(m => {
+            const listItemsHtml = activeMembers.map(m => {
                 const record = todaysRecords.find(r => r.memberId === m.id);
                 const logStatusHtml = memberTimeMap[m.id] 
                     ? `<span class="log-status-time">${formatMinutes(memberTimeMap[m.id])}</span>` 
