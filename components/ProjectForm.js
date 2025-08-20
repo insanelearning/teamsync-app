@@ -120,6 +120,11 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
       input.type = inputType;
       input.className = 'form-input';
       if (placeholder) input.placeholder = placeholder;
+      if (inputType === 'number') {
+        if (options.min !== undefined) input.min = options.min;
+        if (options.max !== undefined) input.max = options.max;
+        if (options.step !== undefined) input.step = options.step;
+      }
     }
     input.id = name;
     input.name = name;
@@ -141,9 +146,129 @@ export function ProjectForm({ project, teamMembers, projectStatuses, onSave, onC
   }
   
   function buildForm() {
+    // --- Core Details ---
     form.appendChild(createField('Project Name', 'text', 'name', formData.name, {}, true, 'Enter project name'));
     form.appendChild(createField('Description', 'textarea', 'description', formData.description, { rows: 4 }));
+
+    // --- Scheduling & Status ---
+    const statusGrid = document.createElement('div');
+    statusGrid.className = "form-grid-cols-2";
     
+    statusGrid.appendChild(createField('Status', 'select', 'status', formData.status, {
+      options: projectStatuses.map(s => ({ value: s, label: s }))
+    }, true));
+    statusGrid.appendChild(createField('Due Date', 'date', 'dueDate', formData.dueDate, {}, true));
+    
+    form.appendChild(statusGrid);
+
+    const priorityGrid = document.createElement('div');
+    priorityGrid.className = "form-grid-cols-2";
+
+    priorityGrid.appendChild(createField('Priority', 'select', 'priority', formData.priority, {
+        options: PRIORITIES.map(p => ({ value: p, label: p }))
+    }));
+    priorityGrid.appendChild(createField('Completion Percentage', 'number', 'completionPercentage', formData.completionPercentage, { min: 0, max: 100, step: 1 }));
+
+    form.appendChild(priorityGrid);
+
+    // --- Team ---
+    const teamGrid = document.createElement('div');
+    teamGrid.className = "form-grid-cols-2";
+
+    teamGrid.appendChild(createField('Assignees', 'select', 'assignees', formData.assignees, {
+        multiple: true,
+        options: teamMembers.map(m => ({ value: m.id, label: m.name }))
+    }));
+    teamGrid.appendChild(createField('Team Lead', 'select', 'teamLeadId', formData.teamLeadId, {
+        options: [{ value: '', label: 'None' }, ...teamMembers.map(m => ({ value: m.id, label: m.name }))]
+    }));
+    
+    form.appendChild(teamGrid);
+    
+    // --- Categorization ---
+    const categoryGrid = document.createElement('div');
+    categoryGrid.className = "form-grid-cols-3";
+    categoryGrid.appendChild(createField('Stakeholder Name', 'text', 'stakeholderName', formData.stakeholderName));
+    categoryGrid.appendChild(createField('Project Type', 'text', 'projectType', formData.projectType));
+    categoryGrid.appendChild(createField('Project Category', 'text', 'projectCategory', formData.projectCategory));
+    
+    form.appendChild(categoryGrid);
+    
+    // --- Tags ---
+    const tagsSectionDiv = document.createElement('div');
+    const tagsLabel = document.createElement('label');
+    tagsLabel.className = 'form-label';
+    tagsLabel.textContent = 'Tags';
+    tagsSectionDiv.appendChild(tagsLabel);
+    const tagInputContainer = document.createElement('div');
+    tagInputContainer.className = 'form-tags-container';
+    const tagInput = document.createElement('input');
+    tagInput.type = 'text';
+    tagInput.className = 'form-input';
+    tagInput.placeholder = 'Add a tag and press Enter';
+    
+    const tagsDisplayDiv = document.createElement('div');
+    tagsDisplayDiv.className = 'form-tags-display';
+
+    const renderTags = () => {
+        tagsDisplayDiv.innerHTML = '';
+        (formData.tags || []).forEach(tag => {
+            const span = document.createElement('span');
+            span.className = 'form-tag-item';
+            span.textContent = tag;
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'form-tag-remove-btn';
+            removeBtn.innerHTML = '&times;';
+            removeBtn.setAttribute('aria-label', `Remove tag ${tag}`);
+            removeBtn.onclick = () => { formData.tags = formData.tags.filter(t => t !== tag); renderTags(); };
+            span.appendChild(removeBtn);
+            tagsDisplayDiv.appendChild(span);
+        });
+    };
+    
+    const addTagButton = Button({
+      children: 'Add', variant: 'secondary', size: 'sm', ariaLabel: 'Add Tag',
+      onClick: () => {
+        const trimmedTag = tagInput.value.trim();
+        if (trimmedTag && !(formData.tags || []).includes(trimmedTag)) {
+          formData.tags = [...(formData.tags || []), trimmedTag];
+          tagInput.value = '';
+          renderTags();
+        }
+        tagInput.focus();
+      }
+    });
+
+    tagInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ',') {
+            e.preventDefault();
+            addTagButton.click();
+        }
+    });
+
+    tagInputContainer.append(tagInput, addTagButton);
+    tagsSectionDiv.appendChild(tagInputContainer);
+    tagsSectionDiv.appendChild(tagsDisplayDiv);
+    form.appendChild(tagsSectionDiv);
+    renderTags();
+
+    // --- Pilot-Specific Details Fieldset ---
+    const pilotFieldset = document.createElement('fieldset');
+    pilotFieldset.className = 'pilot-details-fieldset';
+    const pilotLegend = document.createElement('legend');
+    pilotLegend.className = 'pilot-details-legend';
+    pilotLegend.textContent = 'Pilot-Specific Details';
+    pilotFieldset.appendChild(pilotLegend);
+    pilotFieldset.appendChild(createField('Media Product', 'text', 'mediaProduct', formData.mediaProduct));
+    pilotFieldset.appendChild(createField('Client Names', 'text', 'clientNames', formData.clientNames));
+    pilotFieldset.appendChild(createField('Pilot Scope', 'textarea', 'pilotScope', formData.pilotScope, { rows: 2 }));
+    pilotFieldset.appendChild(createField('Project Approach', 'textarea', 'projectApproach', formData.projectApproach, { rows: 2 }));
+    pilotFieldset.appendChild(createField('Deliverables', 'textarea', 'deliverables', formData.deliverables, { rows: 2 }));
+    pilotFieldset.appendChild(createField('Results Achieved', 'textarea', 'resultsAchieved', formData.resultsAchieved, { rows: 2 }));
+    form.appendChild(pilotFieldset);
+    
+    // --- Actions ---
     const actionsDiv = document.createElement('div');
     actionsDiv.className = 'project-form-actions';
     const cancelButton = Button({ children: 'Cancel', variant: 'secondary', onClick: onCancel });
