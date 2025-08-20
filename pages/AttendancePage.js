@@ -472,23 +472,55 @@ export function renderAttendancePage(container, props) {
         const container = document.createElement('div');
         container.className = 'attendance-kpi-container kpi-grid';
 
+        // 1. Determine members to consider for calculation
+        let membersToConsider = teamMembers.filter(m => m.status === EmployeeStatus.Active);
+        if (analysisMemberFilter) {
+            membersToConsider = membersToConsider.filter(m => m.id === analysisMemberFilter);
+        } else if (!isManager) {
+            membersToConsider = membersToConsider.filter(m => m.id === currentUser.id);
+        }
+        const numMembers = membersToConsider.length;
+
+        // 2. Calculate base values
         const totalWorkDays = calculateTotalWorkDays(analysisDateRange.start, analysisDateRange.end, holidays);
-        
-        const workedDaysRecords = filteredRecords.filter(r => r.status === 'Present' || r.status === 'Work From Home');
-        const workedDays = new Set(workedDaysRecords.map(r => r.date)).size;
+        const expectedManDays = totalWorkDays * numMembers;
 
-        const leaveDaysRecords = filteredRecords.filter(r => r.status === 'Leave');
-        const leaveDays = new Set(leaveDaysRecords.map(r => r.date)).size;
+        // 3. Calculate actuals from filtered records (which are already filtered by member)
+        const actualWorkedDays = filteredRecords.filter(r => r.status === 'Present' || r.status === 'Work From Home').length;
+        const totalLeaveDays = filteredRecords.filter(r => r.status === 'Leave').length;
         
-        const attendancePercentage = totalWorkDays > 0 ? ((workedDays / totalWorkDays) * 100).toFixed(0) : 0;
+        // 4. Calculate percentage
+        const attendancePercentage = expectedManDays > 0 ? ((actualWorkedDays / expectedManDays) * 100).toFixed(0) : 0;
 
+        // 5. Define KPI data with new labels and subtexts
         const kpis = [
-            { label: 'Total Working Days', value: totalWorkDays, icon: 'fas fa-calendar-alt' },
-            { label: 'Days Worked', value: workedDays, icon: 'fas fa-briefcase' },
-            { label: 'Days on Leave', value: leaveDays, icon: 'fas fa-umbrella-beach' },
-            { label: 'Attendance', value: `${attendancePercentage}%`, icon: 'fas fa-chart-pie' }
+            { 
+                label: 'Expected Man-Days', 
+                value: expectedManDays, 
+                icon: 'fas fa-calendar-alt',
+                subtext: `${numMembers} ${numMembers === 1 ? 'member' : 'members'} × ${totalWorkDays} days`
+            },
+            { 
+                label: 'Actual Days Worked', 
+                value: actualWorkedDays, 
+                icon: 'fas fa-briefcase',
+                subtext: 'Total days marked as Present or WFH'
+            },
+            { 
+                label: 'Total Days on Leave', 
+                value: totalLeaveDays, 
+                icon: 'fas fa-umbrella-beach',
+                subtext: 'Total days marked as Leave'
+            },
+            { 
+                label: 'Team Attendance', 
+                value: `${attendancePercentage}%`, 
+                icon: 'fas fa-chart-pie',
+                subtext: 'Actual vs Expected Work Days'
+            }
         ];
         
+        // 6. Render cards with new structure
         kpis.forEach(kpi => {
             const card = document.createElement('div');
             card.className = `stat-card`;
@@ -497,6 +529,7 @@ export function renderAttendancePage(container, props) {
               <div>
                 <div class="stat-card-value">${kpi.value}</div>
                 <div class="stat-card-label">${kpi.label}</div>
+                <div class="stat-card-subtext">${kpi.subtext || ''}</div>
               </div>
             `;
             container.appendChild(card);
