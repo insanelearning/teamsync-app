@@ -1186,6 +1186,10 @@ footer.app-footer {
   }
 }
 
+.projects-overview-container > .kpi-grid {
+    grid-column: 1 / -1;
+}
+
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
