@@ -1255,6 +1255,16 @@ footer.app-footer {
 .dark .stat-card-label {
   color: #9ca3af;
 }
+.stat-card-subtext {
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin-top: 0.25rem;
+    font-style: italic;
+}
+.dark .stat-card-subtext {
+    color: #9ca3af;
+}
+
 
 .chart-section, .deadlines-container {
   background-color: #ffffff;
