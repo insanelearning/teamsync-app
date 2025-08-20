@@ -52,6 +52,32 @@ function createIdFieldWithCopy(label, id) {
     return item;
 }
 
+function calculateTotalWorkDays(startDateStr, endDateStr, holidays) {
+    const holidayDates = new Set((holidays || []).map(h => h.date));
+    let workDays = 0;
+    if (!startDateStr || !endDateStr) return 0;
+    
+    // Ensure dates are parsed in local timezone context by avoiding UTC conversion from new Date()
+    const startParts = startDateStr.split('-').map(p => parseInt(p, 10));
+    const endParts = endDateStr.split('-').map(p => parseInt(p, 10));
+    const start = new Date(startParts[0], startParts[1] - 1, startParts[2]);
+    const end = new Date(endParts[0], endParts[1] - 1, endParts[2]);
+
+    if (start > end) return 0;
+
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const dayOfWeek = d.getDay();
+        const dateStr = d.toISOString().split('T')[0];
+        
+        // Count day if it's a weekday (Mon-Fri) and not a company holiday
+        if (dayOfWeek !== 0 && dayOfWeek !== 6 && !holidayDates.has(dateStr)) {
+            workDays++;
+        }
+    }
+    return workDays;
+}
+
+
 /**
  * Timezone-safe way to check if a date is a weekday and not a holiday.
  * @param {string} dateString - The date in 'YYYY-MM-DD' format.
@@ -97,6 +123,7 @@ export function renderAttendancePage(container, props) {
     const isManager = currentUser.role === TeamMemberRole.Manager;
     
     // Page state
+    let activeTab = 'daily_log';
     let selectedDate = new Date().toISOString().split('T')[0];
     let teamMemberFilters = { searchTerm: '', team: '' };
     let selectedLeaveTypeFilter = null;
@@ -112,23 +139,18 @@ export function renderAttendancePage(container, props) {
     const pageWrapper = document.createElement('div');
     pageWrapper.className = 'page-container';
 
-    // We can't just re-render individual sections anymore because state changes
-    // in one section (like date filter) affect all others.
     function rerender() {
-        // Find focused element to restore focus after re-render
         const activeElementId = document.activeElement.id;
         const activeElementSelectionStart = document.activeElement.selectionStart;
         const activeElementSelectionEnd = document.activeElement.selectionEnd;
 
-        container.innerHTML = ''; // Clear everything
-        buildPage(); // Rebuild the entire page with current state
+        container.innerHTML = '';
+        buildPage();
 
-        // Restore focus
         if (activeElementId) {
             const focusedElement = document.getElementById(activeElementId);
             if (focusedElement) {
                 focusedElement.focus();
-                // Restore cursor position for text inputs
                 if (typeof activeElementSelectionStart === 'number') {
                     focusedElement.selectionStart = activeElementSelectionStart;
                     focusedElement.selectionEnd = activeElementSelectionEnd;
@@ -139,7 +161,7 @@ export function renderAttendancePage(container, props) {
 
 
     function buildPage() {
-        pageWrapper.innerHTML = ''; // Clear page wrapper
+        pageWrapper.innerHTML = '';
 
         // --- Header ---
         const headerDiv = document.createElement('div');
@@ -156,11 +178,47 @@ export function renderAttendancePage(container, props) {
         headerDiv.appendChild(headerActions);
         pageWrapper.appendChild(headerDiv);
 
-        // --- Sections ---
-        pageWrapper.appendChild(renderDailyLog());
-        pageWrapper.appendChild(renderAnalysisSection());
-        pageWrapper.appendChild(renderTeamManagement());
+        // --- NEW: Tab Navigation ---
+        const tabsContainer = document.createElement('div');
+        tabsContainer.className = 'tabs-container';
+        
+        const createTabButton = (tabId, label, iconClass) => {
+            const button = document.createElement('button');
+            button.className = `tab-button ${activeTab === tabId ? 'active' : ''}`;
+            button.innerHTML = `<i class="${iconClass}"></i> ${label}`;
+            button.onclick = () => {
+                if (activeTab !== tabId) {
+                    activeTab = tabId;
+                    rerender();
+                }
+            };
+            return button;
+        };
 
+        tabsContainer.append(
+            createTabButton('daily_log', 'Daily Log', 'fas fa-clipboard-list'),
+            createTabButton('analysis', 'Analysis Dashboard', 'fas fa-chart-line'),
+            createTabButton('team_management', 'Team Management', 'fas fa-users')
+        );
+        pageWrapper.appendChild(tabsContainer);
+
+        // --- NEW: Tab Content ---
+        const tabContentContainer = document.createElement('div');
+        tabContentContainer.className = 'tab-content-container';
+
+        switch (activeTab) {
+            case 'daily_log':
+                tabContentContainer.appendChild(renderDailyLog());
+                break;
+            case 'analysis':
+                tabContentContainer.appendChild(renderAnalysisSection());
+                break;
+            case 'team_management':
+                tabContentContainer.appendChild(renderTeamManagement());
+                break;
+        }
+        
+        pageWrapper.appendChild(tabContentContainer);
         container.appendChild(pageWrapper);
     }
     
@@ -184,7 +242,7 @@ export function renderAttendancePage(container, props) {
         datePicker.value = selectedDate;
         datePicker.onchange = (e) => {
             selectedDate = e.target.value;
-            rerender(); // Re-render the whole page
+            rerender();
         };
         header.appendChild(datePicker);
         dailyLogSection.appendChild(header);
@@ -223,7 +281,7 @@ export function renderAttendancePage(container, props) {
         searchInput.type = 'text';
         searchInput.placeholder = 'Search by name...';
         searchInput.className = 'form-input';
-        searchInput.id = 'team-search-input'; // ID for focus management
+        searchInput.id = 'team-search-input';
         searchInput.value = teamMemberFilters.searchTerm;
         searchInput.oninput = (e) => {
             teamMemberFilters.searchTerm = e.target.value;
@@ -317,6 +375,10 @@ export function renderAttendancePage(container, props) {
         title.innerHTML = `<i class="fas fa-chart-line"></i> Analysis Dashboard`;
         analysisSection.appendChild(title);
 
+        const filteredRecords = getFilteredAnalysisRecords();
+        
+        analysisSection.appendChild(renderAnalysisKPIs(filteredRecords));
+
         // Date Filter Section
         const filterContainer = document.createElement('div');
         filterContainer.className = 'analysis-dashboard-filters';
@@ -375,10 +437,6 @@ export function renderAttendancePage(container, props) {
 
         const analysisGrid = document.createElement('div');
         analysisGrid.className = 'attendance-analysis-grid';
-
-        const filteredRecords = getFilteredAnalysisRecords();
-
-        // --- Widgets ---
         analysisGrid.appendChild(renderWorkDayStatusWidget(filteredRecords));
         analysisGrid.appendChild(renderDaysNotMarkedWidget());
         analysisGrid.appendChild(renderLeaveBreakdownWidget(filteredRecords));
@@ -397,13 +455,49 @@ export function renderAttendancePage(container, props) {
         if (analysisMemberFilter) {
             records = records.filter(r => r.memberId === analysisMemberFilter);
         } else if (!isManager) {
-            // If not a manager and no specific member is selected (which they can't), filter to current user
             records = records.filter(r => r.memberId === currentUser.id);
         }
 
         return records;
     }
     
+    function renderAnalysisKPIs(filteredRecords) {
+        const container = document.createElement('div');
+        container.className = 'attendance-kpi-container kpi-grid';
+
+        const totalWorkDays = calculateTotalWorkDays(analysisDateRange.start, analysisDateRange.end, holidays);
+        
+        const workedDaysRecords = filteredRecords.filter(r => r.status === 'Present' || r.status === 'Work From Home');
+        const workedDays = new Set(workedDaysRecords.map(r => r.date)).size;
+
+        const leaveDaysRecords = filteredRecords.filter(r => r.status === 'Leave');
+        const leaveDays = new Set(leaveDaysRecords.map(r => r.date)).size;
+        
+        const attendancePercentage = totalWorkDays > 0 ? ((workedDays / totalWorkDays) * 100).toFixed(0) : 0;
+
+        const kpis = [
+            { label: 'Total Working Days', value: totalWorkDays, icon: 'fas fa-calendar-alt' },
+            { label: 'Days Worked', value: workedDays, icon: 'fas fa-briefcase' },
+            { label: 'Days on Leave', value: leaveDays, icon: 'fas fa-umbrella-beach' },
+            { label: 'Attendance', value: `${attendancePercentage}%`, icon: 'fas fa-chart-pie' }
+        ];
+        
+        kpis.forEach(kpi => {
+            const card = document.createElement('div');
+            card.className = `stat-card`;
+            card.innerHTML = `
+              <div class="stat-card-icon"><i class="${kpi.icon}"></i></div>
+              <div>
+                <div class="stat-card-value">${kpi.value}</div>
+                <div class="stat-card-label">${kpi.label}</div>
+              </div>
+            `;
+            container.appendChild(card);
+        });
+
+        return container;
+    }
+
     // --- Chart Rendering and Data Functions ---
     function renderDonutChart(data) {
         const container = document.createElement('div');
