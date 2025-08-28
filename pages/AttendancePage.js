@@ -916,7 +916,8 @@ export function renderAttendancePage(container, props) {
     }
     
     function openTeamMemberModal(member = null) {
-        let isEditing = false;
+        // If adding a new member, start in edit mode. Otherwise, start in view mode.
+        let isEditing = !member;
 
         const closeModal = () => {
             currentTeamModalInstance = null;
@@ -932,18 +933,41 @@ export function renderAttendancePage(container, props) {
             closeModal();
         };
 
-        const modalBody = document.createElement('div');
-        const contentDiv = document.createElement('div');
+        // Create the modal shell once
+        const modalEl = Modal({
+            isOpen: true,
+            onClose: closeModal,
+            title: member ? member.name : 'Add New Team Member',
+            children: document.createElement('div'), // Placeholder for body
+            footer: document.createElement('div'),   // Placeholder for footer
+            size: 'lg'
+        });
 
-        const rerenderModalContent = () => {
-            modalBody.innerHTML = ''; // Clear previous container
-            contentDiv.innerHTML = '';  // Clear previous content
+        // Get references to the parts of the modal we will update
+        const modalBody = modalEl.querySelector('.modal-body');
+        const modalFooter = modalEl.querySelector('.modal-footer');
+        const modalTitle = modalEl.querySelector('.modal-title');
+        currentTeamModalInstance = modalEl;
 
-            if (isEditing || !member) {
-                const form = TeamMemberForm({ member, onSave: onSaveMember, onCancel: member ? () => { isEditing = false; rerenderModalContent(); } : closeModal, internalTeams });
-                contentDiv.appendChild(form);
+        // Function to render just the content inside the modal
+        const renderModalContent = () => {
+            modalBody.innerHTML = '';
+            modalFooter.innerHTML = '';
+
+            if (isEditing) {
+                modalTitle.textContent = member ? `Edit ${member.name}` : 'Add New Team Member';
+                const form = TeamMemberForm({
+                    member,
+                    onSave: onSaveMember,
+                    onCancel: member ? () => { isEditing = false; renderModalContent(); } : closeModal,
+                    internalTeams
+                });
+                modalBody.appendChild(form);
+                // Form has its own footer buttons, so modalFooter is left empty
             } else {
-                // View Mode
+                // View Mode (only happens for existing members)
+                modalTitle.textContent = member.name;
+
                 const detailView = document.createElement('div');
                 detailView.className = 'member-detail-view';
 
@@ -960,30 +984,32 @@ export function renderAttendancePage(container, props) {
                 detailGrid.appendChild(createIdFieldWithCopy('Member ID', member.id));
 
                 detailView.appendChild(detailGrid);
-                contentDiv.appendChild(detailView);
-            }
-            modalBody.appendChild(contentDiv);
+                modalBody.appendChild(detailView);
 
-            currentTeamModalInstance = Modal({
-                isOpen: true,
-                onClose: closeModal,
-                title: member ? (isEditing ? `Edit ${member.name}` : member.name) : 'Add New Team Member',
-                children: modalBody,
-                footer: (isEditing || !member) ? null : [
-                    Button({ children: 'Delete', variant: 'danger', onClick: () => {
-                        if (window.confirm(`Are you sure you want to delete ${member.name}? This will remove all their associated data.`)) {
-                            onDeleteTeamMember(member.id);
-                            closeModal();
+                // Add footer buttons for view mode
+                const footerButtons = [
+                    Button({
+                        children: 'Delete', variant: 'danger', onClick: () => {
+                            if (window.confirm(`Are you sure you want to delete ${member.name}? This will remove all their associated data.`)) {
+                                onDeleteTeamMember(member.id);
+                                closeModal();
+                            }
                         }
-                    }}),
-                    Button({ children: 'Edit', variant: 'primary', onClick: () => { isEditing = true; rerenderModalContent(); }}),
+                    }),
+                    Button({
+                        children: 'Edit', variant: 'primary', onClick: () => {
+                            isEditing = true;
+                            renderModalContent();
+                        }
+                    }),
                     Button({ children: 'Close', variant: 'secondary', onClick: closeModal })
-                ],
-                size: 'lg'
-            });
+                ];
+                modalFooter.append(...footerButtons);
+            }
         };
 
-        rerenderModalContent();
+        // Initial call to render the content
+        renderModalContent();
     }
     
     // --- Initial Call ---
