@@ -1,5 +1,4 @@
 
-
 export function renderLoginPage(container, { onLogin, teamMembers, appSettings }) {
     container.innerHTML = '';
     container.className = 'login-page-container';
@@ -30,6 +29,14 @@ export function renderLoginPage(container, { onLogin, teamMembers, appSettings }
     pandaHead.innerHTML = `
         <div class="panda-ear-left"></div>
         <div class="panda-ear-right"></div>
+        <div class="panda-face">
+            <div class="panda-eye left">
+                <div class="panda-pupil"></div>
+            </div>
+            <div class="panda-eye right">
+                <div class="panda-pupil"></div>
+            </div>
+        </div>
     `;
 
     const pandaPawLeft = document.createElement('div');
@@ -143,4 +150,44 @@ export function renderLoginPage(container, { onLogin, teamMembers, appSettings }
     // Assemble the final structure
     loginWrapper.append(pandaHead, loginBox, pandaPawLeft, pandaPawRight);
     container.appendChild(loginWrapper);
+
+    // --- Panda Interaction Logic ---
+    const pupils = pandaHead.querySelectorAll('.panda-pupil');
+    
+    const handleFocus = () => {
+        pandaHead.classList.add('is-focused');
+    };
+
+    const handleBlur = () => {
+        pandaHead.classList.remove('is-focused');
+        pupils.forEach(p => {
+            p.style.transform = 'translate(0, 0)';
+        });
+    };
+
+    const handleInput = (e) => {
+        const input = e.target;
+        // Calculate the percentage of the cursor's position within the input
+        // Use a fixed max length for consistent movement range
+        const maxLength = 30; 
+        const percentage = Math.min(input.selectionStart / maxLength, 1);
+        
+        // Calculate pupil movement range: -8px to 8px horizontally.
+        const pupilX = (percentage * 16) - 8;
+        // A slight downward look when typing
+        const pupilY = 2;
+
+        pupils.forEach(p => {
+            p.style.transform = `translate(${pupilX}px, ${pupilY}px)`;
+        });
+    };
+
+    emailInput.addEventListener('focus', handleFocus);
+    emailInput.addEventListener('blur', handleBlur);
+    passwordInput.addEventListener('focus', handleFocus);
+    passwordInput.addEventListener('blur', handleBlur);
+    
+    // Track typing in both fields for a more responsive feel
+    emailInput.addEventListener('input', handleInput);
+    passwordInput.addEventListener('input', handleInput);
 }
