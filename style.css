@@ -3980,16 +3980,14 @@ footer.app-footer {
     transform: translateX(-50%);
     z-index: 1; /* Behind login-box */
     animation: panda-bob 5s ease-in-out infinite;
+    transition: transform 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55);
 }
 
-@keyframes panda-bob {
-    0%, 100% { transform: translate(-50%, 0); }
-    50% { transform: translate(-50%, 8px); }
+.panda-head.is-focused {
+    transform: translate(-50%, 20px);
 }
 
-/* White face part */
-.panda-head::after {
-    content: '';
+.panda-face {
     position: absolute;
     width: 100%;
     height: 130px;
@@ -3997,6 +3995,43 @@ footer.app-footer {
     border-radius: 50% 50% 45% 45%;
     bottom: 0;
     left: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 25px;
+}
+.dark .panda-face {
+    background: #f9fafb;
+}
+
+.panda-eye {
+    width: 40px;
+    height: 50px;
+    background: #2d3748;
+    border-radius: 50%;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.panda-eye.left {
+    transform: rotate(-20deg) translateY(-5px);
+}
+.panda-eye.right {
+    transform: rotate(20deg) translateY(-5px);
+}
+
+.panda-pupil {
+    width: 12px;
+    height: 12px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.1s linear;
+}
+
+@keyframes panda-bob {
+    0%, 100% { transform: translate(-50%, 0); }
+    50% { transform: translate(-50%, 8px); }
 }
 
 .panda-ear-left, .panda-ear-right {
