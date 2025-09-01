@@ -3975,7 +3975,7 @@ footer.app-footer {
     position: absolute;
     width: 180px;
     height: 160px;
-    top: 0;
+    top: -70px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 1; /* Behind login-box */
