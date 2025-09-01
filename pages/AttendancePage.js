@@ -1,4 +1,5 @@
 
+
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { TeamMemberForm } from '../components/TeamMemberForm.js';
@@ -257,10 +258,12 @@ export function renderAttendancePage(container, props) {
         const gridContainer = document.createElement('div');
         gridContainer.className = 'daily-log-grid-container';
         
-        const activeMembers = teamMembers.filter(m => m.status === EmployeeStatus.Active);
+        const membersToDisplay = isManager 
+            ? teamMembers.filter(m => m.status === EmployeeStatus.Active)
+            : [currentUser];
 
-        if (activeMembers.length > 0) {
-            activeMembers.forEach(member => {
+        if (membersToDisplay.length > 0) {
+            membersToDisplay.forEach(member => {
                 const record = attendanceRecords.find(r => r.date === selectedDate && r.memberId === member.id);
                 const card = AttendanceCard({ member, date: selectedDate, record, leaveTypes, holidays, onUpsertRecord: onUpsertAttendanceRecord });
                 gridContainer.appendChild(card);
@@ -276,47 +279,48 @@ export function renderAttendancePage(container, props) {
     function renderTeamManagement() {
         const teamManagementSection = document.createElement('div');
         teamManagementSection.className = 'attendance-page-section';
-        teamManagementSection.innerHTML = `<h2 class="attendance-section-title"><i class="fas fa-users"></i> Team Management</h2>`;
+        const titleText = isManager ? 'Team Management' : 'My Profile';
+        teamManagementSection.innerHTML = `<h2 class="attendance-section-title"><i class="fas fa-users"></i> ${titleText}</h2>`;
         
-        const toolbar = document.createElement('div');
-        toolbar.className = 'team-management-toolbar';
-        
-        const filters = document.createElement('div');
-        filters.className = 'team-management-filters';
-        
-        const searchInput = document.createElement('input');
-        searchInput.type = 'text';
-        searchInput.placeholder = 'Search by name...';
-        searchInput.className = 'form-input';
-        searchInput.id = 'team-search-input';
-        searchInput.value = teamMemberFilters.searchTerm;
-        searchInput.oninput = (e) => {
-            teamMemberFilters.searchTerm = e.target.value;
-            rerender();
-        };
-        filters.appendChild(searchInput);
-
-        const teamSelect = document.createElement('select');
-        teamSelect.className = 'form-select';
-        teamSelect.innerHTML = `<option value="">All Teams</option>` + internalTeams.map(t => `<option value="${t}">${t}</option>`).join('');
-        teamSelect.value = teamMemberFilters.team;
-        teamSelect.onchange = (e) => {
-            teamMemberFilters.team = e.target.value;
-            rerender();
-        };
-        filters.appendChild(teamSelect);
-        
-        const actions = document.createElement('div');
-        actions.className = 'team-management-actions';
         if (isManager) {
+            const toolbar = document.createElement('div');
+            toolbar.className = 'team-management-toolbar';
+            
+            const filters = document.createElement('div');
+            filters.className = 'team-management-filters';
+            
+            const searchInput = document.createElement('input');
+            searchInput.type = 'text';
+            searchInput.placeholder = 'Search by name...';
+            searchInput.className = 'form-input';
+            searchInput.id = 'team-search-input';
+            searchInput.value = teamMemberFilters.searchTerm;
+            searchInput.oninput = (e) => {
+                teamMemberFilters.searchTerm = e.target.value;
+                rerender();
+            };
+            filters.appendChild(searchInput);
+
+            const teamSelect = document.createElement('select');
+            teamSelect.className = 'form-select';
+            teamSelect.innerHTML = `<option value="">All Teams</option>` + internalTeams.map(t => `<option value="${t}">${t}</option>`).join('');
+            teamSelect.value = teamMemberFilters.team;
+            teamSelect.onchange = (e) => {
+                teamMemberFilters.team = e.target.value;
+                rerender();
+            };
+            filters.appendChild(teamSelect);
+            
+            const actions = document.createElement('div');
+            actions.className = 'team-management-actions';
             actions.append(
                 Button({ children: 'Export', variant: 'secondary', size: 'sm', onClick: onExportTeam }),
                 FileUploadButton({ children: 'Import', variant: 'secondary', size: 'sm', accept: '.csv', onFileSelect: onImportTeam })
             );
+            
+            toolbar.append(filters, actions);
+            teamManagementSection.appendChild(toolbar);
         }
-        
-        toolbar.append(filters, actions);
-        teamManagementSection.appendChild(toolbar);
         
         teamManagementSection.appendChild(renderTeamList());
         return teamManagementSection;
@@ -326,7 +330,9 @@ export function renderAttendancePage(container, props) {
         const teamListContainer = document.createElement('div');
         teamListContainer.className = 'data-table-container';
 
-        const filteredMembers = teamMembers.filter(m => {
+        const membersToShow = isManager ? teamMembers : [currentUser];
+
+        const filteredMembers = membersToShow.filter(m => {
             const matchesSearch = !teamMemberFilters.searchTerm || m.name.toLowerCase().includes(teamMemberFilters.searchTerm.toLowerCase());
             const matchesTeam = !teamMemberFilters.team || m.internalTeam === teamMemberFilters.team;
             return matchesSearch && matchesTeam;
@@ -986,25 +992,27 @@ export function renderAttendancePage(container, props) {
                 detailView.appendChild(detailGrid);
                 modalBody.appendChild(detailView);
 
-                // Add footer buttons for view mode
-                const footerButtons = [
-                    Button({
-                        children: 'Delete', variant: 'danger', onClick: () => {
-                            if (window.confirm(`Are you sure you want to delete ${member.name}? This will remove all their associated data.`)) {
-                                onDeleteTeamMember(member.id);
-                                closeModal();
+                // Add footer buttons for view mode if manager
+                if(isManager) {
+                    const footerButtons = [
+                        Button({
+                            children: 'Delete', variant: 'danger', onClick: () => {
+                                if (window.confirm(`Are you sure you want to delete ${member.name}? This will remove all their associated data.`)) {
+                                    onDeleteTeamMember(member.id);
+                                    closeModal();
+                                }
                             }
-                        }
-                    }),
-                    Button({
-                        children: 'Edit', variant: 'primary', onClick: () => {
-                            isEditing = true;
-                            renderModalContent();
-                        }
-                    }),
-                    Button({ children: 'Close', variant: 'secondary', onClick: closeModal })
-                ];
-                modalFooter.append(...footerButtons);
+                        }),
+                        Button({
+                            children: 'Edit', variant: 'primary', onClick: () => {
+                                isEditing = true;
+                                renderModalContent();
+                            }
+                        }),
+                    ];
+                     modalFooter.append(...footerButtons);
+                }
+                modalFooter.appendChild(Button({ children: 'Close', variant: 'secondary', onClick: closeModal }));
             }
         };
 
