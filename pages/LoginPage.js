@@ -55,7 +55,7 @@ export function renderLoginPage(container, { onLogin, teamMembers, appSettings }
 
     const subtitleElement = document.createElement('p');
     subtitleElement.className = 'login-subtitle';
-    subtitleElement.textContent = 'Enter your email to continue.';
+    subtitleElement.textContent = 'Enter your credentials to continue.';
 
     loginBox.append(titleElement, subtitleElement);
 
@@ -66,7 +66,7 @@ export function renderLoginPage(container, { onLogin, teamMembers, appSettings }
     errorMsg.className = 'login-error-message';
     errorMsg.style.display = 'none';
 
-    // --- Floating Label Input ---
+    // --- Email Floating Label Input ---
     const emailGroup = document.createElement('div');
     emailGroup.className = 'form-group';
     
@@ -85,25 +85,47 @@ export function renderLoginPage(container, { onLogin, teamMembers, appSettings }
     
     emailGroup.append(emailInput, emailLabel);
     
+    // --- Password Floating Label Input ---
+    const passwordGroup = document.createElement('div');
+    passwordGroup.className = 'form-group';
+
+    const passwordInput = document.createElement('input');
+    passwordInput.type = 'password';
+    passwordInput.id = 'password';
+    passwordInput.name = 'password';
+    passwordInput.className = 'form-input';
+    passwordInput.placeholder = ' '; // For floating label
+    passwordInput.required = true;
+
+    const passwordLabel = document.createElement('label');
+    passwordLabel.htmlFor = 'password';
+    passwordLabel.className = 'form-label';
+    passwordLabel.textContent = 'Password';
+
+    passwordGroup.append(passwordInput, passwordLabel);
+
     const submitButton = document.createElement('button');
     submitButton.type = 'submit';
     submitButton.className = 'button button-primary button-lg';
     submitButton.style.width = '100%';
     submitButton.textContent = 'Login';
 
-    form.append(errorMsg, emailGroup, submitButton);
+    form.append(errorMsg, emailGroup, passwordGroup, submitButton);
 
     form.onsubmit = (e) => {
         e.preventDefault();
         const email = emailInput.value.trim().toLowerCase();
-        if (!email) return;
+        const password = passwordInput.value;
+        if (!email || !password) return;
 
         const member = teamMembers.find(m => m.email && m.email.toLowerCase() === email);
         
-        if (member) {
+        // IMPORTANT: In a real application, passwords should be hashed.
+        // This is a plain-text comparison for demonstration purposes only.
+        if (member && member.password === password) {
             onLogin(member);
         } else {
-            errorMsg.textContent = 'Invalid email address.';
+            errorMsg.textContent = 'Invalid email or password.';
             errorMsg.style.display = 'block';
             emailInput.focus();
         }
