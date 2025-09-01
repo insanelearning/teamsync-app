@@ -25,27 +25,18 @@ export function renderLoginPage(container, { onLogin, teamMembers, appSettings }
     loginWrapper.className = 'login-wrapper';
 
     // --- Panda Elements ---
-    const panda = document.createElement('div');
-    panda.className = 'panda';
-    panda.innerHTML = `
-        <div class="panda-ear left"></div>
-        <div class="panda-ear right"></div>
-        <div class="panda-face">
-            <div class="panda-eye left">
-                <div class="panda-pupil"></div>
-            </div>
-            <div class="panda-eye right">
-                <div class="panda-pupil"></div>
-            </div>
-            <div class="panda-nose"></div>
-            <div class="panda-blush left"></div>
-            <div class="panda-blush right"></div>
-        </div>
+    const pandaHead = document.createElement('div');
+    pandaHead.className = 'panda-head';
+    pandaHead.innerHTML = `
+        <div class="panda-ear-left"></div>
+        <div class="panda-ear-right"></div>
     `;
-    const leftPaw = document.createElement('div');
-    leftPaw.className = 'panda-paw left';
-    const rightPaw = document.createElement('div');
-    rightPaw.className = 'panda-paw right';
+
+    const pandaPawLeft = document.createElement('div');
+    pandaPawLeft.className = 'panda-paw-left';
+
+    const pandaPawRight = document.createElement('div');
+    pandaPawRight.className = 'panda-paw-right';
     
     // --- Login Box ---
     const loginBox = document.createElement('div');
@@ -150,6 +141,6 @@ export function renderLoginPage(container, { onLogin, teamMembers, appSettings }
     loginBox.appendChild(form);
     
     // Assemble the final structure
-    loginWrapper.append(panda, loginBox, leftPaw, rightPaw);
+    loginWrapper.append(pandaHead, loginBox, pandaPawLeft, pandaPawRight);
     container.appendChild(loginWrapper);
 }
