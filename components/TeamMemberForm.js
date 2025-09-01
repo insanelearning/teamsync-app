@@ -16,6 +16,7 @@ const getDefaultTeamMember = () => ({
   role: TeamMemberRole.Member,
   internalTeam: '',
   status: EmployeeStatus.Active,
+  password: '',
 });
 
 export function TeamMemberForm({ member, onSave, onCancel, internalTeams }) {
@@ -72,11 +73,17 @@ export function TeamMemberForm({ member, onSave, onCancel, internalTeams }) {
   nameEmailGrid.appendChild(createField('Email', 'email', 'email', formData.email, true));
   form.appendChild(nameEmailGrid);
 
-  const mobileIdGrid = document.createElement('div');
-  mobileIdGrid.className = "form-grid-cols-2";
-  mobileIdGrid.appendChild(createField('Mobile Number', 'tel', 'mobileNumber', formData.mobileNumber, false, { placeholder: '+1234567890' }));
-  mobileIdGrid.appendChild(createField('Employee ID', 'text', 'employeeId', formData.employeeId));
-  form.appendChild(mobileIdGrid);
+  const mobilePasswordGrid = document.createElement('div');
+  mobilePasswordGrid.className = "form-grid-cols-2";
+  mobilePasswordGrid.appendChild(createField('Mobile Number', 'tel', 'mobileNumber', formData.mobileNumber, false, { placeholder: '+1234567890' }));
+  const passwordPlaceholder = member ? 'Leave blank to keep unchanged' : '';
+  mobilePasswordGrid.appendChild(createField('Password', 'password', 'password', '', !member, { placeholder: passwordPlaceholder }));
+  form.appendChild(mobilePasswordGrid);
+
+  const idGrid = document.createElement('div');
+  idGrid.className = "form-grid-cols-1";
+  idGrid.appendChild(createField('Employee ID', 'text', 'employeeId', formData.employeeId));
+  form.appendChild(idGrid);
   
   const designationDepartmentGrid = document.createElement('div');
   designationDepartmentGrid.className = "form-grid-cols-2";
@@ -122,6 +129,11 @@ export function TeamMemberForm({ member, onSave, onCancel, internalTeams }) {
       return;
     }
     
+    if (!member && (!formData.password || formData.password.trim() === '')) {
+      alert("Password is required for new members.");
+      return;
+    }
+
     const memberToSave = {
       id: member?.id || crypto.randomUUID(),
       name: formData.name.trim(),
@@ -139,6 +151,17 @@ export function TeamMemberForm({ member, onSave, onCancel, internalTeams }) {
     if (formData.department?.trim()) memberToSave.department = formData.department.trim();
     if (formData.company?.trim()) memberToSave.company = formData.company.trim();
     if (formData.internalTeam) memberToSave.internalTeam = formData.internalTeam;
+
+    // Handle password field
+    if (formData.password && formData.password.trim() !== '') {
+        // IMPORTANT: Storing plain-text passwords is a security risk.
+        // In a real application, this should be hashed before saving.
+        memberToSave.password = formData.password;
+    } else if (member && member.password) {
+        // If editing and password field is blank, retain the old password.
+        memberToSave.password = member.password;
+    }
+
 
     onSave(memberToSave);
   });
