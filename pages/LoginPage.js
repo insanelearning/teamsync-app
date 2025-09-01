@@ -20,32 +20,36 @@ export function renderLoginPage(container, { onLogin, teamMembers, appSettings }
     }
     container.appendChild(bgContainer);
     
+    // --- New Login Wrapper for Panda and Card ---
+    const loginWrapper = document.createElement('div');
+    loginWrapper.className = 'login-wrapper';
+
+    // --- Panda Elements ---
+    const panda = document.createElement('div');
+    panda.className = 'panda';
+    panda.innerHTML = `
+        <div class="panda-ear left"></div>
+        <div class="panda-ear right"></div>
+        <div class="panda-face">
+            <div class="panda-eye left">
+                <div class="panda-pupil"></div>
+            </div>
+            <div class="panda-eye right">
+                <div class="panda-pupil"></div>
+            </div>
+            <div class="panda-nose"></div>
+            <div class="panda-blush left"></div>
+            <div class="panda-blush right"></div>
+        </div>
+    `;
+    const leftPaw = document.createElement('div');
+    leftPaw.className = 'panda-paw left';
+    const rightPaw = document.createElement('div');
+    rightPaw.className = 'panda-paw right';
+    
     // --- Login Box ---
     const loginBox = document.createElement('div');
     loginBox.className = 'login-box';
-
-    // --- Animated Mascot "Synco" ---
-    const mascotSVG = `
-        <svg id="login-mascot" class="login-mascot" viewBox="0 0 100 80" xmlns="http://www.w3.org/2000/svg">
-            <g>
-                <path d="M20,78 C10,78 10,70 10,70 L10,45 C10,35 20,35 20,35 L80,35 C90,35 90,45 90,45 L90,70 C90,70 90,78 80,78 L20,78 Z" fill="#D1D5DB"/>
-                <rect x="25" y="45" width="50" height="15" rx="4" fill="#6B7280"/>
-                <circle cx="35" cy="25" r="15" fill="#E5E7EB"/>
-                <circle cx="65" cy="25" r="15" fill="#E5E7EB"/>
-                <g class="eye">
-                    <circle cx="35" cy="25" r="8" fill="#FFFFFF"/>
-                    <circle class="pupil" cx="35" cy="25" r="4" fill="#111827"/>
-                </g>
-                <g class="eye">
-                    <circle cx="65" cy="25" r="8" fill="#FFFFFF"/>
-                    <circle class="pupil" cx="65" cy="25" r="4" fill="#111827"/>
-                </g>
-                <line x1="50" y1="10" x2="50" y2="0" stroke="#9CA3AF" stroke-width="2"/>
-                <circle cx="50" cy="10" r="3" fill="#9CA3AF"/>
-            </g>
-        </svg>
-    `;
-    loginBox.innerHTML = mascotSVG;
 
     const appName = appSettings?.appName || 'TeamSync';
 
@@ -85,7 +89,7 @@ export function renderLoginPage(container, { onLogin, teamMembers, appSettings }
     
     emailGroup.append(emailInput, emailLabel);
     
-    // --- Password Floating Label Input ---
+    // --- Password Floating Label Input with Visibility Toggle ---
     const passwordGroup = document.createElement('div');
     passwordGroup.className = 'form-group';
 
@@ -102,7 +106,19 @@ export function renderLoginPage(container, { onLogin, teamMembers, appSettings }
     passwordLabel.className = 'form-label';
     passwordLabel.textContent = 'Password';
 
-    passwordGroup.append(passwordInput, passwordLabel);
+    const passwordToggle = document.createElement('button');
+    passwordToggle.type = 'button';
+    passwordToggle.className = 'password-toggle-btn';
+    passwordToggle.setAttribute('aria-label', 'Toggle password visibility');
+    passwordToggle.innerHTML = '<i class="fas fa-eye"></i>';
+
+    passwordToggle.onclick = () => {
+        const isPassword = passwordInput.type === 'password';
+        passwordInput.type = isPassword ? 'text' : 'password';
+        passwordToggle.innerHTML = isPassword ? '<i class="fas fa-eye-slash"></i>' : '<i class="fas fa-eye"></i>';
+    };
+
+    passwordGroup.append(passwordInput, passwordLabel, passwordToggle);
 
     const submitButton = document.createElement('button');
     submitButton.type = 'submit';
@@ -132,38 +148,8 @@ export function renderLoginPage(container, { onLogin, teamMembers, appSettings }
     };
 
     loginBox.appendChild(form);
-    container.appendChild(loginBox);
-
-    // --- Mascot Animation Logic ---
-    const mascot = container.querySelector('#login-mascot');
-    if (mascot) {
-        const eyes = Array.from(mascot.querySelectorAll('.eye'));
-        const pupils = Array.from(mascot.querySelectorAll('.pupil'));
-        const maxPupilMove = 3;
-
-        const moveEyes = (event) => {
-            const { clientX, clientY } = event;
-            eyes.forEach((eye, index) => {
-                const rect = eye.getBoundingClientRect();
-                const eyeCenterX = rect.left + rect.width / 2;
-                const eyeCenterY = rect.top + rect.height / 2;
-
-                const deltaX = clientX - eyeCenterX;
-                const deltaY = clientY - eyeCenterY;
-
-                const angle = Math.atan2(deltaY, deltaX);
-                const distance = Math.min(maxPupilMove, Math.sqrt(deltaX * deltaX + deltaY * deltaY) / 20);
-
-                const pupilX = Math.cos(angle) * distance;
-                const pupilY = Math.sin(angle) * distance;
-
-                pupils[index].style.transform = `translate(${pupilX}px, ${pupilY}px)`;
-            });
-        };
-        
-        // This event listener is scoped to the app's lifecycle.
-        // When the login page is replaced by another page, the container's
-        // contents are cleared, garbage collecting this listener.
-        window.addEventListener('mousemove', moveEyes);
-    }
+    
+    // Assemble the final structure
+    loginWrapper.append(panda, loginBox, leftPaw, rightPaw);
+    container.appendChild(loginWrapper);
 }
