@@ -4517,7 +4517,7 @@ footer.app-footer {
     flex-direction: row;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 0.5rem 1.5rem;
+    gap: 0.5rem 0.5rem;
 }
 .donut-legend-item {
     display: flex;
