@@ -3361,7 +3361,7 @@ footer.app-footer {
   border-bottom: 1px solid #e5e7eb; /* divide-y */
   /*white-space: nowrap;  Prevent wrapping in cells by default */
 }
-.dark .data-table th, .dark .data-table td { border-color: #374151; /* dark:divide-gray-700 */ }
+.dark .data-table th, .data-table td { border-color: #374151; /* dark:divide-gray-700 */ }
 .data-table th {
   font-weight: 500; /* font-medium */
   color: #6b7280; /* text-gray-500 */
@@ -3406,20 +3406,37 @@ footer.app-footer {
 
 
 /* Attendance Log Viewer Modal Specifics */
+.log-viewer-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.375rem;
+  background-color: #f9fafb;
+  margin-bottom: 1rem;
+}
+.dark .log-viewer-toolbar {
+  border-color: #374151;
+  background-color: rgba(31, 41, 55, 0.5);
+}
+@media (min-width: 1024px) {
+  .log-viewer-toolbar {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+}
 .log-viewer-filter-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); /* Responsive grid for filters */
-  gap: 1rem; /* gap-4 */
-  padding: 1rem; /* p-4 */
-  border: 1px solid #e5e7eb; /* border */
-  border-radius: 0.375rem; /* rounded-md */
-  background-color: #f9fafb; /* bg-gray-50 */
-  margin-bottom: 1rem; /* Add margin below filters */
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  flex-grow: 1;
 }
-.dark .log-viewer-filter-row {
-  border-color: #374151; /* dark:border-gray-700 */
-  background-color: rgba(31, 41, 55, 0.5); /* dark:bg-gray-800/50 */
+.log-viewer-actions {
+  flex-shrink: 0;
 }
+
 
 .log-viewer-table-container {
   overflow: auto; /* Changed to auto to allow both x and y scroll if needed */
