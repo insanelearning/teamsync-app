@@ -3363,7 +3363,7 @@ footer.app-footer {
   text-align: left;
   font-size: 0.875rem; /* text-sm for both th and td for consistency */
   border-bottom: 1px solid #e5e7eb; /* divide-y */
-  white-space: nowrap; /* Prevent wrapping in cells by default */
+  /*white-space: nowrap;  Prevent wrapping in cells by default */
 }
 .dark .data-table th, .dark .data-table td { border-color: #374151; /* dark:divide-gray-700 */ }
 .data-table th {
