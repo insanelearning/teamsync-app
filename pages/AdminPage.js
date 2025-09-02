@@ -1,5 +1,4 @@
 
-
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { FileUploadButton } from '../components/FileUploadButton.js';
@@ -10,6 +9,9 @@ let currentModalInstance = null;
 let localSettings = {};
 let taskCurrentPage = 1;
 const tasksPerPage = 5;
+let taskSearchTerm = '';
+let taskCategoryFilter = '';
+let taskTeamFilter = '';
 
 
 function closeModal() {
@@ -568,27 +570,82 @@ export function renderAdminPage(container, { appSettings, onUpdateSettings }) {
         );
         tasksFieldset.appendChild(taskActions);
 
+        // Task Filters
+        const taskFiltersContainer = document.createElement('div');
+        taskFiltersContainer.className = 'filters-grid';
+        taskFiltersContainer.style.marginBottom = '1rem';
+
+        const searchInput = document.createElement('input');
+        searchInput.type = 'text';
+        searchInput.placeholder = 'Search by name or category...';
+        searchInput.className = 'form-input';
+        searchInput.value = taskSearchTerm || '';
+        searchInput.oninput = (e) => {
+            taskSearchTerm = e.target.value;
+            taskCurrentPage = 1;
+            rerenderPage();
+        };
+
+        const uniqueCategories = [...new Set((localSettings.workLogTasks || []).map(t => t.category).filter(Boolean))].sort();
+        const categorySelect = document.createElement('select');
+        categorySelect.className = 'form-select';
+        categorySelect.innerHTML = `<option value="">All Categories</option>` + uniqueCategories.map(cat => `<option value="${cat}" ${taskCategoryFilter === cat ? 'selected' : ''}>${cat}</option>`).join('');
+        categorySelect.onchange = (e) => {
+            taskCategoryFilter = e.target.value;
+            taskCurrentPage = 1;
+            rerenderPage();
+        };
+
+        const teamSelect = document.createElement('select');
+        teamSelect.className = 'form-select';
+        teamSelect.innerHTML = `<option value="">All Teams</option>` + (localSettings.internalTeams || []).map(team => `<option value="${team}" ${taskTeamFilter === team ? 'selected' : ''}>${team}</option>`).join('');
+        teamSelect.onchange = (e) => {
+            taskTeamFilter = e.target.value;
+            taskCurrentPage = 1;
+            rerenderPage();
+        };
+
+        taskFiltersContainer.append(searchInput, categorySelect, teamSelect);
+        tasksFieldset.appendChild(taskFiltersContainer);
+
+
         const tasksTableContainer = document.createElement('div');
         tasksTableContainer.className = 'data-table-container';
         
-        const tasks = localSettings.workLogTasks || [];
+        // Filter tasks before pagination
+        let filteredTasks = localSettings.workLogTasks || [];
+        if (taskSearchTerm) {
+            const lowercasedTerm = taskSearchTerm.toLowerCase();
+            filteredTasks = filteredTasks.filter(task =>
+                task.name.toLowerCase().includes(lowercasedTerm) ||
+                task.category.toLowerCase().includes(lowercasedTerm)
+            );
+        }
+        if (taskCategoryFilter) {
+            filteredTasks = filteredTasks.filter(task => task.category === taskCategoryFilter);
+        }
+        if (taskTeamFilter) {
+            filteredTasks = filteredTasks.filter(task => (task.teams || []).includes(taskTeamFilter));
+        }
+
+        const tasks = filteredTasks;
         const totalTasks = tasks.length;
         const totalPages = Math.ceil(totalTasks / tasksPerPage) || 1;
-        if (taskCurrentPage > totalPages) taskCurrentPage = totalPages;
+        if (taskCurrentPage > totalPages) taskCurrentPage = 1;
 
         const startIndex = (taskCurrentPage - 1) * tasksPerPage;
         const endIndex = startIndex + tasksPerPage;
         const tasksForPage = tasks.slice(startIndex, endIndex);
 
         if (tasksForPage.length === 0) {
-            tasksTableContainer.innerHTML = `<p class="admin-list-empty">No tasks defined.</p>`;
+            tasksTableContainer.innerHTML = `<p class="admin-list-empty">No tasks match the current filters.</p>`;
         } else {
             const table = document.createElement('table');
             table.className = 'data-table admin-tasks-table';
             table.innerHTML = `<thead><tr><th>Task Name</th><th>Category</th><th>Assigned Teams</th><th class="action-cell">Actions</th></tr></thead>`;
             const tbody = document.createElement('tbody');
             tasksForPage.forEach((task) => {
-                const index = localSettings.workLogTasks.indexOf(task);
+                const index = (localSettings.workLogTasks || []).indexOf(task);
                 const tr = document.createElement('tr');
                 tr.innerHTML = `<td>${task.name}</td><td>${task.category}</td><td>${(task.teams || []).join(', ') || 'None'}</td>`;
                 const actionCell = document.createElement('td');
@@ -596,13 +653,17 @@ export function renderAdminPage(container, { appSettings, onUpdateSettings }) {
                 actionCell.append(
                     Button({ variant: 'ghost', size: 'sm', onClick: () => {
                         openTaskFormModal(task, (updatedTask) => {
-                            localSettings.workLogTasks[index] = updatedTask;
-                            rerenderPage();
+                            if (index > -1) {
+                                localSettings.workLogTasks[index] = updatedTask;
+                                rerenderPage();
+                            }
                         });
                     }, children: '<i class="fas fa-edit"></i>'}),
                     Button({ variant: 'danger', size: 'sm', onClick: () => {
-                        localSettings.workLogTasks.splice(index, 1);
-                        rerenderPage();
+                        if (index > -1) {
+                            localSettings.workLogTasks.splice(index, 1);
+                            rerenderPage();
+                        }
                     }, children: '<i class="fas fa-trash"></i>'})
                 );
                 tr.appendChild(actionCell);
