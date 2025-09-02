@@ -7,6 +7,7 @@ import { FileUploadButton } from '../components/FileUploadButton.js';
 import { AttendanceLogTable } from '../components/AttendanceLogTable.js';
 import { AttendanceCard } from '../components/AttendanceCard.js';
 import { TeamMemberRole, AttendanceStatus, EmployeeStatus } from '../types.js';
+import { exportToCSV } from '../services/csvService.js';
 
 let currentTeamModalInstance = null;
 let currentLogModalInstance = null;
@@ -854,36 +855,47 @@ export function renderAttendancePage(container, props) {
 
     function openAttendanceLogModal() {
         let logFilters = { memberId: '', leaveType: '', status: '', startDate: '', endDate: '' };
+        let currentFilteredLogs = [];
 
         const modalBody = document.createElement('div');
-        const filterRow = document.createElement('div');
-        filterRow.className = 'log-viewer-filter-row';
-
         const tableContainer = document.createElement('div');
         tableContainer.className = 'log-viewer-table-container';
 
+        const handleExportClick = () => {
+            if (currentFilteredLogs.length === 0) {
+                alert("There are no records to export based on the current filters.");
+                return;
+            }
+            const dataToExport = currentFilteredLogs.map(log => ({
+                date: log.date,
+                member_name: teamMembers.find(m => m.id === log.memberId)?.name || 'Unknown',
+                status: log.status,
+                leave_type: log.leaveType || '',
+                notes: log.notes || '',
+            }));
+            exportToCSV(dataToExport, 'attendance_log.csv');
+        };
+
         const rerenderLogTable = () => {
             let filteredLogs = [...attendanceRecords];
-            if (logFilters.memberId) {
-                filteredLogs = filteredLogs.filter(log => log.memberId === logFilters.memberId);
-            }
-            if (logFilters.status) {
-                filteredLogs = filteredLogs.filter(log => log.status === logFilters.status);
-            }
-            if (logFilters.leaveType) {
-                filteredLogs = filteredLogs.filter(log => log.leaveType === logFilters.leaveType);
-            }
-            if (logFilters.startDate) {
-                filteredLogs = filteredLogs.filter(log => log.date >= logFilters.startDate);
-            }
-            if (logFilters.endDate) {
-                filteredLogs = filteredLogs.filter(log => log.date <= logFilters.endDate);
-            }
+            if (logFilters.memberId) filteredLogs = filteredLogs.filter(log => log.memberId === logFilters.memberId);
+            if (logFilters.status) filteredLogs = filteredLogs.filter(log => log.status === logFilters.status);
+            if (logFilters.leaveType) filteredLogs = filteredLogs.filter(log => log.leaveType === logFilters.leaveType);
+            if (logFilters.startDate) filteredLogs = filteredLogs.filter(log => log.date >= logFilters.startDate);
+            if (logFilters.endDate) filteredLogs = filteredLogs.filter(log => log.date <= logFilters.endDate);
+            
             filteredLogs.sort((a,b) => b.date.localeCompare(a.date));
+            currentFilteredLogs = filteredLogs; // Update the scoped variable for export
 
-            tableContainer.innerHTML = ''; // Clear previous content
+            tableContainer.innerHTML = '';
             tableContainer.appendChild(AttendanceLogTable({ logs: filteredLogs, teamMembers, onDelete: onDeleteAttendanceRecord }));
         };
+
+        const toolbar = document.createElement('div');
+        toolbar.className = 'log-viewer-toolbar';
+
+        const filterRow = document.createElement('div');
+        filterRow.className = 'log-viewer-filter-row';
 
         const createFilterSelect = (options, placeholder, onChange) => {
             const select = document.createElement('select');
@@ -908,7 +920,19 @@ export function renderAttendancePage(container, props) {
             createDateInput('End Date', val => { logFilters.endDate = val; rerenderLogTable(); })
         );
 
-        modalBody.append(filterRow, tableContainer);
+        const exportActionContainer = document.createElement('div');
+        exportActionContainer.className = 'log-viewer-actions';
+        const exportButton = Button({
+            children: 'Export CSV',
+            variant: 'secondary',
+            size: 'sm',
+            leftIcon: '<i class="fas fa-file-export"></i>',
+            onClick: handleExportClick
+        });
+        exportActionContainer.appendChild(exportButton);
+        
+        toolbar.append(filterRow, exportActionContainer);
+        modalBody.append(toolbar, tableContainer);
         rerenderLogTable();
 
         currentLogModalInstance = Modal({
@@ -994,23 +1018,23 @@ export function renderAttendancePage(container, props) {
 
                 // Add footer buttons for view mode if manager
                 if(isManager) {
-                    const footerButtons = [
-                        Button({
-                            children: 'Delete', variant: 'danger', onClick: () => {
-                                if (window.confirm(`Are you sure you want to delete ${member.name}? This will remove all their associated data.`)) {
-                                    onDeleteTeamMember(member.id);
-                                    closeModal();
-                                }
+                    const editButton = Button({
+                        children: 'Edit', variant: 'primary', onClick: () => {
+                            isEditing = true;
+                            renderModalContent();
+                        }
+                    });
+                    
+                    const deleteButton = Button({
+                        children: 'Delete', variant: 'danger', onClick: () => {
+                            if (window.confirm(`Are you sure you want to delete ${member.name}? This will remove all their associated data.`)) {
+                                onDeleteTeamMember(member.id);
+                                closeModal();
                             }
-                        }),
-                        Button({
-                            children: 'Edit', variant: 'primary', onClick: () => {
-                                isEditing = true;
-                                renderModalContent();
-                            }
-                        }),
-                    ];
-                     modalFooter.append(...footerButtons);
+                        }
+                    });
+
+                     modalFooter.append(deleteButton, editButton);
                 }
                 modalFooter.appendChild(Button({ children: 'Close', variant: 'secondary', onClick: closeModal }));
             }
