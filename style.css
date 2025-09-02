@@ -3361,7 +3361,7 @@ footer.app-footer {
   border-bottom: 1px solid #e5e7eb; /* divide-y */
   /*white-space: nowrap;  Prevent wrapping in cells by default */
 }
-.dark .data-table th, .data-table td { border-color: #374151; /* dark:divide-gray-700 */ }
+.dark .data-table th, .data-table td { /*border-color: #374151;  dark:divide-gray-700 */ }
 .data-table th {
   font-weight: 500; /* font-medium */
   color: #6b7280; /* text-gray-500 */
