@@ -407,19 +407,33 @@ const handleExport = (dataType) => {
       }));
     exportDataToCSV(notesToExport, 'notes.csv');
   } else if (dataType === 'worklogs') {
+    // Create lookup maps for efficiency
+    const taskCategoryMap = new Map((appSettings.workLogTasks || []).map(task => [task.name, task.category]));
+    const memberNameMap = new Map(teamMembers.map(member => [member.id, member.name]));
+    const projectNameMap = new Map(projects.map(project => [project.id, project.name]));
+
     const logsToExport = (currentUser.role === TeamMemberRole.Manager ? workLogs : workLogs.filter(wl => wl.memberId === currentUser.id))
-      .map(wl => ({
-        id: wl.id,
-        memberId: wl.memberId,
-        projectId: wl.projectId,
-        date: wl.date,
-        taskName: wl.taskName,
-        requestedFrom: wl.requestedFrom || '',
-        timeSpentMinutes: wl.timeSpentMinutes,
-        comments: wl.comments || '',
-        createdAt: wl.createdAt,
-        updatedAt: wl.updatedAt,
-      }));
+      .map(wl => {
+        const category = taskCategoryMap.get(wl.taskName) || 'Uncategorized';
+        const memberName = memberNameMap.get(wl.memberId) || 'Unknown Member';
+        const projectName = projectNameMap.get(wl.projectId) || 'Unknown Project';
+
+        return {
+            date: wl.date,
+            member_name: memberName,
+            project_name: projectName,
+            task_category: category,
+            taskName: wl.taskName,
+            timeSpentMinutes: wl.timeSpentMinutes,
+            comments: wl.comments || '',
+            requestedFrom: wl.requestedFrom || '',
+            id: wl.id,
+            memberId: wl.memberId,
+            projectId: wl.projectId,
+            createdAt: wl.createdAt,
+            updatedAt: wl.updatedAt,
+        };
+      });
     exportDataToCSV(logsToExport, 'worklogs.csv');
   } else if (dataType === 'team') {
     const teamToExport = teamMembers.map(m => ({
