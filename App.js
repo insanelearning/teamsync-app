@@ -1,5 +1,3 @@
-
-
 import { renderDashboardPage } from './pages/DashboardPage.js';
 import { renderProjectsPage } from './pages/ProjectsPage.js';
 import { renderAttendancePage } from './pages/AttendancePage.js';
@@ -361,9 +359,9 @@ const deleteTeamMember = async (memberId) => {
 };
 
 // CSV Handlers
-const handleExport = (dataType) => {
+const handleExport = (dataType, dataToExport = null) => {
   if (dataType === 'projects') {
-    const projectsToExport = projects.map(p => ({
+    const projectsToExport = (dataToExport || projects).map(p => ({
       id: p.id,
       name: p.name,
       description: p.description || '',
@@ -382,7 +380,7 @@ const handleExport = (dataType) => {
     }));
     exportDataToCSV(projectsToExport, 'projects.csv');
   } else if (dataType === 'attendance') {
-    const attendanceToExport = attendance.map(a => ({
+    const attendanceToExport = (dataToExport || attendance).map(a => ({
       id: a.id,
       date: a.date,
       memberId: a.memberId,
@@ -392,9 +390,8 @@ const handleExport = (dataType) => {
     }));
     exportDataToCSV(attendanceToExport, 'attendance.csv');
   } else if (dataType === 'notes') {
-    const notesToExport = notes
-      .filter(note => note.userId === currentUser.id) // Only export current user's notes
-      .map(n => ({
+    const userNotesToExport = (dataToExport || notes.filter(note => note.userId === currentUser.id));
+    const notesToExport = userNotesToExport.map(n => ({
         id: n.id,
         title: n.title,
         content: n.content,
@@ -411,9 +408,12 @@ const handleExport = (dataType) => {
     const taskCategoryMap = new Map((appSettings.workLogTasks || []).map(task => [task.name, task.category]));
     const memberNameMap = new Map(teamMembers.map(member => [member.id, member.name]));
     const projectNameMap = new Map(projects.map(project => [project.id, project.name]));
+    
+    const logsForProcessing = dataToExport 
+        ? dataToExport 
+        : (currentUser.role === TeamMemberRole.Manager ? workLogs : workLogs.filter(wl => wl.memberId === currentUser.id));
 
-    const logsToExport = (currentUser.role === TeamMemberRole.Manager ? workLogs : workLogs.filter(wl => wl.memberId === currentUser.id))
-      .map(wl => {
+    const logsToExportCSV = logsForProcessing.map(wl => {
         const category = taskCategoryMap.get(wl.taskName) || 'Uncategorized';
         const memberName = memberNameMap.get(wl.memberId) || 'Unknown Member';
         const projectName = projectNameMap.get(wl.projectId) || 'Unknown Project';
@@ -434,9 +434,9 @@ const handleExport = (dataType) => {
             updatedAt: wl.updatedAt,
         };
       });
-    exportDataToCSV(logsToExport, 'worklogs.csv');
+    exportDataToCSV(logsToExportCSV, 'worklogs.csv');
   } else if (dataType === 'team') {
-    const teamToExport = teamMembers.map(m => ({
+    const teamToExport = (dataToExport || teamMembers).map(m => ({
       id: m.id,
       name: m.name,
       email: m.email,
