@@ -698,19 +698,10 @@ function renderMemberDashboard(container, props) {
     const { currentUser, onAddNote, appSettings } = props;
 
     const onAddLogClick = (projectId = null) => {
-        const userTeam = currentUser ? currentUser.internalTeam : '';
-        const availableTasksForUser = props.workLogTasks.filter(task => (task.teams || []).includes(userTeam));
-        const tasksGroupedByCategory = availableTasksForUser.reduce((acc, task) => {
-            const category = task.category || 'Uncategorized';
-            if (!acc[category]) acc[category] = [];
-            acc[category].push(task);
-            return acc;
-        }, {});
-
+        // Task filtering is now handled within WorkLogForm.
         const form = WorkLogForm({
             log: null,
-            ...props,
-            workLogTasks: tasksGroupedByCategory,
+            ...props, // This passes the full workLogTasks list
             initialEntryData: projectId ? { projectId } : null,
             onSaveAll: (logsData) => {
                 closeModal(); // Close modal before async operation
