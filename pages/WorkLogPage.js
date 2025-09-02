@@ -86,9 +86,22 @@ export function renderWorkLogPage(container, props) {
 
     if (isManager) {
         actionsWrapper.append(
-            Button({ children: 'Export CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>', onClick: () => onExport('worklogs') }),
+            Button({ 
+                children: 'Export CSV', 
+                variant: 'secondary', 
+                size: 'sm', 
+                leftIcon: '<i class="fas fa-file-export"></i>', 
+                onClick: () => {
+                    const filteredLogs = getFilteredLogs();
+                    onExport('worklogs', filteredLogs);
+                } 
+            }),
             FileUploadButton({
-                children: 'Import CSV', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-import"></i>', accept: '.csv',
+                children: 'Import CSV', 
+                variant: 'secondary', 
+                size: 'sm', 
+                leftIcon: '<i class="fas fa-file-import"></i>', 
+                accept: '.csv',
                 onFileSelect: (file) => { if (file) onImport(file, 'worklogs'); }
             })
         );
