@@ -1,5 +1,5 @@
-
 import { Button } from './Button.js';
+import { formatDateToIndian } from '../utils.js';
 
 export function AttendanceLogTable({ logs, teamMembers, onDelete }) {
   const getMemberName = (memberId) => {
@@ -40,7 +40,7 @@ export function AttendanceLogTable({ logs, teamMembers, onDelete }) {
   const tbody = document.createElement('tbody');
   logs.forEach((log) => {
     const tr = document.createElement('tr');
-    const displayDate = new Date(log.date + 'T00:00:00').toLocaleDateString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit' });
+    const displayDate = formatDateToIndian(log.date);
     
     const tdDate = document.createElement('td');
     tdDate.textContent = displayDate;
