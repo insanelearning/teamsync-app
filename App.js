@@ -7,7 +7,7 @@ import { renderLoginPage } from './pages/LoginPage.js';
 import { renderAdminPage } from './pages/AdminPage.js';
 import { Navbar } from './components/Navbar.js';
 import { INITIAL_TEAM_MEMBERS, WORK_LOG_TASKS, PRIORITIES, INITIAL_INTERNAL_TEAMS, INITIAL_HOLIDAYS, INITIAL_LEAVE_TYPES, MEMBER_COLORS } from './constants.js';
-import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery, addDocument } from './services/firebaseService.js';
+import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery, addDocument, batchDelete } from './services/firebaseService.js';
 import { exportToCSV as exportDataToCSV, importFromCSV } from './services/csvService.js';
 import { ProjectStatus, AttendanceStatus, NoteStatus, TeamMemberRole, EmployeeStatus } from './types.js'; // Enums
 import { formatDateToIndian, parseIndianDate } from './utils.js';
@@ -261,6 +261,25 @@ const deleteWorkLog = async (workLogId) => {
     } catch (error) {
         console.error("Failed to delete work log:", error);
         alert("Error: Could not delete the work log.");
+    }
+};
+
+const bulkDeleteWorkLogs = async (workLogIds) => {
+    if (!workLogIds || workLogIds.length === 0) {
+        alert("No logs selected for deletion.");
+        return;
+    }
+    try {
+        await batchDelete('worklogs', workLogIds);
+
+        const idsToDelete = new Set(workLogIds);
+        workLogs = workLogs.filter(wl => !idsToDelete.has(wl.id));
+        
+        renderApp();
+        alert(`${workLogIds.length} work log${workLogIds.length > 1 ? 's' : ''} deleted successfully.`);
+    } catch (error) {
+        console.error("Failed to bulk delete work logs:", error);
+        alert("Error: Could not delete the work logs from the database.");
     }
 };
 
@@ -575,7 +594,7 @@ const renderApp = () => {
     onAddProject: addProject, onUpdateProject: updateProject, onDeleteProject: deleteProject,
     onUpsertAttendanceRecord: upsertAttendanceRecord, onDeleteAttendanceRecord: deleteAttendanceRecord,
     onAddNote: addNote, onUpdateNote: updateNote, onDeleteNote: deleteNote,
-    onAddMultipleWorkLogs: addMultipleWorkLogs, onUpdateWorkLog: updateWorkLog, onDeleteWorkLog: deleteWorkLog,
+    onAddMultipleWorkLogs: addMultipleWorkLogs, onUpdateWorkLog: updateWorkLog, onDeleteWorkLog: deleteWorkLog, onBulkDeleteWorkLogs: bulkDeleteWorkLogs,
     onAddTeamMember: addTeamMember, onUpdateTeamMember: updateTeamMember, onDeleteTeamMember: deleteTeamMember,
     onUpdateSettings: updateAppSettings,
     onExport: handleExport, onImport: handleImport,
