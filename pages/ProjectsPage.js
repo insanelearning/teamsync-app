@@ -314,7 +314,6 @@ export function renderProjectsPage(container, props) {
   const isManager = currentUser.role === TeamMemberRole.Manager;
   const activeMembers = teamMembers.filter(m => m.status === EmployeeStatus.Active);
 
-  // ** FIX: Filter projects based on user role at the beginning **
   const projectsToDisplay = isManager 
     ? projects 
     : projects.filter(p => (p.assignees || []).includes(currentUser.id));
@@ -362,7 +361,7 @@ export function renderProjectsPage(container, props) {
         boardButton.classList.add('active');
         listButton.classList.remove('active');
     }
-    rerenderMainContent();
+    rerenderProjectDisplay();
   };
 
   listButton.onclick = () => setView('list');
@@ -386,14 +385,14 @@ export function renderProjectsPage(container, props) {
   headerDiv.append(headerTitle, headerActionsContainer);
   pageWrapper.appendChild(headerDiv);
   
-  // ** FIX: Pass the correctly filtered list to the overview section **
   pageWrapper.appendChild(renderProjectsOverview(projectsToDisplay, projectStatuses, openModalWithProject));
 
   const mainContentContainer = document.createElement('div');
   pageWrapper.appendChild(mainContentContainer);
+  
+  const projectDisplayContainer = document.createElement('div');
 
   function getFilteredAndSortedProjects() {
-    // ** FIX: Filter from projectsToDisplay, not the original projects array **
     return projectsToDisplay.filter(p => {
       const sTerm = searchTerm.toLowerCase();
       return (p.name.toLowerCase().includes(sTerm) || (p.description||'').toLowerCase().includes(sTerm) || (p.stakeholderName && p.stakeholderName.toLowerCase().includes(sTerm))) &&
@@ -422,7 +421,7 @@ export function renderProjectsPage(container, props) {
       input.type = type; input.placeholder = placeholder;
       input.className = "form-input";
       input.value = currentValue;
-      input.oninput = (e) => { onUpdate(e.target.value); rerenderMainContent(); };
+      input.oninput = (e) => { onUpdate(e.target.value); rerenderProjectDisplay(); };
       return input;
     }
     function createFilterSelect(optionsArray, defaultOptionText, onUpdate, currentValue = '') {
@@ -431,11 +430,10 @@ export function renderProjectsPage(container, props) {
       if (defaultOptionText) select.innerHTML = `<option value="">${defaultOptionText}</option>`;
       optionsArray.forEach(opt => select.innerHTML += `<option value="${opt.value}" ${opt.value === currentValue ? 'selected' : ''}>${opt.label}</option>`);
       select.value = currentValue;
-      select.onchange = (e) => { onUpdate(e.target.value); rerenderMainContent(); };
+      select.onchange = (e) => { onUpdate(e.target.value); rerenderProjectDisplay(); };
       return select;
     }
     
-    // ** FIX: Derive unique types/categories from projectsToDisplay **
     const uniqueProjectTypes = Array.from(new Set(projectsToDisplay.map(p => p.projectType).filter(Boolean)));
     const uniqueProjectCategories = Array.from(new Set(projectsToDisplay.map(p => p.projectCategory).filter(Boolean)));
     const sortOptions = [
@@ -456,9 +454,8 @@ export function renderProjectsPage(container, props) {
     return filtersDiv;
   }
 
-  function rerenderMainContent() {
-    mainContentContainer.innerHTML = '';
-    mainContentContainer.appendChild(createFilters());
+  function rerenderProjectDisplay() {
+    projectDisplayContainer.innerHTML = '';
     
     const displayProjects = getFilteredAndSortedProjects();
     
@@ -521,7 +518,7 @@ export function renderProjectsPage(container, props) {
             <p class="primary-text">No projects found.</p>
             <p class="secondary-text">Try adjusting filters or add a new project.</p>`;
         }
-        mainContentContainer.appendChild(projectsContainer);
+        projectDisplayContainer.appendChild(projectsContainer);
     } else { // 'board' view
         const kanbanContainer = KanbanBoard({
             projects: displayProjects,
@@ -532,7 +529,7 @@ export function renderProjectsPage(container, props) {
             onEditProject: openModalWithProject,
             onDeleteProject,
         });
-        mainContentContainer.appendChild(kanbanContainer);
+        projectDisplayContainer.appendChild(kanbanContainer);
     }
   }
 
@@ -808,7 +805,10 @@ export function renderProjectsPage(container, props) {
     currentModalInstance = modalEl;
     renderContent();
   }
-
-  rerenderMainContent();
+  
+  // Initial Page Build
+  mainContentContainer.appendChild(createFilters());
+  mainContentContainer.appendChild(projectDisplayContainer);
+  rerenderProjectDisplay();
   container.appendChild(pageWrapper);
 }
