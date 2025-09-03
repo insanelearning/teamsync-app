@@ -1,4 +1,3 @@
-
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { FileUploadButton } from '../components/FileUploadButton.js';
@@ -352,7 +351,7 @@ async function handleTaskImport(file, rerenderCallback) {
 }
 
 
-export function renderAdminPage(container, { appSettings, onUpdateSettings }) {
+export function renderAdminPage(container, { appSettings, onUpdateSettings, onExport }) {
     localSettings = JSON.parse(JSON.stringify(appSettings)); // Deep clone for local editing
 
     const rerenderPage = () => {
@@ -566,6 +565,10 @@ export function renderAdminPage(container, { appSettings, onUpdateSettings }) {
             FileUploadButton({
                 children: 'Import Tasks', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-import"></i>', accept: '.csv',
                 onFileSelect: (file) => handleTaskImport(file, rerenderPage)
+            }),
+            Button({
+                children: 'Export Tasks', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>',
+                onClick: () => onExport('worklogtasks', localSettings.workLogTasks)
             })
         );
         tasksFieldset.appendChild(taskActions);
