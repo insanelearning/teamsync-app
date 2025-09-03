@@ -451,6 +451,14 @@ const handleExport = (dataType, dataToExport = null) => {
       internalTeam: m.internalTeam || '',
     }));
     exportDataToCSV(teamToExport, 'team.csv');
+  } else if (dataType === 'worklogtasks') {
+    const tasksToExport = (dataToExport || appSettings.workLogTasks).map(t => ({
+        id: t.id,
+        'Task Name': t.name,
+        Category: t.category,
+        'Assigned Teams': (t.teams || []).join(','),
+    }));
+    exportDataToCSV(tasksToExport, 'work_log_tasks.csv');
   }
 };
 
