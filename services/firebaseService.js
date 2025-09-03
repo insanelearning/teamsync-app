@@ -137,6 +137,29 @@ export async function batchWrite(collectionName, dataArray) {
 }
 
 /**
+ * Deletes multiple documents from a collection in batches.
+ * @param {string} collectionName The name of the collection.
+ * @param {Array<string>} docIds An array of document IDs to delete.
+ */
+export async function batchDelete(collectionName, docIds) {
+    if (!docIds || docIds.length === 0) return;
+
+    // Firestore batch writes are limited to 500 operations per batch.
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < docIds.length; i += BATCH_SIZE) {
+        const batch = writeBatch(db);
+        const chunk = docIds.slice(i, i + BATCH_SIZE);
+        
+        chunk.forEach(id => {
+            const docRef = doc(db, collectionName, id);
+            batch.delete(docRef);
+        });
+        
+        await batch.commit();
+    }
+}
+
+/**
  * Deletes multiple documents based on a query.
  * @param {string} collectionName The name of the collection.
  * @param {string} field The field to query on.
