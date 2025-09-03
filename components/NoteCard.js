@@ -1,6 +1,6 @@
-
 import { Button } from './Button.js';
 import { NoteStatus } from '../types.js';
+import { formatDateToIndian } from '../utils.js';
 
 export function NoteCard({ note, onEdit, onDelete, onUpdate }) {
   const card = document.createElement('div');
@@ -14,14 +14,6 @@ export function NoteCard({ note, onEdit, onDelete, onUpdate }) {
     const newStatus = note.status === NoteStatus.Completed ? NoteStatus.Pending : NoteStatus.Completed;
     const updatedNote = { ...note, status: newStatus, updatedAt: new Date().toISOString() };
     onUpdate(updatedNote);
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return '';
-    return new Date(dateString + 'T00:00:00').toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-    });
   };
 
   // Header: Title and Status Toggle
@@ -59,7 +51,7 @@ export function NoteCard({ note, onEdit, onDelete, onUpdate }) {
   const metaInfo = document.createElement('div');
   metaInfo.className = 'note-card-meta';
   if (note.dueDate) {
-    metaInfo.innerHTML = `<i class="fas fa-calendar-alt due-date-icon"></i> Due: ${formatDate(note.dueDate)}`;
+    metaInfo.innerHTML = `<i class="fas fa-calendar-alt due-date-icon"></i> Due: ${formatDateToIndian(note.dueDate)}`;
   }
   
   const actionsDiv = document.createElement('div');
