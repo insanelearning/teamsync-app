@@ -1,4 +1,3 @@
-
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { FileUploadButton } from '../components/FileUploadButton.js';
@@ -356,8 +355,6 @@ async function handleTaskImport(file, rerenderCallback) {
 export function renderAdminPage(container, { appSettings, onUpdateSettings, onExport }) {
     localSettings = JSON.parse(JSON.stringify(appSettings)); // Deep clone for local editing
 
-    // This full re-render is for changes that affect multiple components on the page,
-    // like adding a team which then needs to appear in the task assignment options.
     const rerenderPage = () => {
         const scrollY = window.scrollY;
         container.innerHTML = '';
@@ -555,71 +552,12 @@ export function renderAdminPage(container, { appSettings, onUpdateSettings, onEx
         
         // --- Work Log Tasks ---
         const tasksFieldset = createFieldset('Work Log Tasks', "Manage tasks available for selection in work logs. CSV format: 'Task Name', 'Category', 'Assigned Teams'");
-        const dynamicTaskContent = document.createElement('div');
         
-        const rerenderTasksSection = () => {
-            dynamicTaskContent.innerHTML = ''; // Clear only this section
+        const tasksTableAndPaginationContainer = document.createElement('div');
+
+        const rerenderTasksTableAndPagination = () => {
+            tasksTableAndPaginationContainer.innerHTML = ''; // Clear only this section
             
-            const taskActions = document.createElement('div');
-            taskActions.className = 'admin-item-actions';
-            taskActions.append(
-                Button({ children: 'Add New Task', size: 'sm', leftIcon: '<i class="fas fa-plus"></i>', onClick: () => {
-                    openTaskFormModal(null, (newTask) => {
-                        if (!localSettings.workLogTasks) localSettings.workLogTasks = [];
-                        localSettings.workLogTasks.push(newTask);
-                        rerenderPage();
-                    });
-                }}),
-                FileUploadButton({
-                    children: 'Import Tasks', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-import"></i>', accept: '.csv',
-                    onFileSelect: (file) => handleTaskImport(file, rerenderPage)
-                }),
-                Button({
-                    children: 'Export Tasks', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>',
-                    onClick: () => onExport('worklogtasks', localSettings.workLogTasks)
-                })
-            );
-            dynamicTaskContent.appendChild(taskActions);
-
-            // Task Filters
-            const taskFiltersContainer = document.createElement('div');
-            taskFiltersContainer.className = 'filters-grid';
-            taskFiltersContainer.style.marginBottom = '1rem';
-
-            const searchInput = document.createElement('input');
-            searchInput.type = 'text';
-            searchInput.placeholder = 'Search by name or category...';
-            searchInput.className = 'form-input';
-            searchInput.value = taskSearchTerm || '';
-            searchInput.oninput = (e) => {
-                taskSearchTerm = e.target.value;
-                taskCurrentPage = 1;
-                rerenderTasksSection();
-            };
-
-            const uniqueCategories = [...new Set((localSettings.workLogTasks || []).map(t => t.category).filter(Boolean))].sort();
-            const categorySelect = document.createElement('select');
-            categorySelect.className = 'form-select';
-            categorySelect.innerHTML = `<option value="">All Categories</option>` + uniqueCategories.map(cat => `<option value="${cat}" ${taskCategoryFilter === cat ? 'selected' : ''}>${cat}</option>`).join('');
-            categorySelect.onchange = (e) => {
-                taskCategoryFilter = e.target.value;
-                taskCurrentPage = 1;
-                rerenderTasksSection();
-            };
-
-            const teamSelect = document.createElement('select');
-            teamSelect.className = 'form-select';
-            teamSelect.innerHTML = `<option value="">All Teams</option>` + (localSettings.internalTeams || []).map(team => `<option value="${team}" ${taskTeamFilter === team ? 'selected' : ''}>${team}</option>`).join('');
-            teamSelect.onchange = (e) => {
-                taskTeamFilter = e.target.value;
-                taskCurrentPage = 1;
-                rerenderTasksSection();
-            };
-
-            taskFiltersContainer.append(searchInput, categorySelect, teamSelect);
-            dynamicTaskContent.appendChild(taskFiltersContainer);
-
-
             const tasksTableContainer = document.createElement('div');
             tasksTableContainer.className = 'data-table-container';
             
@@ -663,14 +601,14 @@ export function renderAdminPage(container, { appSettings, onUpdateSettings, onEx
                             openTaskFormModal(task, (updatedTask) => {
                                 if (index > -1) {
                                     localSettings.workLogTasks[index] = updatedTask;
-                                    rerenderTasksSection();
+                                    rerenderTasksTableAndPagination();
                                 }
                             });
                         }, children: '<i class="fas fa-edit"></i>'}),
                         Button({ variant: 'danger', size: 'sm', onClick: () => {
                             if (index > -1) {
                                 localSettings.workLogTasks.splice(index, 1);
-                                rerenderTasksSection();
+                                rerenderTasksTableAndPagination();
                             }
                         }, children: '<i class="fas fa-trash"></i>'})
                     );
@@ -680,7 +618,7 @@ export function renderAdminPage(container, { appSettings, onUpdateSettings, onEx
                 table.appendChild(tbody);
                 tasksTableContainer.appendChild(table);
             }
-            dynamicTaskContent.appendChild(tasksTableContainer);
+            tasksTableAndPaginationContainer.appendChild(tasksTableContainer);
 
             if (totalPages > 1) {
                 const pagination = document.createElement('div');
@@ -693,18 +631,76 @@ export function renderAdminPage(container, { appSettings, onUpdateSettings, onEx
                 const nav = document.createElement('div');
                 nav.className = 'pagination-nav';
                 nav.append(
-                    Button({ children: 'Prev', size: 'sm', variant: 'secondary', disabled: taskCurrentPage === 1, onClick: () => { taskCurrentPage--; rerenderTasksSection(); }}),
-                    Button({ children: 'Next', size: 'sm', variant: 'secondary', disabled: taskCurrentPage >= totalPages, onClick: () => { taskCurrentPage++; rerenderTasksSection(); }})
+                    Button({ children: 'Prev', size: 'sm', variant: 'secondary', disabled: taskCurrentPage === 1, onClick: () => { taskCurrentPage--; rerenderTasksTableAndPagination(); }}),
+                    Button({ children: 'Next', size: 'sm', variant: 'secondary', disabled: taskCurrentPage >= totalPages, onClick: () => { taskCurrentPage++; rerenderTasksTableAndPagination(); }})
                 );
                 
                 pagination.append(pageInfo, nav);
-                dynamicTaskContent.appendChild(pagination);
+                tasksTableAndPaginationContainer.appendChild(pagination);
             }
         };
 
-        tasksFieldset.appendChild(dynamicTaskContent);
+        const taskActions = document.createElement('div');
+        taskActions.className = 'admin-item-actions';
+        taskActions.append(
+            Button({ children: 'Add New Task', size: 'sm', leftIcon: '<i class="fas fa-plus"></i>', onClick: () => {
+                openTaskFormModal(null, (newTask) => {
+                    if (!localSettings.workLogTasks) localSettings.workLogTasks = [];
+                    localSettings.workLogTasks.push(newTask);
+                    rerenderTasksTableAndPagination(); // Only re-render the list
+                });
+            }}),
+            FileUploadButton({
+                children: 'Import Tasks', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-import"></i>', accept: '.csv',
+                onFileSelect: (file) => handleTaskImport(file, rerenderTasksTableAndPagination) // Pass specific re-render function
+            }),
+            Button({
+                children: 'Export Tasks', variant: 'secondary', size: 'sm', leftIcon: '<i class="fas fa-file-export"></i>',
+                onClick: () => onExport('worklogtasks', localSettings.workLogTasks)
+            })
+        );
+        tasksFieldset.appendChild(taskActions);
+
+        const taskFiltersContainer = document.createElement('div');
+        taskFiltersContainer.className = 'filters-grid';
+        taskFiltersContainer.style.marginBottom = '1rem';
+
+        const searchInput = document.createElement('input');
+        searchInput.type = 'text';
+        searchInput.placeholder = 'Search by name or category...';
+        searchInput.className = 'form-input';
+        searchInput.value = taskSearchTerm || '';
+        searchInput.oninput = (e) => {
+            taskSearchTerm = e.target.value;
+            taskCurrentPage = 1;
+            rerenderTasksTableAndPagination();
+        };
+
+        const uniqueCategories = [...new Set((localSettings.workLogTasks || []).map(t => t.category).filter(Boolean))].sort();
+        const categorySelect = document.createElement('select');
+        categorySelect.className = 'form-select';
+        categorySelect.innerHTML = `<option value="">All Categories</option>` + uniqueCategories.map(cat => `<option value="${cat}" ${taskCategoryFilter === cat ? 'selected' : ''}>${cat}</option>`).join('');
+        categorySelect.onchange = (e) => {
+            taskCategoryFilter = e.target.value;
+            taskCurrentPage = 1;
+            rerenderTasksTableAndPagination();
+        };
+
+        const teamSelect = document.createElement('select');
+        teamSelect.className = 'form-select';
+        teamSelect.innerHTML = `<option value="">All Teams</option>` + (localSettings.internalTeams || []).map(team => `<option value="${team}" ${taskTeamFilter === team ? 'selected' : ''}>${team}</option>`).join('');
+        teamSelect.onchange = (e) => {
+            taskTeamFilter = e.target.value;
+            taskCurrentPage = 1;
+            rerenderTasksTableAndPagination();
+        };
+
+        taskFiltersContainer.append(searchInput, categorySelect, teamSelect);
+        tasksFieldset.appendChild(taskFiltersContainer);
+        tasksFieldset.appendChild(tasksTableAndPaginationContainer);
+        
         form.appendChild(tasksFieldset);
-        rerenderTasksSection(); // Initial render of the dynamic task section
+        rerenderTasksTableAndPagination(); // Initial render of the dynamic task section
 
         // --- Save Button ---
         const saveButtonContainer = document.createElement('div');
