@@ -1,8 +1,10 @@
+
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { FileUploadButton } from '../components/FileUploadButton.js';
 import { importFromCSV } from '../services/csvService.js';
 import { PRIORITIES } from '../constants.js';
+import { formatDateToIndian } from '../utils.js';
 
 let currentModalInstance = null;
 let localSettings = {};
@@ -407,7 +409,7 @@ export function renderAdminPage(container, { appSettings, onUpdateSettings, onEx
             (localSettings.holidays || []).sort((a,b) => a.date.localeCompare(b.date)).forEach((holiday) => {
                 const item = document.createElement('div');
                 item.className = 'admin-list-item';
-                item.innerHTML = `<span><strong>${holiday.name}</strong> - ${new Date(holiday.date + 'T00:00:00').toLocaleDateString()}</span>`;
+                item.innerHTML = `<span><strong>${holiday.name}</strong> - ${formatDateToIndian(holiday.date)}</span>`;
                 item.appendChild(Button({
                     children: '<i class="fas fa-trash"></i>', variant: 'ghost', size: 'sm',
                     onClick: () => { 
@@ -677,35 +679,40 @@ export function renderAdminPage(container, { appSettings, onUpdateSettings, onEx
         }
         tasksFieldset.appendChild(tasksTableContainer);
 
-        // Pagination for Tasks Table
-        const paginationContainer = document.createElement('div');
-        paginationContainer.className = 'pagination-controls';
+        // Task Pagination
         if (totalPages > 1) {
-            const navContainer = document.createElement('div');
-            navContainer.className = 'pagination-nav';
+            const pagination = document.createElement('div');
+            pagination.className = 'pagination-controls';
+            pagination.style.marginTop = '1rem';
+            
             const pageInfo = document.createElement('span');
             pageInfo.textContent = `Page ${taskCurrentPage} of ${totalPages}`;
-            const prevButton = Button({ children: 'Prev', variant: 'secondary', size: 'sm', disabled: taskCurrentPage === 1, onClick: () => { taskCurrentPage--; rerenderPage(); }});
-            const nextButton = Button({ children: 'Next', variant: 'secondary', size: 'sm', disabled: taskCurrentPage >= totalPages, onClick: () => { taskCurrentPage++; rerenderPage(); }});
-            navContainer.append(prevButton, pageInfo, nextButton);
-            paginationContainer.append(document.createElement('div'), navContainer);
+            
+            const nav = document.createElement('div');
+            nav.className = 'pagination-nav';
+            nav.append(
+                Button({ children: 'Prev', size: 'sm', variant: 'secondary', disabled: taskCurrentPage === 1, onClick: () => { taskCurrentPage--; rerenderPage(); }}),
+                Button({ children: 'Next', size: 'sm', variant: 'secondary', disabled: taskCurrentPage >= totalPages, onClick: () => { taskCurrentPage++; rerenderPage(); }})
+            );
+            
+            pagination.append(pageInfo, nav);
+            tasksFieldset.appendChild(pagination);
         }
-        tasksFieldset.appendChild(paginationContainer);
 
         form.appendChild(tasksFieldset);
 
-        // --- Save Form ---
-        const formActions = document.createElement('div');
-        formActions.className = 'project-form-actions';
-        formActions.style.justifyContent = 'flex-end';
-        formActions.appendChild(Button({ children: 'Save All Settings', variant: 'primary', type: 'submit' }));
-        form.appendChild(formActions);
-
-        form.onsubmit = (e) => {
-            e.preventDefault();
-            onUpdateSettings(localSettings);
-        };
-
+        // --- Save Button ---
+        const saveButtonContainer = document.createElement('div');
+        saveButtonContainer.className = 'project-form-actions';
+        saveButtonContainer.style.marginTop = '1.5rem';
+        saveButtonContainer.appendChild(Button({
+            children: 'Save All Settings',
+            variant: 'primary',
+            size: 'lg',
+            onClick: () => onUpdateSettings(localSettings)
+        }));
+        form.appendChild(saveButtonContainer);
+        
         pageWrapper.appendChild(form);
         container.appendChild(pageWrapper);
     };
