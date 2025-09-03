@@ -1,11 +1,10 @@
-
-
 import { ProjectForm } from '../components/ProjectForm.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { Button } from '../components/Button.js';
 import { FileUploadButton } from '../components/FileUploadButton.js';
 import { TeamMemberRole, EmployeeStatus } from '../types.js';
 import { KanbanBoard } from '../components/KanbanBoard.js';
+import { formatDateToIndian } from '../utils.js';
 
 let currentModalInstance = null; 
 
@@ -208,7 +207,7 @@ function renderDeadlinesAndRisks(projects, onProjectClick) {
         li.className = 'deadline-item';
         li.innerHTML = `
           <a href="#" data-project-id="${p.id}" class="deadline-item-name">${p.name}</a>
-          <span class="deadline-item-date">Due: ${new Date(p.dueDate).toLocaleDateString()}</span>
+          <span class="deadline-item-date">Due: ${formatDateToIndian(p.dueDate)}</span>
         `;
         ul.appendChild(li);
       });
@@ -498,7 +497,7 @@ export function renderProjectsPage(container, props) {
                     <td><span class="project-status-badge ${getStatusClass(p.status)}">${p.status}</span></td>
                     <td></td>
                     <td class="truncate" title="${assigneesNames}">${assigneesNames}</td>
-                    <td>${new Date(p.dueDate).toLocaleDateString()}</td>
+                    <td>${formatDateToIndian(p.dueDate)}</td>
                     <td><span class="${getPriorityClass(p.priority)}">${p.priority}</span></td>
                 `;
                 tr.children[2].replaceWith(progressCell); // Replace placeholder TD with progress bar
@@ -593,7 +592,7 @@ export function renderProjectsPage(container, props) {
         <div class="detail-item"><h4 class="detail-label">Status</h4><p class="detail-value"><span class="project-status-badge ${getStatusClass(project.status)}">${project.status}</span></p></div>
         <div class="detail-item"><h4 class="detail-label">Assignees</h4><p class="detail-value">${assigneesNames}</p></div>
         <div class="detail-item"><h4 class="detail-label">Team Lead</h4><p class="detail-value">${teamLeadName}</p></div>
-        <div class="detail-item"><h4 class="detail-label">Due Date</h4><p class="detail-value">${new Date(project.dueDate).toLocaleDateString()}</p></div>
+        <div class="detail-item"><h4 class="detail-label">Due Date</h4><p class="detail-value">${formatDateToIndian(project.dueDate)}</p></div>
         <div class="detail-item"><h4 class="detail-label">Priority</h4><p class="detail-value"><span class="${getPriorityClass(project.priority)}">${project.priority}</span></p></div>
         <div class="detail-item"><h4 class="detail-label">Project Type</h4><p class="detail-value">${project.projectType || 'N/A'}</p></div>
         <div class="detail-item"><h4 class="detail-label">Category</h4><p class="detail-value">${project.projectCategory || 'N/A'}</p></div>
@@ -701,7 +700,7 @@ export function renderProjectsPage(container, props) {
                     
                     const tdName = document.createElement('td');
                     if (metric.completed) {
-                        tdName.innerHTML = `<i class="fas fa-check-circle" style="color: #22c55e; margin-right: 0.5rem;" title="Completed on ${new Date(metric.completionDate).toLocaleDateString()}"></i>${metric.fieldName}`;
+                        tdName.innerHTML = `<i class="fas fa-check-circle" style="color: #22c55e; margin-right: 0.5rem;" title="Completed on ${formatDateToIndian(metric.completionDate)}"></i>${metric.fieldName}`;
                     } else {
                         tdName.textContent = metric.fieldName;
                     }
