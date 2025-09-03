@@ -1,10 +1,10 @@
-
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { NoteCard } from '../components/NoteCard.js';
 import { NoteForm } from '../components/NoteForm.js';
 import { FileUploadButton } from '../components/FileUploadButton.js';
 import { TeamMemberRole } from '../types.js';
+import { formatDateToIndian } from '../utils.js';
 
 let currentModalInstance = null;
 
@@ -48,7 +48,7 @@ function renderNotesDeadlines(notes, onNoteClick) {
         li.className = 'deadline-item';
         li.innerHTML = `
           <a href="#" data-note-id="${n.id}" class="deadline-item-name">${n.title}</a>
-          <span class="deadline-item-date">Due: ${new Date(n.dueDate + 'T00:00:00').toLocaleDateString()}</span>
+          <span class="deadline-item-date">Due: ${formatDateToIndian(n.dueDate)}</span>
         `;
         ul.appendChild(li);
       });
