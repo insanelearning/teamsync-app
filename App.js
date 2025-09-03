@@ -10,6 +10,7 @@ import { INITIAL_TEAM_MEMBERS, WORK_LOG_TASKS, PRIORITIES, INITIAL_INTERNAL_TEAM
 import { getCollection, setDocument, updateDocument, deleteDocument, batchWrite, deleteByQuery, addDocument } from './services/firebaseService.js';
 import { exportToCSV as exportDataToCSV, importFromCSV } from './services/csvService.js';
 import { ProjectStatus, AttendanceStatus, NoteStatus, TeamMemberRole, EmployeeStatus } from './types.js'; // Enums
+import { formatDateToIndian, parseIndianDate } from './utils.js';
 
 let rootElement;
 let mainContentElement;
@@ -367,11 +368,11 @@ const handleExport = (dataType, dataToExport = null) => {
       description: p.description || '',
       status: p.status,
       assignees: (p.assignees || []).join(';'), // Use semicolon for multi-value fields
-      dueDate: p.dueDate,
+      dueDate: formatDateToIndian(p.dueDate),
       priority: p.priority || '',
       tags: (p.tags || []).join(';'),
-      createdAt: p.createdAt,
-      updatedAt: p.updatedAt,
+      createdAt: formatDateToIndian(p.createdAt),
+      updatedAt: formatDateToIndian(p.updatedAt),
       stakeholderName: p.stakeholderName || '',
       teamLeadId: p.teamLeadId || '',
       projectType: p.projectType || '',
@@ -382,7 +383,7 @@ const handleExport = (dataType, dataToExport = null) => {
   } else if (dataType === 'attendance') {
     const attendanceToExport = (dataToExport || attendance).map(a => ({
       id: a.id,
-      date: a.date,
+      date: formatDateToIndian(a.date),
       memberId: a.memberId,
       status: a.status,
       leaveType: a.leaveType || '',
@@ -396,11 +397,11 @@ const handleExport = (dataType, dataToExport = null) => {
         title: n.title,
         content: n.content,
         status: n.status,
-        dueDate: n.dueDate || '',
+        dueDate: formatDateToIndian(n.dueDate),
         tags: (n.tags || []).join(';'),
         color: n.color,
-        createdAt: n.createdAt,
-        updatedAt: n.updatedAt,
+        createdAt: formatDateToIndian(n.createdAt),
+        updatedAt: formatDateToIndian(n.updatedAt),
       }));
     exportDataToCSV(notesToExport, 'notes.csv');
   } else if (dataType === 'worklogs') {
@@ -419,7 +420,7 @@ const handleExport = (dataType, dataToExport = null) => {
         const projectName = projectNameMap.get(wl.projectId) || 'Unknown Project';
 
         return {
-            date: wl.date,
+            date: formatDateToIndian(wl.date),
             member_name: memberName,
             project_name: projectName,
             task_category: category,
@@ -430,8 +431,8 @@ const handleExport = (dataType, dataToExport = null) => {
             id: wl.id,
             memberId: wl.memberId,
             projectId: wl.projectId,
-            createdAt: wl.createdAt,
-            updatedAt: wl.updatedAt,
+            createdAt: formatDateToIndian(wl.createdAt),
+            updatedAt: formatDateToIndian(wl.updatedAt),
         };
       });
     exportDataToCSV(logsToExportCSV, 'worklogs.csv');
@@ -442,8 +443,8 @@ const handleExport = (dataType, dataToExport = null) => {
       email: m.email,
       mobileNumber: m.mobileNumber || '',
       employeeId: m.employeeId || '',
-      joinDate: m.joinDate || '',
-      birthDate: m.birthDate || '',
+      joinDate: formatDateToIndian(m.joinDate),
+      birthDate: formatDateToIndian(m.birthDate),
       designation: m.designation || '',
       department: m.department || '',
       company: m.company || '',
@@ -481,31 +482,47 @@ const handleImport = async (file, dataType) => {
     let collectionName = '';
     if (dataType === 'projects') {
         collectionName = 'projects';
-        // Convert semicolon-separated strings back to arrays
+        // Convert semicolon-separated strings back to arrays and parse dates
         importedData = importedData.map(p => ({
             ...p,
             assignees: typeof p.assignees === 'string' ? p.assignees.split(';').filter(Boolean) : [],
             tags: typeof p.tags === 'string' ? p.tags.split(';').filter(Boolean) : [],
+            dueDate: parseIndianDate(p.dueDate),
+            createdAt: parseIndianDate(p.createdAt),
+            updatedAt: parseIndianDate(p.updatedAt),
         }));
     } else if (dataType === 'attendance') {
         collectionName = 'attendance';
+        importedData = importedData.map(a => ({ ...a, date: parseIndianDate(a.date) }));
     } else if (dataType === 'notes') {
         collectionName = 'notes';
-        importedData.forEach(note => {
-            note.userId = currentUser.id;
-            note.tags = typeof note.tags === 'string' ? note.tags.split(';').filter(Boolean) : [];
-        });
+        importedData = importedData.map(note => ({
+            ...note,
+            userId: currentUser.id,
+            tags: typeof note.tags === 'string' ? note.tags.split(';').filter(Boolean) : [],
+            dueDate: parseIndianDate(note.dueDate),
+            createdAt: parseIndianDate(note.createdAt),
+            updatedAt: parseIndianDate(note.updatedAt),
+        }));
     } else if (dataType === 'worklogs') {
         collectionName = 'worklogs';
         // As requested, automatically generate IDs for work logs if they are missing.
-        // Also ensure timeSpentMinutes is a number.
+        // Also ensure timeSpentMinutes is a number and dates are parsed.
         importedData = importedData.map(log => ({
             ...log,
             id: log.id || crypto.randomUUID(),
             timeSpentMinutes: Number(log.timeSpentMinutes) || 0,
+            date: parseIndianDate(log.date),
+            createdAt: parseIndianDate(log.createdAt),
+            updatedAt: parseIndianDate(log.updatedAt),
         }));
     } else if (dataType === 'team') {
         collectionName = 'teamMembers';
+        importedData = importedData.map(m => ({
+            ...m,
+            joinDate: parseIndianDate(m.joinDate),
+            birthDate: parseIndianDate(m.birthDate),
+        }));
     } else {
         alert("Unknown data type for import.");
         return;
