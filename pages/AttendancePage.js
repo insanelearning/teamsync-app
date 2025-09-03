@@ -141,23 +141,8 @@ export function renderAttendancePage(container, props) {
     pageWrapper.className = 'page-container';
 
     function rerender() {
-        const activeElementId = document.activeElement.id;
-        const activeElementSelectionStart = document.activeElement.selectionStart;
-        const activeElementSelectionEnd = document.activeElement.selectionEnd;
-
         container.innerHTML = '';
         buildPage();
-
-        if (activeElementId) {
-            const focusedElement = document.getElementById(activeElementId);
-            if (focusedElement) {
-                focusedElement.focus();
-                if (typeof activeElementSelectionStart === 'number') {
-                    focusedElement.selectionStart = activeElementSelectionStart;
-                    focusedElement.selectionEnd = activeElementSelectionEnd;
-                }
-            }
-        }
     }
 
 
@@ -281,6 +266,13 @@ export function renderAttendancePage(container, props) {
         teamManagementSection.className = 'attendance-page-section';
         const titleText = isManager ? 'Team Management' : 'My Profile';
         teamManagementSection.innerHTML = `<h2 class="attendance-section-title"><i class="fas fa-users"></i> ${titleText}</h2>`;
+
+        const teamListContainer = document.createElement('div'); // Container for the dynamic list
+        
+        const rerenderTeamList = () => {
+            teamListContainer.innerHTML = ''; // Clear previous list
+            teamListContainer.appendChild(renderTeamListTable());
+        };
         
         if (isManager) {
             const toolbar = document.createElement('div');
@@ -297,7 +289,7 @@ export function renderAttendancePage(container, props) {
             searchInput.value = teamMemberFilters.searchTerm;
             searchInput.oninput = (e) => {
                 teamMemberFilters.searchTerm = e.target.value;
-                rerender();
+                rerenderTeamList();
             };
             filters.appendChild(searchInput);
 
@@ -307,7 +299,7 @@ export function renderAttendancePage(container, props) {
             teamSelect.value = teamMemberFilters.team;
             teamSelect.onchange = (e) => {
                 teamMemberFilters.team = e.target.value;
-                rerender();
+                rerenderTeamList();
             };
             filters.appendChild(teamSelect);
             
@@ -322,13 +314,14 @@ export function renderAttendancePage(container, props) {
             teamManagementSection.appendChild(toolbar);
         }
         
-        teamManagementSection.appendChild(renderTeamList());
+        teamManagementSection.appendChild(teamListContainer);
+        rerenderTeamList(); // Initial render of the list
         return teamManagementSection;
     }
     
-    function renderTeamList() {
-        const teamListContainer = document.createElement('div');
-        teamListContainer.className = 'data-table-container';
+    function renderTeamListTable() {
+        const listContainer = document.createElement('div');
+        listContainer.className = 'data-table-container';
 
         const membersToShow = isManager ? teamMembers : [currentUser];
 
@@ -339,8 +332,8 @@ export function renderAttendancePage(container, props) {
         });
 
         if (filteredMembers.length === 0) {
-            teamListContainer.innerHTML = `<div class="no-data-placeholder"><p class="primary-text">No members match your search.</p></div>`;
-            return teamListContainer;
+            listContainer.innerHTML = `<div class="no-data-placeholder"><p class="primary-text">No members match your search.</p></div>`;
+            return listContainer;
         }
 
         const table = document.createElement('table');
@@ -375,8 +368,8 @@ export function renderAttendancePage(container, props) {
             tbody.appendChild(tr);
         });
         table.appendChild(tbody);
-        teamListContainer.appendChild(table);
-        return teamListContainer;
+        listContainer.appendChild(table);
+        return listContainer;
     }
     
     function renderAnalysisSection() {
