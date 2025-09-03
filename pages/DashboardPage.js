@@ -5,6 +5,7 @@ import { WorkLogForm } from '../components/WorkLogForm.js';
 import { NoteForm } from '../components/NoteForm.js';
 import { CelebrationsWidget } from '../components/CelebrationsWidget.js';
 import { WeeklyHoursDetailModal } from '../components/WeeklyHoursDetailModal.js';
+import { formatDateToIndian } from '../utils.js';
 
 let currentModalInstance = null;
 
@@ -297,7 +298,8 @@ function renderActivityFeed(props) {
     } else {
         list.innerHTML = events.map(event => {
             const isValidDate = event.date instanceof Date && !isNaN(event.date);
-            const dateString = isValidDate ? event.date.toLocaleString() : 'Date not available';
+            const timeString = isValidDate ? event.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+            const dateString = isValidDate ? `${formatDateToIndian(event.date)} ${timeString}` : 'Date not available';
             return `
             <li class="activity-item type-${event.type}">
                 <div class="activity-icon"><i class="fas ${event.icon}"></i></div>
@@ -321,7 +323,7 @@ function renderProjectInsights(props) {
         if (!content) return;
         content.innerHTML = '';
         
-        const dateTitle = selectedDateFilter ? ` for ${new Date(selectedDateFilter + 'T00:00:00').toLocaleDateString()}` : ' (All Time)';
+        const dateTitle = selectedDateFilter ? ` for ${formatDateToIndian(selectedDateFilter)}` : ' (All Time)';
         container.querySelector('.widget-header h3').innerHTML = `<i class="fas fa-chart-pie widget-icon"></i>Project Contributions${dateTitle}`;
 
         const activeProjects = projects.filter(p => p.status !== ProjectStatus.Done && p.status !== ProjectStatus.ToDo);
@@ -393,7 +395,7 @@ function renderMemberStats(props, onKpiClick) {
         { type: 'weekly_hours', value: formatMinutes(myWeeklyMinutes), label: 'Time Logged (Week)', icon: 'fas fa-clock', clickable: false },
         { type: 'active_projects', value: myActiveProjects.length, label: 'Active Projects', icon: 'fas fa-tasks', clickable: myActiveProjects.length > 0, data: myActiveProjects },
         { type: 'overdue_projects', value: myOverdueProjects.length, label: 'Overdue', icon: 'fas fa-exclamation-triangle', className: myOverdueProjects.length > 0 ? 'warning' : '', clickable: myOverdueProjects.length > 0, data: myOverdueProjects },
-        { type: 'next_deadline', value: nextDeadline ? new Date(nextDeadline.dueDate + 'T00:00').toLocaleDateString() : 'N/A', label: 'Next Deadline', detail: nextDeadline?.name || 'All clear!', icon: 'fas fa-calendar-check', clickable: false }
+        { type: 'next_deadline', value: nextDeadline ? formatDateToIndian(nextDeadline.dueDate) : 'N/A', label: 'Next Deadline', detail: nextDeadline?.name || 'All clear!', icon: 'fas fa-calendar-check', clickable: false }
     ];
 
     kpis.forEach(kpi => {
@@ -532,7 +534,7 @@ function renderMyActionableNotes(props) {
             if (note.dueDate) {
                 const dueDate = new Date(note.dueDate + 'T00:00:00');
                 const isOverdue = dueDate < today;
-                meta.innerHTML = `<i class="fas fa-calendar-alt"></i> <span class="${isOverdue ? 'due-date-overdue' : ''}">Due: ${dueDate.toLocaleDateString(undefined, {month: 'short', day: 'numeric'})}</span>`;
+                meta.innerHTML = `<i class="fas fa-calendar-alt"></i> <span class="${isOverdue ? 'due-date-overdue' : ''}">Due: ${formatDateToIndian(note.dueDate)}</span>`;
             }
             item.append(title, meta);
             list.appendChild(item);
@@ -662,7 +664,7 @@ function renderManagerDashboard(container, props) {
             size = 'lg';
         } else if (kpi.type === 'overdue') {
             title = 'Overdue Projects';
-            content.innerHTML = kpi.data.map(p => `<li class="kpi-modal-list-item"><strong>${p.name}</strong><span>Due: ${new Date(p.dueDate).toLocaleDateString()}</span></li>`).join('');
+            content.innerHTML = kpi.data.map(p => `<li class="kpi-modal-list-item"><strong>${p.name}</strong><span>Due: ${formatDateToIndian(p.dueDate)}</span></li>`).join('');
         } else if (kpi.type === 'leave') {
             title = 'Members On Leave Today';
             content.innerHTML = kpi.data.map(m => `<li class="kpi-modal-list-item"><strong>${m.name}</strong><span>${m.leaveType}</span></li>`).join('');
@@ -732,7 +734,7 @@ function renderMemberDashboard(container, props) {
             title = 'My Overdue Projects';
         }
 
-        content.innerHTML = kpi.data.map(p => `<li class="kpi-modal-list-item"><strong>${p.name}</strong><span>Due: ${new Date(p.dueDate).toLocaleDateString()}</span></li>`).join('');
+        content.innerHTML = kpi.data.map(p => `<li class="kpi-modal-list-item"><strong>${p.name}</strong><span>Due: ${formatDateToIndian(p.dueDate)}</span></li>`).join('');
 
         currentModalInstance = Modal({
             isOpen: true,
