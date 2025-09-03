@@ -5,6 +5,7 @@ import { FileUploadButton } from '../components/FileUploadButton.js';
 import { TeamMemberRole } from '../types.js';
 import { WorkDistributionChart } from '../components/WorkDistributionChart.js';
 import { CATEGORY_COLORS } from '../constants.js';
+import { formatDateToIndian } from '../utils.js';
 
 let currentModalInstance = null;
 
@@ -231,7 +232,7 @@ export function renderWorkLogPage(container, props) {
                 <span style="font-weight: 400; font-size: 0.8rem;">Today: ${formatMinutes(todaysTotalMinutes)}</span>
             </div>
             <div class="value">${formatMinutes(totalMinutes)}</div>
-            <div class="sub-label">${start.toLocaleDateString()} - ${end.toLocaleDateString()} ${dayDiffText}</div>`;
+            <div class="sub-label">${formatDateToIndian(start)} - ${formatDateToIndian(end)} ${dayDiffText}</div>`;
         
         const avgMinutesPerPersonDay = personDays > 0 ? (totalMinutes / personDays) : 0;
         avgHoursCard.innerHTML = `
@@ -370,7 +371,7 @@ export function renderWorkLogPage(container, props) {
             logsForPage.forEach(log => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td>${new Date(log.date + 'T00:00:00').toLocaleDateString()}</td>
+                    <td>${formatDateToIndian(log.date)}</td>
                     <td>${getMemberName(log.memberId)}</td>
                     <td>${getProjectName(log.projectId)}</td>
                     <td class="truncate" title="${log.taskName}">${log.taskName}</td>
