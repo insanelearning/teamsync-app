@@ -1,6 +1,6 @@
-
 import { Button } from './Button.js';
 import { ProjectStatus } from '../types.js';
+import { formatDateToIndian } from '../utils.js';
 
 const getStatusClass = (status) => {
   switch (status) {
@@ -35,8 +35,6 @@ export function ProjectCard({ project, teamMembers, onEdit, onDelete }) {
   
   const teamLeadName = project.teamLeadId ? getMemberName(project.teamLeadId) : 'N/A';
 
-  const formatDate = (dateString) => new Date(dateString).toLocaleDateString();
-
   const contentWrapper = document.createElement('div'); // Wrapper for main content except actions
 
   let contentHTML = `
@@ -66,7 +64,7 @@ export function ProjectCard({ project, teamMembers, onEdit, onDelete }) {
         <div class="project-card-details-grid">
           <div>
             <span class="project-card-details-label">Due Date:</span>
-            <span class="project-card-details-value">${formatDate(project.dueDate)}</span>
+            <span class="project-card-details-value">${formatDateToIndian(project.dueDate)}</span>
           </div>
           ${project.priority ? `
             <div>
@@ -88,7 +86,7 @@ export function ProjectCard({ project, teamMembers, onEdit, onDelete }) {
         </div>
         <div>
           <span class="project-card-details-label">Last Updated:</span>
-          <span class="project-card-details-value">${formatDate(project.updatedAt)}</span>
+          <span class="project-card-details-value">${formatDateToIndian(project.updatedAt)}</span>
         </div>
       </div>`;
 
