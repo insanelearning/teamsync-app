@@ -1,5 +1,3 @@
-
-
 import { Button } from '../components/Button.js';
 import { Modal, closeModal as closeGlobalModal } from '../components/Modal.js';
 import { TeamMemberForm } from '../components/TeamMemberForm.js';
@@ -8,6 +6,7 @@ import { AttendanceLogTable } from '../components/AttendanceLogTable.js';
 import { AttendanceCard } from '../components/AttendanceCard.js';
 import { TeamMemberRole, AttendanceStatus, EmployeeStatus } from '../types.js';
 import { exportToCSV } from '../services/csvService.js';
+import { formatDateToIndian } from '../utils.js';
 
 let currentTeamModalInstance = null;
 let currentLogModalInstance = null;
@@ -727,7 +726,7 @@ export function renderAttendancePage(container, props) {
             list.innerHTML = `<li class="insight-list-empty">All work days are marked.</li>`;
         } else {
             daysNotMarked.slice(0, 100).forEach(item => {
-                list.innerHTML += `<li>${item.date} - ${item.name}</li>`;
+                list.innerHTML += `<li>${formatDateToIndian(item.date)} - ${item.name}</li>`;
             });
         }
         content.appendChild(list);
@@ -867,7 +866,7 @@ export function renderAttendancePage(container, props) {
                 return;
             }
             const dataToExport = currentFilteredLogs.map(log => ({
-                date: log.date,
+                date: formatDateToIndian(log.date),
                 member_name: teamMembers.find(m => m.id === log.memberId)?.name || 'Unknown',
                 status: log.status,
                 leave_type: log.leaveType || '',
@@ -1008,7 +1007,7 @@ export function renderAttendancePage(container, props) {
                     <div class="detail-item"><h4 class="detail-label">Mobile</h4><p class="detail-value">${member.mobileNumber || 'N/A'}</p></div>
                     <div class="detail-item"><h4 class="detail-label">Designation</h4><p class="detail-value">${member.designation || 'N/A'}</p></div>
                     <div class="detail-item"><h4 class="detail-label">Internal Team</h4><p class="detail-value">${member.internalTeam || 'N/A'}</p></div>
-                    <div class="detail-item"><h4 class="detail-label">Join Date</h4><p class="detail-value">${member.joinDate ? new Date(member.joinDate + 'T00:00:00').toLocaleDateString() : 'N/A'}</p></div>
+                    <div class="detail-item"><h4 class="detail-label">Join Date</h4><p class="detail-value">${member.joinDate ? formatDateToIndian(member.joinDate) : 'N/A'}</p></div>
                     <div class="detail-item"><h4 class="detail-label">Status</h4><p class="detail-value"><span class="team-status-badge status-${member.status.toLowerCase()}">${member.status}</span></p></div>
                 `;
                 detailGrid.appendChild(createIdFieldWithCopy('Member ID', member.id));
