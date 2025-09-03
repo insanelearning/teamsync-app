@@ -55,7 +55,7 @@ function createInsightList(title, items) {
 
 
 export function renderWorkLogPage(container, props) {
-    const { workLogs, teamMembers, projects, currentUser, onAddMultipleWorkLogs, onUpdateWorkLog, onDeleteWorkLog, onExport, onImport, workLogTasks } = props;
+    const { workLogs, teamMembers, projects, currentUser, onAddMultipleWorkLogs, onUpdateWorkLog, onDeleteWorkLog, onBulkDeleteWorkLogs, onExport, onImport, workLogTasks } = props;
 
     const isManager = currentUser.role === TeamMemberRole.Manager;
     let currentPage = 1;
@@ -104,6 +104,13 @@ export function renderWorkLogPage(container, props) {
                 leftIcon: '<i class="fas fa-file-import"></i>', 
                 accept: '.csv',
                 onFileSelect: (file) => { if (file) onImport(file, 'worklogs'); }
+            }),
+            Button({
+                children: 'Bulk Delete',
+                variant: 'danger',
+                size: 'sm',
+                leftIcon: '<i class="fas fa-trash-alt"></i>',
+                onClick: openBulkDeleteModal
             })
         );
     }
@@ -443,6 +450,41 @@ export function renderWorkLogPage(container, props) {
             title: log ? 'Edit Work Log' : 'Add Work Log(s)',
             children: form,
             size: 'xl'
+        });
+    }
+
+    function openBulkDeleteModal() {
+        const logsToDelete = getFilteredLogs();
+        const count = logsToDelete.length;
+
+        if (count === 0) {
+            alert("No work logs match the current filters to delete.");
+            return;
+        }
+
+        const modalContent = document.createElement('div');
+        modalContent.innerHTML = `
+            <p>Are you sure you want to delete <strong>${count}</strong> work log entr${count > 1 ? 'ies' : 'y'} that match the current filters?</p>
+            <p>This action cannot be undone.</p>
+        `;
+
+        const confirmButton = Button({
+            children: `Delete ${count} entr${count > 1 ? 'ies' : 'y'}`,
+            variant: 'danger',
+            onClick: () => {
+                const logIds = logsToDelete.map(log => log.id);
+                onBulkDeleteWorkLogs(logIds);
+                closeModal();
+            }
+        });
+
+        currentModalInstance = Modal({
+            isOpen: true,
+            onClose: closeModal,
+            title: 'Confirm Bulk Deletion',
+            children: modalContent,
+            footer: [Button({ children: 'Cancel', variant: 'secondary', onClick: closeModal }), confirmButton],
+            size: 'md'
         });
     }
 
