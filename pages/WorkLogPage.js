@@ -215,11 +215,22 @@ export function renderWorkLogPage(container, props) {
     pageWrapper.appendChild(contentSection);
 
     function getFilteredLogs() {
+        const taskMap = new Map((workLogTasks || []).map(task => [task.name, task]));
+    
         return workLogs.filter(log => {
             const isMemberMatch = !filterState.memberId || log.memberId === filterState.memberId;
             const isProjectMatch = !filterState.projectId || log.projectId === filterState.projectId;
             const isDateMatch = log.date >= filterState.startDate && log.date <= filterState.endDate;
-            return isMemberMatch && isProjectMatch && isDateMatch;
+    
+            let isCategoryOrTaskMatch = true;
+            if (selectedTask) {
+                isCategoryOrTaskMatch = log.taskName === selectedTask;
+            } else if (selectedCategory) {
+                const taskCategory = taskMap.get(log.taskName)?.category || 'Uncategorized';
+                isCategoryOrTaskMatch = taskCategory === selectedCategory;
+            }
+    
+            return isMemberMatch && isProjectMatch && isDateMatch && isCategoryOrTaskMatch;
         }).sort((a,b) => new Date(b.date) - new Date(a.date));
     }
     
@@ -259,7 +270,7 @@ export function renderWorkLogPage(container, props) {
 
     function renderAnalysisSection(filteredLogs) {
         analysisContainer.innerHTML = '';
-        if (filteredLogs.length === 0) return;
+        if (filteredLogs.length === 0 && !selectedCategory) return;
 
         const analysisDashboard = document.createElement('div');
         analysisDashboard.className = 'analysis-dashboard-grid';
@@ -363,6 +374,38 @@ export function renderWorkLogPage(container, props) {
         
         const startIndex = (currentPage - 1) * rowsPerPage;
         const logsForPage = allFilteredLogs.slice(startIndex, startIndex + rowsPerPage);
+
+        // Clear and add the filter indicator
+        const existingIndicator = tableSectionWrapper.querySelector('.chart-filter-indicator');
+        if (existingIndicator) {
+            existingIndicator.remove();
+        }
+
+        if (selectedCategory) {
+            const indicator = document.createElement('div');
+            indicator.className = 'chart-filter-indicator';
+            
+            const filterText = selectedTask 
+                ? `Task: "${selectedTask}"` 
+                : `Category: "${selectedCategory}"`;
+
+            const clearButton = Button({
+                children: 'Clear Filter',
+                variant: 'ghost',
+                size: 'sm',
+                onClick: () => {
+                    if (selectedTask) { selectedTask = null; } 
+                    else { selectedCategory = null; }
+                    rerenderPage();
+                }
+            });
+            
+            indicator.innerHTML = `<span>Filtering by: <strong>${filterText}</strong></span>`;
+            indicator.appendChild(clearButton);
+            
+            tableSectionWrapper.insertBefore(indicator, tableContainer);
+        }
+
 
         tableContainer.innerHTML = '';
         if (logsForPage.length === 0) {
@@ -491,11 +534,13 @@ export function renderWorkLogPage(container, props) {
     function rerenderPage() {
         const filteredLogs = getFilteredLogs();
         const todaysDate = new Date().toISOString().split('T')[0];
-        const todaysLogs = workLogs.filter(log => {
+        // For the summary card, we need to filter Today's logs based on the main filters, not the chart filter
+        const baseFilteredLogs = workLogs.filter(log => {
             const isMemberMatch = !filterState.memberId || log.memberId === filterState.memberId;
             const isProjectMatch = !filterState.projectId || log.projectId === filterState.projectId;
-            return isMemberMatch && isProjectMatch && log.date === todaysDate;
+            return isMemberMatch && isProjectMatch;
         });
+        const todaysLogs = baseFilteredLogs.filter(log => log.date === todaysDate);
         const todaysTotalMinutes = todaysLogs.reduce((acc, log) => acc + (Number(log.timeSpentMinutes) || 0), 0);
         
         updateSummaries(filteredLogs, todaysTotalMinutes);
