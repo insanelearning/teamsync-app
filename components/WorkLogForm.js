@@ -65,7 +65,7 @@ export function WorkLogForm({ log, currentUser, teamMembers, projects, workLogTa
         const selectedMember = teamMembers.find(m => m.id === commonData.memberId);
         const selectedMemberTeam = selectedMember ? selectedMember.internalTeam : '';
 
-        const projectsForMember = projects.filter(p => p.status !== 'Done' && (p.assignees || []).includes(commonData.memberId));
+        const projectsForMember = projects.filter(p => p.status !== 'To Do' && (p.assignees || []).includes(commonData.memberId));
 
         const availableTasksForMember = (workLogTasks || []).filter(task => (task.teams || []).includes(selectedMemberTeam));
         const tasksGroupedByCategory = availableTasksForMember.reduce((acc, task) => {
